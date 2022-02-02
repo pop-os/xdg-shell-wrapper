@@ -1,0 +1,12 @@
+[package]
+name = "xdg-shell-wrapper"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+smithay = "0.3.0"
+sctk = { package = "smithay-client-toolkit", version = "0.15.3" }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
