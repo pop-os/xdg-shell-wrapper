@@ -4,15 +4,11 @@ use std::cmp::min;
 
 use crate::util::*;
 use anyhow::Result;
-use sctk::reexports::calloop;
+use sctk::reexports::calloop::{self, channel};
 use sctk::reexports::client::protocol::{wl_keyboard, wl_pointer, wl_shm, wl_surface};
-use sctk::seat::keyboard::{map_keyboard_repeat, Event as KbEvent, RepeatKind};
+use sctk::seat::keyboard::{self, map_keyboard_repeat, RepeatKind};
 use sctk::shm::AutoMemPool;
 use sctk::window::{Event as WEvent, FallbackFrame};
-use tokio::{
-    sync::mpsc::{Receiver, Sender},
-    task,
-};
 
 sctk::default_environment!(KbdInputExample, desktop);
 
@@ -21,9 +17,9 @@ type Seat = (
     Option<wl_pointer::WlPointer>,
 );
 
-pub async fn new_client(
-    client_tx: Sender<ClientMsg>,
-    mut server_rx: Receiver<ServerMsg>,
+pub fn new_client(
+    client_tx: channel::SyncSender<ClientMsg>,
+    server_rx: channel::Channel<ServerMsg>,
 ) -> Result<()> {
     /*
      * Initial setup
@@ -37,7 +33,6 @@ pub async fn new_client(
     // Here `Option<WEvent>` is the type of a global value that will be shared by
     // all callbacks invoked by the event loop.
     let mut event_loop = calloop::EventLoop::<Option<WEvent>>::try_new().unwrap();
-
     /*
      * Create a buffer with window contents
      */
@@ -97,20 +92,19 @@ pub async fn new_client(
                 let mut new_seat: Seat = (None, None);
                 if has_kbd {
                     let seat_name = name.clone();
+                    let tx = client_tx.clone();
                     match map_keyboard_repeat(
                         event_loop.handle(),
                         &seat,
                         None,
                         RepeatKind::System,
-                        move |event, _, _| print_keyboard_event(event, &seat_name),
+                        move |event, _, _| send_keyboard_event(event, &seat_name, tx.clone()),
                     ) {
                         Ok((kbd, repeat_source)) => {
                             new_seat.0 = Some((kbd, repeat_source));
-                            // seats.push((name.clone(), Some(Seat::Kb(kbd, repeat_source))));
                         }
                         Err(e) => {
                             eprintln!("Failed to map keyboard on seat {} : {:?}.", name, e);
-                            // seats.push((name.clone(), None));
                         }
                     }
                 }
@@ -118,8 +112,9 @@ pub async fn new_client(
                     let seat_name = name.clone();
                     let pointer = seat.get_pointer();
                     let surface = window.surface().clone();
+                    let tx = client_tx.clone();
                     pointer.quick_assign(move |_, event, _| {
-                        print_pointer_event(event, &seat_name, &surface)
+                        send_pointer_event(event, &seat_name, &surface, tx.clone())
                     });
                     new_seat.1 = Some(pointer.detach());
                 }
@@ -133,6 +128,8 @@ pub async fn new_client(
     // then setup a listener for changes
     let loop_handle = event_loop.handle();
     let main_surface = window.surface().clone();
+
+    let tx = client_tx.clone();
     let _seat_listener = env.listen_for_seats(move |seat, seat_data, _| {
         // find the seat in the vec of seats, or insert it if it is unknown
         let idx = seats.iter().position(|(name, _)| name == &seat_data.name);
@@ -147,12 +144,13 @@ pub async fn new_client(
             if opt_seat.0.is_none() {
                 // we should initalize a keyboard
                 let seat_name = seat_data.name.clone();
+                let tx_ = tx.clone();
                 match map_keyboard_repeat(
                     loop_handle.clone(),
                     &seat,
                     None,
                     RepeatKind::System,
-                    move |event, _, _| print_keyboard_event(event, &seat_name),
+                    move |event, _, _| send_keyboard_event(event, &seat_name, tx_.clone()),
                 ) {
                     Ok((kbd, repeat_source)) => {
                         (*opt_seat).0 = Some((kbd, repeat_source));
@@ -170,8 +168,9 @@ pub async fn new_client(
                 let seat_name = seat_data.name.clone();
                 let pointer = seat.get_pointer();
                 let surface = main_surface.clone();
+                let tx_ = tx.clone();
                 pointer.quick_assign(move |_, event, _| {
-                    print_pointer_event(event, &seat_name, &surface)
+                    send_pointer_event(event, &seat_name, &surface, tx_.clone())
                 });
                 (*opt_seat).1 = Some(pointer.detach());
             }
@@ -194,61 +193,67 @@ pub async fn new_client(
         window.refresh();
     }
 
-    let mut next_action = None;
+    let mut next_action: Option<WEvent> = None;
 
     sctk::WaylandSource::new(queue)
         .quick_insert(event_loop.handle())
         .unwrap();
 
-    let local = task::LocalSet::new();
-    local
-        .run_until(async move {
-            // handles messages from embedded wayland server
-            let f1 = task::spawn_local(async move {
-                match server_rx.recv().await.unwrap() {
+    // handle messages from embedded wayland server
+    event_loop
+        .handle()
+        .insert_source(
+            server_rx,
+            move |event, _metadata, _shared_data| match event {
+                channel::Event::Msg(e) => match e {
                     ServerMsg::Other => {
                         println!("hello");
                     }
-                }
-            });
+                },
+                _ => {}
+            },
+        )
+        .unwrap();
 
-            // handles messages with desktop wayland server
-            let f2 = task::spawn_local(async move {
-                loop {
-                    match next_action.take() {
-                        Some(WEvent::Close) => break,
-                        Some(WEvent::Refresh) => {
-                            window.refresh();
-                            window.surface().commit();
-                        }
-                        Some(WEvent::Configure { new_size, states }) => {
-                            if let Some((w, h)) = new_size {
-                                window.resize(w, h);
-                                dimensions = (w, h)
-                            }
-                            println!("Window states: {:?}", states);
-                            window.refresh();
-                            redraw(&mut pool, window.surface(), dimensions)
-                                .expect("Failed to draw");
-                        }
-                        None => {}
+    // handles messages with desktop wayland server
+    loop {
+        if let Some(event) = next_action.take() {
+            let _ = (&client_tx).clone().send(ClientMsg::WEvent(event.clone()));
+            match event {
+                WEvent::Close => break,
+                WEvent::Refresh => {
+                    window.refresh();
+                    window.surface().commit();
+                }
+                WEvent::Configure { new_size, states } => {
+                    if let Some((w, h)) = new_size {
+                        window.resize(w, h);
+                        dimensions = (w, h)
                     }
-
-                    // always flush the connection before going to sleep waiting for events
-                    display.flush().unwrap();
-
-                    event_loop.dispatch(None, &mut next_action).unwrap();
-                    task::yield_now().await;
+                    println!("Window states: {:?}", states);
+                    window.refresh();
+                    redraw(&mut pool, window.surface(), dimensions).expect("Failed to draw");
                 }
-            });
-            tokio::join!(f1, f2);
-        })
-        .await;
+            }
+        }
+
+        // always flush the connection before going to sleep waiting for events
+        display.flush().unwrap();
+
+        event_loop.dispatch(None, &mut next_action).unwrap();
+    }
     Ok(())
 }
 
-fn print_keyboard_event(event: KbEvent, seat_name: &str) {
-    match event {
+fn send_keyboard_event(
+    event: keyboard::Event,
+    seat_name: &str,
+    tx: channel::SyncSender<ClientMsg>,
+) {
+    let e: KbEvent = event.into();
+    let _ = tx.send(ClientMsg::KbEvent(e.clone()));
+
+    match e {
         KbEvent::Enter { keysyms, .. } => {
             println!(
                 "Gained focus on seat '{}' while {} keys pressed.",
@@ -285,48 +290,50 @@ fn print_keyboard_event(event: KbEvent, seat_name: &str) {
     }
 }
 
-fn print_pointer_event(
+fn send_pointer_event(
     event: wl_pointer::Event,
     seat_name: &str,
     main_surface: &wl_surface::WlSurface,
+    tx: channel::SyncSender<ClientMsg>,
 ) {
-    match event {
-        wl_pointer::Event::Enter {
-            surface,
-            surface_x,
-            surface_y,
-            ..
-        } => {
-            if main_surface == &surface {
-                println!(
-                    "Pointer of seat '{}' entered at ({}, {})",
-                    seat_name, surface_x, surface_y
-                );
-            }
-        }
-        wl_pointer::Event::Leave { surface, .. } => {
-            if main_surface == &surface {
-                println!("Pointer of seat '{}' left", seat_name);
-            }
-        }
-        wl_pointer::Event::Button { button, state, .. } => {
-            println!(
-                "Button {:?} of seat '{}' was {:?}",
-                button, seat_name, state
-            );
-        }
-        wl_pointer::Event::Motion {
-            surface_x,
-            surface_y,
-            ..
-        } => {
-            println!(
-                "Pointer motion to ({}, {}) on seat '{}'",
-                surface_x, surface_y, seat_name
-            )
-        }
-        _ => {}
-    }
+    let _ = tx.send(ClientMsg::PtrEvent(event));
+    // match event {
+    //     wl_pointer::Event::Enter {
+    //         surface,
+    //         surface_x,
+    //         surface_y,
+    //         ..
+    //     } => {
+    //         if main_surface == &surface {
+    //             println!(
+    //                 "Pointer of seat '{}' entered at ({}, {})",
+    //                 seat_name, surface_x, surface_y
+    //             );
+    //         }
+    //     }
+    //     wl_pointer::Event::Leave { surface, .. } => {
+    //         if main_surface == &surface {
+    //             println!("Pointer of seat '{}' left", seat_name);
+    //         }
+    //     }
+    //     wl_pointer::Event::Button { button, state, .. } => {
+    //         println!(
+    //             "Button {:?} of seat '{}' was {:?}",
+    //             button, seat_name, state
+    //         );
+    //     }
+    //     wl_pointer::Event::Motion {
+    //         surface_x,
+    //         surface_y,
+    //         ..
+    //     } => {
+    //         println!(
+    //             "Pointer motion to ({}, {}) on seat '{}'",
+    //             surface_x, surface_y, seat_name
+    //         )
+    //     }
+    //     _ => {}
+    // }
 }
 
 #[allow(clippy::many_single_char_names)]

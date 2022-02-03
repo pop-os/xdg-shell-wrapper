@@ -1585,9 +1585,11 @@ name = "xdg-shell-wrapper"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "once_cell",
  "smithay",
  "smithay-client-toolkit 0.15.3",
  "tokio",
+ "wayland-client 0.29.4",
 ]
 
 [[package]]
