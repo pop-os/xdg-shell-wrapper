@@ -804,6 +804,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
 name = "nom"
 version = "7.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1585,7 +1598,7 @@ name = "xdg-shell-wrapper"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "once_cell",
+ "nix 0.23.1",
  "smithay",
  "smithay-client-toolkit 0.15.3",
  "tokio",

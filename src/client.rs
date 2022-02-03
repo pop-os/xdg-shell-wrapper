@@ -9,6 +9,10 @@ use sctk::reexports::client::protocol::{wl_keyboard, wl_pointer, wl_shm, wl_surf
 use sctk::seat::keyboard::{self, map_keyboard_repeat, RepeatKind};
 use sctk::shm::AutoMemPool;
 use sctk::window::{Event as WEvent, FallbackFrame};
+use tokio::{
+    sync::mpsc::{Receiver, Sender},
+    task,
+};
 
 sctk::default_environment!(KbdInputExample, desktop);
 
@@ -17,9 +21,9 @@ type Seat = (
     Option<wl_pointer::WlPointer>,
 );
 
-pub fn new_client(
-    client_tx: channel::SyncSender<ClientMsg>,
-    server_rx: channel::Channel<ServerMsg>,
+pub async fn new_client(
+    client_tx: Sender<ClientMsg>,
+    mut server_rx: Receiver<ServerMsg>,
 ) -> Result<()> {
     /*
      * Initial setup
@@ -199,57 +203,47 @@ pub fn new_client(
         .quick_insert(event_loop.handle())
         .unwrap();
 
-    // handle messages from embedded wayland server
-    event_loop
-        .handle()
-        .insert_source(
-            server_rx,
-            move |event, _metadata, _shared_data| match event {
-                channel::Event::Msg(e) => match e {
-                    ServerMsg::Other => {
-                        println!("hello");
+    let local = task::LocalSet::new();
+    local
+        .run_until(async move {
+            // handles messages from embedded wayland server
+            let f1 = task::spawn_local(async move { match server_rx.recv().await.unwrap() {} });
+
+            // handles messages with desktop wayland server
+            let f2 = task::spawn_local(async move {
+                loop {
+                    match next_action.take() {
+                        Some(WEvent::Close) => break,
+                        Some(WEvent::Refresh) => {
+                            window.refresh();
+                            window.surface().commit();
+                        }
+                        Some(WEvent::Configure { new_size, states }) => {
+                            if let Some((w, h)) = new_size {
+                                window.resize(w, h);
+                                dimensions = (w, h)
+                            }
+                            println!("Window states: {:?}", states);
+                            window.refresh();
+                            redraw(&mut pool, window.surface(), dimensions)
+                                .expect("Failed to draw");
+                        }
+                        None => {}
                     }
-                },
-                _ => {}
-            },
-        )
-        .unwrap();
-
-    // handles messages with desktop wayland server
-    loop {
-        if let Some(event) = next_action.take() {
-            let _ = (&client_tx).clone().send(ClientMsg::WEvent(event.clone()));
-            match event {
-                WEvent::Close => break,
-                WEvent::Refresh => {
-                    window.refresh();
-                    window.surface().commit();
+                    // always flush the connection before going to sleep waiting for events
+                    display.flush().unwrap();
+                    event_loop.dispatch(None, &mut next_action).unwrap();
+                    task::yield_now().await;
                 }
-                WEvent::Configure { new_size, states } => {
-                    if let Some((w, h)) = new_size {
-                        window.resize(w, h);
-                        dimensions = (w, h)
-                    }
-                    println!("Window states: {:?}", states);
-                    window.refresh();
-                    redraw(&mut pool, window.surface(), dimensions).expect("Failed to draw");
-                }
-            }
-        }
+            });
+            tokio::join!(f1, f2);
+        })
+        .await;
 
-        // always flush the connection before going to sleep waiting for events
-        display.flush().unwrap();
-
-        event_loop.dispatch(None, &mut next_action).unwrap();
-    }
     Ok(())
 }
 
-fn send_keyboard_event(
-    event: keyboard::Event,
-    seat_name: &str,
-    tx: channel::SyncSender<ClientMsg>,
-) {
+fn send_keyboard_event(event: keyboard::Event, seat_name: &str, tx: Sender<ClientMsg>) {
     let e: KbEvent = event.into();
     let _ = tx.send(ClientMsg::KbEvent(e.clone()));
 
@@ -294,7 +288,7 @@ fn send_pointer_event(
     event: wl_pointer::Event,
     seat_name: &str,
     main_surface: &wl_surface::WlSurface,
-    tx: channel::SyncSender<ClientMsg>,
+    tx: Sender<ClientMsg>,
 ) {
     let _ = tx.send(ClientMsg::PtrEvent(event));
     // match event {
