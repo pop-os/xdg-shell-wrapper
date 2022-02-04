@@ -5,8 +5,7 @@ use std::cmp::min;
 use crate::util::*;
 use anyhow::Result;
 use sctk::reexports::calloop;
-use sctk::reexports::client;
-use sctk::reexports::client::protocol::{wl_keyboard, wl_pointer, wl_shm, wl_surface};
+use sctk::reexports::client::protocol::{wl_pointer, wl_shm, wl_surface};
 use sctk::seat::keyboard::{self, map_keyboard_repeat, RepeatKind};
 use sctk::shm::AutoMemPool;
 use sctk::window::{Event as WEvent, FallbackFrame};
@@ -183,8 +182,6 @@ pub fn new_client(
         redraw(&mut pool, window.surface(), dimensions).expect("Failed to draw");
         window.refresh();
     }
-
-    let mut next_action: Option<WEvent> = None;
 
     sctk::WaylandSource::new(queue)
         .quick_insert(loop_handle)

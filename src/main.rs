@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use anyhow::Result;
-use std::thread;
 mod client;
 mod server;
 mod util;
-use sctk::window::{Event as WEvent, FallbackFrame};
+use sctk::window::Event as WEvent;
 use util::*;
 
 fn main() -> Result<()> {
@@ -37,7 +36,7 @@ fn main() -> Result<()> {
             let signal = &mut shared_data.loop_signal;
             if let Some(event) = next_wevent.take() {
                 match event {
-                    WEvent::Close => signal.stop(), // TODO signal event loop to stop
+                    WEvent::Close => signal.stop(),
                     WEvent::Refresh => {
                         window.refresh();
                         window.surface().commit();

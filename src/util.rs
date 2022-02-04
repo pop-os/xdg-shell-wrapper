@@ -2,9 +2,8 @@
 
 use sctk::reexports::client::{
     self,
-    protocol::{wl_keyboard, wl_pointer, wl_shm, wl_surface},
+    protocol::{wl_keyboard, wl_pointer},
 };
-use sctk::seat::keyboard::{self, KeyState, ModifiersState};
 use sctk::shm::AutoMemPool;
 use sctk::window::{Event as WEvent, FallbackFrame, Window};
 use smithay::reexports::{calloop, wayland_server};

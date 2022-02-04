@@ -17,7 +17,7 @@ pub fn new_server(
     let mut display = wayland_server::Display::new();
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
     display.add_socket_from(display_sock).unwrap();
-    let display_client = unsafe { display.create_client(client_sock.as_raw_fd(), &mut ()) };
+    let _display_client = unsafe { display.create_client(client_sock.as_raw_fd(), &mut ()) };
     compositor_init(&mut display, |_surface, _dispatch_data| {}, None);
     let display_event_source = Generic::new(display.get_poll_fd(), Interest::READ, Mode::Edge);
     loop_handle.insert_source(display_event_source, move |_e, _metadata, shared_data| {
