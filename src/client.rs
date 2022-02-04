@@ -4,7 +4,8 @@ use std::cmp::min;
 
 use crate::util::*;
 use anyhow::Result;
-use sctk::reexports::calloop::{self, channel};
+use sctk::reexports::calloop;
+use sctk::reexports::client;
 use sctk::reexports::client::protocol::{wl_keyboard, wl_pointer, wl_shm, wl_surface};
 use sctk::seat::keyboard::{self, map_keyboard_repeat, RepeatKind};
 use sctk::shm::AutoMemPool;
@@ -12,15 +13,9 @@ use sctk::window::{Event as WEvent, FallbackFrame};
 
 sctk::default_environment!(KbdInputExample, desktop);
 
-type Seat = (
-    Option<(wl_keyboard::WlKeyboard, calloop::RegistrationToken)>,
-    Option<wl_pointer::WlPointer>,
-);
-
 pub fn new_client(
-    client_tx: channel::SyncSender<ClientMsg>,
-    server_rx: channel::Channel<ServerMsg>,
-) -> Result<()> {
+    loop_handle: calloop::LoopHandle<'static, GlobalState>,
+) -> Result<DesktopClientState> {
     /*
      * Initial setup
      */
@@ -32,12 +27,11 @@ pub fn new_client(
      */
     // Here `Option<WEvent>` is the type of a global value that will be shared by
     // all callbacks invoked by the event loop.
-    let mut event_loop = calloop::EventLoop::<Option<WEvent>>::try_new().unwrap();
     /*
      * Create a buffer with window contents
      */
 
-    let mut dimensions = (320u32, 240u32);
+    let dimensions = (320u32, 240u32);
 
     /*
      * Init wayland objects
@@ -51,7 +45,8 @@ pub fn new_client(
             None,
             dimensions,
             move |evt, mut dispatch_data| {
-                let next_action = dispatch_data.get::<Option<WEvent>>().unwrap();
+                let shared_state = dispatch_data.get::<GlobalState>().unwrap();
+                let next_action = &mut shared_state.desktop_client_state.next_wevent;
                 // Keep last event in priority order : Close > Configure > Refresh
                 let replace = matches!(
                     (&evt, &*next_action),
@@ -80,6 +75,7 @@ pub fn new_client(
     let mut seats = Vec::<(String, Seat)>::new();
 
     // first process already existing seats
+    let handle = loop_handle.clone();
     for seat in env.get_all_seats() {
         if let Some((has_kbd, has_ptr, name)) = sctk::seat::with_seat_data(&seat, |seat_data| {
             (
@@ -92,13 +88,12 @@ pub fn new_client(
                 let mut new_seat: Seat = (None, None);
                 if has_kbd {
                     let seat_name = name.clone();
-                    let tx = client_tx.clone();
                     match map_keyboard_repeat(
-                        event_loop.handle(),
+                        handle.clone(),
                         &seat,
                         None,
                         RepeatKind::System,
-                        move |event, _, _| send_keyboard_event(event, &seat_name, tx.clone()),
+                        move |event, _, _| send_keyboard_event(event, &seat_name),
                     ) {
                         Ok((kbd, repeat_source)) => {
                             new_seat.0 = Some((kbd, repeat_source));
@@ -112,9 +107,8 @@ pub fn new_client(
                     let seat_name = name.clone();
                     let pointer = seat.get_pointer();
                     let surface = window.surface().clone();
-                    let tx = client_tx.clone();
                     pointer.quick_assign(move |_, event, _| {
-                        send_pointer_event(event, &seat_name, &surface, tx.clone())
+                        send_pointer_event(event, &seat_name, &surface)
                     });
                     new_seat.1 = Some(pointer.detach());
                 }
@@ -126,10 +120,9 @@ pub fn new_client(
     }
 
     // then setup a listener for changes
-    let loop_handle = event_loop.handle();
     let main_surface = window.surface().clone();
 
-    let tx = client_tx.clone();
+    let handle = loop_handle.clone();
     let _seat_listener = env.listen_for_seats(move |seat, seat_data, _| {
         // find the seat in the vec of seats, or insert it if it is unknown
         let idx = seats.iter().position(|(name, _)| name == &seat_data.name);
@@ -144,13 +137,12 @@ pub fn new_client(
             if opt_seat.0.is_none() {
                 // we should initalize a keyboard
                 let seat_name = seat_data.name.clone();
-                let tx_ = tx.clone();
                 match map_keyboard_repeat(
-                    loop_handle.clone(),
+                    handle.clone(),
                     &seat,
                     None,
                     RepeatKind::System,
-                    move |event, _, _| send_keyboard_event(event, &seat_name, tx_.clone()),
+                    move |event, _, _| send_keyboard_event(event, &seat_name),
                 ) {
                     Ok((kbd, repeat_source)) => {
                         (*opt_seat).0 = Some((kbd, repeat_source));
@@ -168,9 +160,8 @@ pub fn new_client(
                 let seat_name = seat_data.name.clone();
                 let pointer = seat.get_pointer();
                 let surface = main_surface.clone();
-                let tx_ = tx.clone();
                 pointer.quick_assign(move |_, event, _| {
-                    send_pointer_event(event, &seat_name, &surface, tx_.clone())
+                    send_pointer_event(event, &seat_name, &surface)
                 });
                 (*opt_seat).1 = Some(pointer.detach());
             }
@@ -179,7 +170,7 @@ pub fn new_client(
             //cleanup
             if let Some((kbd, source)) = kbd_seat.take() {
                 kbd.release();
-                loop_handle.remove(source);
+                handle.remove(source);
             }
             if let Some(ptr) = ptr_seat.take() {
                 ptr.release();
@@ -196,75 +187,35 @@ pub fn new_client(
     let mut next_action: Option<WEvent> = None;
 
     sctk::WaylandSource::new(queue)
-        .quick_insert(event_loop.handle())
+        .quick_insert(loop_handle)
         .unwrap();
 
-    // handle messages from embedded wayland server
-    event_loop
-        .handle()
-        .insert_source(
-            server_rx,
-            move |event, _metadata, _shared_data| match event {
-                channel::Event::Msg(e) => match e {
-                    ServerMsg::Other => {
-                        println!("hello");
-                    }
-                },
-                _ => {}
-            },
-        )
-        .unwrap();
-
-    // handles messages with desktop wayland server
-    loop {
-        if let Some(event) = next_action.take() {
-            let _ = (&client_tx).clone().send(ClientMsg::WEvent(event.clone()));
-            match event {
-                WEvent::Close => break,
-                WEvent::Refresh => {
-                    window.refresh();
-                    window.surface().commit();
-                }
-                WEvent::Configure { new_size, states } => {
-                    if let Some((w, h)) = new_size {
-                        window.resize(w, h);
-                        dimensions = (w, h)
-                    }
-                    println!("Window states: {:?}", states);
-                    window.refresh();
-                    redraw(&mut pool, window.surface(), dimensions).expect("Failed to draw");
-                }
-            }
-        }
-
-        // always flush the connection before going to sleep waiting for events
-        display.flush().unwrap();
-
-        event_loop.dispatch(None, &mut next_action).unwrap();
-    }
-    Ok(())
+    Ok(DesktopClientState {
+        display,
+        window,
+        dimensions,
+        pool,
+        seats: Default::default(),
+        next_wevent: Default::default(),
+    })
 }
 
-fn send_keyboard_event(
-    event: keyboard::Event,
-    _seat_name: &str,
-    tx: channel::SyncSender<ClientMsg>,
-) {
-    let e: KbEvent = event.into();
-    let _ = tx.send(ClientMsg::KbEvent(e.clone()));
+fn send_keyboard_event(event: keyboard::Event, _seat_name: &str) {
+    dbg!(event);
+    //TODO forward event through embedded server
 }
 
 fn send_pointer_event(
     event: wl_pointer::Event,
     _seat_name: &str,
     _main_surface: &wl_surface::WlSurface,
-    tx: channel::SyncSender<ClientMsg>,
 ) {
-    let _ = tx.send(ClientMsg::PtrEvent(event));
+    dbg!(event);
+    //TODO forward event through embedded server
 }
 
 #[allow(clippy::many_single_char_names)]
-fn redraw(
+pub fn redraw(
     pool: &mut AutoMemPool,
     surface: &wl_surface::WlSurface,
     (buf_x, buf_y): (u32, u32),
