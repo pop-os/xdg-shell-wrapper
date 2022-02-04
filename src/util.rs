@@ -7,6 +7,7 @@ use sctk::reexports::client::{
 use sctk::shm::AutoMemPool;
 use sctk::window::{Event as WEvent, FallbackFrame, Window};
 use smithay::reexports::{calloop, wayland_server};
+use wayland_client::GlobalManager;
 
 pub type Seat = (
     Option<(wl_keyboard::WlKeyboard, calloop::RegistrationToken)>,
@@ -28,6 +29,7 @@ pub struct DesktopClientState {
     pub window: Window<FallbackFrame>,
     pub dimensions: (u32, u32),
     pub pool: AutoMemPool,
+    pub globals: GlobalManager,
 }
 
 #[derive(Debug)]

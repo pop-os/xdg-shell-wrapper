@@ -34,6 +34,7 @@ fn main() -> Result<()> {
                 ..
             } = &mut shared_data.desktop_client_state;
             let signal = &mut shared_data.loop_signal;
+
             if let Some(event) = next_wevent.take() {
                 match event {
                     WEvent::Close => signal.stop(),

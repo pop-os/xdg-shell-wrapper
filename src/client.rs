@@ -9,6 +9,13 @@ use sctk::reexports::client::protocol::{wl_pointer, wl_shm, wl_surface};
 use sctk::seat::keyboard::{self, map_keyboard_repeat, RepeatKind};
 use sctk::shm::AutoMemPool;
 use sctk::window::{Event as WEvent, FallbackFrame};
+use smithay::reexports::{
+    wayland_commons::Interface,
+    wayland_protocols::wlr::unstable::layer_shell::v1::client::{
+        zwlr_layer_shell_v1, zwlr_layer_surface_v1,
+    },
+};
+use wayland_client::{GlobalEvent, GlobalManager};
 
 sctk::default_environment!(KbdInputExample, desktop);
 
@@ -18,9 +25,14 @@ pub fn new_client(
     /*
      * Initial setup
      */
-    let (env, display, queue) = sctk::new_default_environment!(KbdInputExample, desktop)
+    let (env, display, mut queue) = sctk::new_default_environment!(KbdInputExample, desktop)
         .expect("Unable to connect to a Wayland compositor");
 
+    let attached_display = display.attach(queue.token());
+    let globals = GlobalManager::new(&attached_display);
+    queue
+        .sync_roundtrip(&mut (), |_, _, _| unreachable!())
+        .unwrap();
     /*
      * Prepare a calloop event loop to handle key repetion
      */
@@ -37,6 +49,18 @@ pub fn new_client(
      */
 
     let surface = env.create_surface().detach();
+    let wlr_layer_shell = globals
+        .instantiate_exact::<zwlr_layer_shell_v1::ZwlrLayerShellV1>(1)
+        .unwrap();
+    // dbg!(wlr_layer_shell);
+    let wlr_layer_surface = wlr_layer_shell.get_layer_surface(
+        &surface,
+        None,
+        zwlr_layer_shell_v1::Layer::Top,
+        "com.cosmic.xdg-wrapper".into(),
+    );
+    wlr_layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::empty());
+    surface.commit();
 
     let mut window = env
         .create_window::<FallbackFrame, _>(
@@ -44,7 +68,13 @@ pub fn new_client(
             None,
             dimensions,
             move |evt, mut dispatch_data| {
-                let shared_state = dispatch_data.get::<GlobalState>().unwrap();
+                let shared_state = match dispatch_data.get::<GlobalState>() {
+                    Some(s) => s,
+                    None => {
+                        eprintln!("Received window event before initializeing global state...");
+                        return;
+                    }
+                };
                 let next_action = &mut shared_state.desktop_client_state.next_wevent;
                 // Keep last event in priority order : Close > Configure > Refresh
                 let replace = matches!(
@@ -177,11 +207,11 @@ pub fn new_client(
         }
     });
 
-    if !env.get_shell().unwrap().needs_configure() {
-        // initial draw to bootstrap on wl_shell
-        redraw(&mut pool, window.surface(), dimensions).expect("Failed to draw");
-        window.refresh();
-    }
+    // if !env.get_shell().unwrap().needs_configure() {
+    //     // initial draw to bootstrap on wl_shell
+    //     redraw(&mut pool, window.surface(), dimensions).expect("Failed to draw");
+    //     window.refresh();
+    // }
 
     sctk::WaylandSource::new(queue)
         .quick_insert(loop_handle)
@@ -192,13 +222,14 @@ pub fn new_client(
         window,
         dimensions,
         pool,
+        globals,
         seats: Default::default(),
         next_wevent: Default::default(),
     })
 }
 
 fn send_keyboard_event(event: keyboard::Event, _seat_name: &str) {
-    dbg!(event);
+    // dbg!(event);
     //TODO forward event through embedded server
 }
 
@@ -207,7 +238,7 @@ fn send_pointer_event(
     _seat_name: &str,
     _main_surface: &wl_surface::WlSurface,
 ) {
-    dbg!(event);
+    // dbg!(event);
     //TODO forward event through embedded server
 }
 
