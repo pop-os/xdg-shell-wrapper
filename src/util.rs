@@ -117,4 +117,6 @@ pub enum ClientMsg {
     PtrEvent(wl_pointer::Event),
 }
 
-pub enum ServerMsg {}
+pub enum ServerMsg {
+    Other,
+}

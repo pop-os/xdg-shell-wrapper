@@ -7,8 +7,7 @@ edition = "2021"
 
 [dependencies]
 smithay = "0.3"
+calloop = { version = "0.9", features = ["executor", "futures-io"] }
 sctk = { package = "smithay-client-toolkit", version = "0.15" }
 wayland-client = "0.29"
-tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
-nix = "0.23"
