@@ -18,6 +18,7 @@ fn main() -> Result<()> {
     let mut global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,
+        loop_signal: event_loop.get_signal(),
     };
     // handles messages with desktop wayland server
     // loop {
@@ -33,10 +34,10 @@ fn main() -> Result<()> {
                 pool,
                 ..
             } = &mut shared_data.desktop_client_state;
-
+            let signal = &mut shared_data.loop_signal;
             if let Some(event) = next_wevent.take() {
                 match event {
-                    WEvent::Close => {} // TODO signal event loop to stop
+                    WEvent::Close => signal.stop(), // TODO signal event loop to stop
                     WEvent::Refresh => {
                         window.refresh();
                         window.surface().commit();

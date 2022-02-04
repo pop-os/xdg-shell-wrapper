@@ -7,7 +7,7 @@ use sctk::reexports::client::{
 use sctk::seat::keyboard::{self, KeyState, ModifiersState};
 use sctk::shm::AutoMemPool;
 use sctk::window::{Event as WEvent, FallbackFrame, Window};
-use smithay::reexports::wayland_server;
+use smithay::reexports::{calloop, wayland_server};
 
 pub type Seat = (
     Option<(wl_keyboard::WlKeyboard, calloop::RegistrationToken)>,
@@ -18,6 +18,7 @@ pub type Seat = (
 pub struct GlobalState {
     pub desktop_client_state: DesktopClientState,
     pub embedded_server_state: EmbeddedServerState,
+    pub loop_signal: calloop::LoopSignal,
 }
 
 #[derive(Debug)]
