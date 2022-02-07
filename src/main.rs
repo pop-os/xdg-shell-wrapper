@@ -32,8 +32,8 @@ fn main() -> Result<()> {
 
     let mut event_loop = calloop::EventLoop::<util::GlobalState>::try_new().unwrap();
     let loop_handle = event_loop.handle();
-    let desktop_client_state = client::new_client(loop_handle.clone(), config)?;
-    let embedded_server_state = server::new_server(loop_handle)?;
+    let desktop_client_state = client::new_client(loop_handle.clone(), config.clone())?;
+    let embedded_server_state = server::new_server(loop_handle, config)?;
     let mut global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,

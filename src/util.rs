@@ -19,4 +19,5 @@ pub struct GlobalState {
 #[derive(Debug)]
 pub struct EmbeddedServerState {
     pub display: wayland_server::Display,
+    pub client: wayland_server::Client,
 }
