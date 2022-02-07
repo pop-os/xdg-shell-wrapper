@@ -3,6 +3,7 @@
 use std::cmp::min;
 
 use crate::util::*;
+use crate::XdgWrapperConfig;
 use anyhow::Result;
 use sctk::{
     default_environment,
@@ -57,6 +58,7 @@ pub struct Surface {
     pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
     pub pool: AutoMemPool,
     pub dimensions: (u32, u32),
+    pub config: XdgWrapperConfig,
 }
 
 impl Surface {
@@ -65,18 +67,19 @@ impl Surface {
         surface: wl_surface::WlSurface,
         layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         pool: AutoMemPool,
+        config: XdgWrapperConfig,
     ) -> Self {
         let layer_surface = layer_shell.get_layer_surface(
             &surface,
             Some(output),
-            zwlr_layer_shell_v1::Layer::Top,
+            config.layer.into(),
             "example".to_owned(),
         );
 
-        layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::empty());
-        layer_surface
-            .set_keyboard_interactivity(zwlr_layer_surface_v1::KeyboardInteractivity::OnDemand);
-        layer_surface.set_size(800, 600);
+        layer_surface.set_anchor(config.anchor.into());
+        layer_surface.set_keyboard_interactivity(config.keyboard_interactivity.into());
+        let (x, y) = config.dimensions;
+        layer_surface.set_size(x, y);
         // Anchor to the top left corner of the output
 
         let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
@@ -111,6 +114,7 @@ impl Surface {
             next_render_event,
             pool,
             dimensions: (0, 0),
+            config,
         }
     }
 
@@ -170,6 +174,7 @@ impl Drop for Surface {
 
 pub fn new_client(
     loop_handle: calloop::LoopHandle<'static, GlobalState>,
+    config: XdgWrapperConfig,
 ) -> Result<DesktopClientState> {
     /*
      * Initial setup
@@ -197,7 +202,7 @@ pub fn new_client(
                 .expect("Failed to create a memory pool!");
             *handle = Some((
                 info.id,
-                Surface::new(&output, surface, &layer_shell.clone(), pool),
+                Surface::new(&output, surface, &layer_shell.clone(), pool, config.clone()),
             ));
             dbg!(&handle);
         }

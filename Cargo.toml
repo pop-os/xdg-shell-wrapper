@@ -11,3 +11,6 @@ calloop = { version = "0.9", features = ["executor", "futures-io"] }
 sctk = { package = "smithay-client-toolkit", version = "0.15" }
 wayland-client = "0.29"
 anyhow = "1.0"
+ron = "0.7"
+serde = { version = "1", features = ["derive"] }
+xdg = "2.4.0"
