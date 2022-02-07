@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use sctk::reexports::client::{
-    self,
-    protocol::{wl_keyboard, wl_pointer},
-};
-use sctk::shm::AutoMemPool;
-use sctk::window::{Event as WEvent, FallbackFrame, Window};
+use crate::client::DesktopClientState;
+use sctk::reexports::client::protocol::{wl_keyboard, wl_pointer};
 use smithay::reexports::{calloop, wayland_server};
-use wayland_client::GlobalManager;
 
 pub type Seat = (
     Option<(wl_keyboard::WlKeyboard, calloop::RegistrationToken)>,
@@ -19,17 +14,6 @@ pub struct GlobalState {
     pub desktop_client_state: DesktopClientState,
     pub embedded_server_state: EmbeddedServerState,
     pub loop_signal: calloop::LoopSignal,
-}
-
-#[derive(Debug)]
-pub struct DesktopClientState {
-    pub next_wevent: Option<WEvent>,
-    pub display: client::Display,
-    pub seats: Vec<Seat>,
-    pub window: Window<FallbackFrame>,
-    pub dimensions: (u32, u32),
-    pub pool: AutoMemPool,
-    pub globals: GlobalManager,
 }
 
 #[derive(Debug)]

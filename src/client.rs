@@ -4,20 +4,169 @@ use std::cmp::min;
 
 use crate::util::*;
 use anyhow::Result;
-use sctk::reexports::calloop;
-use sctk::reexports::client::protocol::{wl_pointer, wl_shm, wl_surface};
-use sctk::seat::keyboard::{self, map_keyboard_repeat, RepeatKind};
-use sctk::shm::AutoMemPool;
-use sctk::window::{Event as WEvent, FallbackFrame};
-use smithay::reexports::{
-    wayland_commons::Interface,
-    wayland_protocols::wlr::unstable::layer_shell::v1::client::{
-        zwlr_layer_shell_v1, zwlr_layer_surface_v1,
+use sctk::{
+    default_environment,
+    environment::SimpleGlobal,
+    output::{with_output_info, OutputInfo, OutputStatusListener},
+    reexports::{
+        calloop, client,
+        client::protocol::{wl_output, wl_pointer, wl_shm, wl_surface},
+        client::{Attached, Main},
     },
+    seat::{
+        keyboard::{self, map_keyboard_repeat, RepeatKind},
+        SeatListener,
+    },
+    shm::AutoMemPool,
 };
-use wayland_client::{GlobalEvent, GlobalManager};
+use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
+    zwlr_layer_shell_v1, zwlr_layer_surface_v1,
+};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 sctk::default_environment!(KbdInputExample, desktop);
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum RenderEvent {
+    Configure { width: u32, height: u32 },
+    Closed,
+}
+
+default_environment!(Env,
+                     fields = [
+                         layer_shell: SimpleGlobal<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
+                     ],
+                     singles = [
+                         zwlr_layer_shell_v1::ZwlrLayerShellV1 => layer_shell
+                     ],
+);
+#[derive(Debug)]
+pub struct DesktopClientState {
+    pub display: client::Display,
+    pub seats: Vec<Seat>,
+    pub seat_listener: SeatListener,
+    pub output_listener: OutputStatusListener,
+    pub surface: Rc<RefCell<Option<(u32, Surface)>>>,
+}
+
+#[derive(Debug)]
+pub struct Surface {
+    pub surface: wl_surface::WlSurface,
+    pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
+    pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
+    pub pool: AutoMemPool,
+    pub dimensions: (u32, u32),
+}
+
+impl Surface {
+    fn new(
+        output: &wl_output::WlOutput,
+        surface: wl_surface::WlSurface,
+        layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
+        pool: AutoMemPool,
+    ) -> Self {
+        let layer_surface = layer_shell.get_layer_surface(
+            &surface,
+            Some(output),
+            zwlr_layer_shell_v1::Layer::Top,
+            "example".to_owned(),
+        );
+
+        layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::empty());
+        layer_surface
+            .set_keyboard_interactivity(zwlr_layer_surface_v1::KeyboardInteractivity::OnDemand);
+        layer_surface.set_size(800, 600);
+        // Anchor to the top left corner of the output
+
+        let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
+        let next_render_event_handle = Rc::clone(&next_render_event);
+        layer_surface.quick_assign(move |layer_surface, event, _| {
+            match (event, next_render_event_handle.get()) {
+                (zwlr_layer_surface_v1::Event::Closed, _) => {
+                    println!("closing");
+                    next_render_event_handle.set(Some(RenderEvent::Closed));
+                }
+                (
+                    zwlr_layer_surface_v1::Event::Configure {
+                        serial,
+                        width,
+                        height,
+                    },
+                    next,
+                ) if next != Some(RenderEvent::Closed) => {
+                    layer_surface.ack_configure(serial);
+                    next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
+                }
+                (_, _) => {}
+            }
+        });
+
+        // Commit so that the server will send a configure event
+        surface.commit();
+
+        Self {
+            surface,
+            layer_surface,
+            next_render_event,
+            pool,
+            dimensions: (0, 0),
+        }
+    }
+
+    /// Handles any events that have occurred since the last call, redrawing if needed.
+    /// Returns true if the surface should be dropped.
+    pub fn handle_events(&mut self) -> bool {
+        match self.next_render_event.take() {
+            Some(RenderEvent::Closed) => true,
+            Some(RenderEvent::Configure { width, height }) => {
+                if self.dimensions != (width, height) {
+                    self.dimensions = (width, height);
+                    self.draw();
+                }
+                false
+            }
+            None => false,
+        }
+    }
+
+    fn draw(&mut self) {
+        let stride = 4 * self.dimensions.0 as i32;
+        let width = self.dimensions.0 as i32;
+        let height = self.dimensions.1 as i32;
+
+        // Note: unwrap() is only used here in the interest of simplicity of the example.
+        // A "real" application should handle the case where both pools are still in use by the
+        // compositor.
+        let (canvas, buffer) = self
+            .pool
+            .buffer(width, height, stride, wl_shm::Format::Argb8888)
+            .unwrap();
+
+        for dst_pixel in canvas.chunks_exact_mut(4) {
+            let pixel = 0xff00ff00u32.to_ne_bytes();
+            dst_pixel[0] = pixel[0];
+            dst_pixel[1] = pixel[1];
+            dst_pixel[2] = pixel[2];
+            dst_pixel[3] = pixel[3];
+        }
+
+        // Attach the buffer to the surface and mark the entire surface as damaged
+        self.surface.attach(Some(&buffer), 0, 0);
+        self.surface
+            .damage_buffer(0, 0, width as i32, height as i32);
+
+        // Finally, commit the surface
+        self.surface.commit();
+    }
+}
+
+impl Drop for Surface {
+    fn drop(&mut self) {
+        self.layer_surface.destroy();
+        self.surface.destroy();
+    }
+}
 
 pub fn new_client(
     loop_handle: calloop::LoopHandle<'static, GlobalState>,
@@ -25,77 +174,43 @@ pub fn new_client(
     /*
      * Initial setup
      */
-    let (env, display, mut queue) = sctk::new_default_environment!(KbdInputExample, desktop)
-        .expect("Unable to connect to a Wayland compositor");
+    let (env, display, queue) =
+        sctk::new_default_environment!(Env, fields = [layer_shell: SimpleGlobal::new(),])
+            .expect("Unable to connect to a Wayland compositor");
 
-    let attached_display = display.attach(queue.token());
-    let globals = GlobalManager::new(&attached_display);
-    queue
-        .sync_roundtrip(&mut (), |_, _, _| unreachable!())
-        .unwrap();
-    /*
-     * Prepare a calloop event loop to handle key repetion
-     */
-    // Here `Option<WEvent>` is the type of a global value that will be shared by
-    // all callbacks invoked by the event loop.
-    /*
-     * Create a buffer with window contents
-     */
+    let surface = Rc::new(RefCell::new(None));
+    let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
+    let env_handle = env.clone();
+    let surface_handle = Rc::clone(&surface);
+    let output_handler = move |output: wl_output::WlOutput, info: &OutputInfo| {
+        let mut handle = surface_handle.borrow_mut();
+        dbg!(&handle);
+        if info.obsolete {
+            // an output has been removed, release it
+            handle.as_ref().filter(|(i, _)| *i != info.id);
+            output.release();
+        } else if handle.is_none() {
+            // an output has been created, construct a surface for it
+            let surface = env_handle.create_surface().detach();
+            let pool = env_handle
+                .create_auto_pool()
+                .expect("Failed to create a memory pool!");
+            *handle = Some((
+                info.id,
+                Surface::new(&output, surface, &layer_shell.clone(), pool),
+            ));
+            dbg!(&handle);
+        }
+    };
 
-    let dimensions = (320u32, 240u32);
+    for output in env.get_all_outputs() {
+        if let Some(info) = with_output_info(&output, Clone::clone) {
+            output_handler(output, &info);
+        }
+    }
 
-    /*
-     * Init wayland objects
-     */
-
-    let surface = env.create_surface().detach();
-    let wlr_layer_shell = globals
-        .instantiate_exact::<zwlr_layer_shell_v1::ZwlrLayerShellV1>(1)
-        .unwrap();
-    // dbg!(wlr_layer_shell);
-    let wlr_layer_surface = wlr_layer_shell.get_layer_surface(
-        &surface,
-        None,
-        zwlr_layer_shell_v1::Layer::Top,
-        "com.cosmic.xdg-wrapper".into(),
-    );
-    wlr_layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::empty());
-    surface.commit();
-
-    let mut window = env
-        .create_window::<FallbackFrame, _>(
-            surface,
-            None,
-            dimensions,
-            move |evt, mut dispatch_data| {
-                let shared_state = match dispatch_data.get::<GlobalState>() {
-                    Some(s) => s,
-                    None => {
-                        eprintln!("Received window event before initializeing global state...");
-                        return;
-                    }
-                };
-                let next_action = &mut shared_state.desktop_client_state.next_wevent;
-                // Keep last event in priority order : Close > Configure > Refresh
-                let replace = matches!(
-                    (&evt, &*next_action),
-                    (_, &None)
-                        | (_, &Some(WEvent::Refresh))
-                        | (&WEvent::Configure { .. }, &Some(WEvent::Configure { .. }))
-                        | (&WEvent::Close, _)
-                );
-                if replace {
-                    *next_action = Some(evt);
-                }
-            },
-        )
-        .expect("Failed to create a window !");
-
-    window.set_title("Kbd Input".to_string());
-
-    let mut pool = env
-        .create_auto_pool()
-        .expect("Failed to create a memory pool !");
+    let output_listener =
+        env.listen_for_outputs(move |output, info, _| output_handler(output, info));
 
     /*
      * Keyboard initialization
@@ -135,10 +250,7 @@ pub fn new_client(
                 if has_ptr {
                     let seat_name = name.clone();
                     let pointer = seat.get_pointer();
-                    let surface = window.surface().clone();
-                    pointer.quick_assign(move |_, event, _| {
-                        send_pointer_event(event, &seat_name, &surface)
-                    });
+                    pointer.quick_assign(move |_, event, _| send_pointer_event(event, &seat_name));
                     new_seat.1 = Some(pointer.detach());
                 }
                 seats.push((name.clone(), new_seat));
@@ -149,10 +261,9 @@ pub fn new_client(
     }
 
     // then setup a listener for changes
-    let main_surface = window.surface().clone();
 
     let handle = loop_handle.clone();
-    let _seat_listener = env.listen_for_seats(move |seat, seat_data, _| {
+    let seat_listener = env.listen_for_seats(move |seat, seat_data, _| {
         // find the seat in the vec of seats, or insert it if it is unknown
         let idx = seats.iter().position(|(name, _)| name == &seat_data.name);
         let idx = idx.unwrap_or_else(|| {
@@ -188,10 +299,7 @@ pub fn new_client(
                 // we should initalize a keyboard
                 let seat_name = seat_data.name.clone();
                 let pointer = seat.get_pointer();
-                let surface = main_surface.clone();
-                pointer.quick_assign(move |_, event, _| {
-                    send_pointer_event(event, &seat_name, &surface)
-                });
+                pointer.quick_assign(move |_, event, _| send_pointer_event(event, &seat_name));
                 (*opt_seat).1 = Some(pointer.detach());
             }
         } else {
@@ -207,71 +315,25 @@ pub fn new_client(
         }
     });
 
-    // if !env.get_shell().unwrap().needs_configure() {
-    //     // initial draw to bootstrap on wl_shell
-    //     redraw(&mut pool, window.surface(), dimensions).expect("Failed to draw");
-    //     window.refresh();
-    // }
-
     sctk::WaylandSource::new(queue)
         .quick_insert(loop_handle)
         .unwrap();
 
     Ok(DesktopClientState {
+        surface,
         display,
-        window,
-        dimensions,
-        pool,
-        globals,
+        output_listener,
+        seat_listener,
         seats: Default::default(),
-        next_wevent: Default::default(),
     })
 }
 
 fn send_keyboard_event(event: keyboard::Event, _seat_name: &str) {
-    // dbg!(event);
+    dbg!(event);
     //TODO forward event through embedded server
 }
 
-fn send_pointer_event(
-    event: wl_pointer::Event,
-    _seat_name: &str,
-    _main_surface: &wl_surface::WlSurface,
-) {
+fn send_pointer_event(event: wl_pointer::Event, _seat_name: &str) {
     // dbg!(event);
     //TODO forward event through embedded server
-}
-
-#[allow(clippy::many_single_char_names)]
-pub fn redraw(
-    pool: &mut AutoMemPool,
-    surface: &wl_surface::WlSurface,
-    (buf_x, buf_y): (u32, u32),
-) -> Result<(), ::std::io::Error> {
-    let (canvas, new_buffer) = pool.buffer(
-        buf_x as i32,
-        buf_y as i32,
-        4 * buf_x as i32,
-        wl_shm::Format::Argb8888,
-    )?;
-    for (i, dst_pixel) in canvas.chunks_exact_mut(4).enumerate() {
-        let x = i as u32 % buf_x;
-        let y = i as u32 / buf_x;
-        let r: u32 = min(((buf_x - x) * 0xFF) / buf_x, ((buf_y - y) * 0xFF) / buf_y);
-        let g: u32 = min((x * 0xFF) / buf_x, ((buf_y - y) * 0xFF) / buf_y);
-        let b: u32 = min(((buf_x - x) * 0xFF) / buf_x, (y * 0xFF) / buf_y);
-        let pixel: [u8; 4] = ((0xFF << 24) + (r << 16) + (g << 8) + b).to_ne_bytes();
-        dst_pixel[0] = pixel[0];
-        dst_pixel[1] = pixel[1];
-        dst_pixel[2] = pixel[2];
-        dst_pixel[3] = pixel[3];
-    }
-    surface.attach(Some(&new_buffer), 0, 0);
-    if surface.as_ref().version() >= 4 {
-        surface.damage_buffer(0, 0, buf_x as i32, buf_y as i32);
-    } else {
-        surface.damage(0, 0, buf_x as i32, buf_y as i32);
-    }
-    surface.commit();
-    Ok(())
 }

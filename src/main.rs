@@ -4,7 +4,6 @@ use anyhow::Result;
 mod client;
 mod server;
 mod util;
-use sctk::window::Event as WEvent;
 use util::*;
 
 fn main() -> Result<()> {
@@ -25,37 +24,16 @@ fn main() -> Result<()> {
 
     event_loop
         .run(None, &mut global_state, |shared_data| {
-            let DesktopClientState {
-                display,
-                next_wevent,
-                window,
-                dimensions,
-                pool,
-                ..
-            } = &mut shared_data.desktop_client_state;
-            let signal = &mut shared_data.loop_signal;
-
-            if let Some(event) = next_wevent.take() {
-                match event {
-                    WEvent::Close => signal.stop(),
-                    WEvent::Refresh => {
-                        window.refresh();
-                        window.surface().commit();
-                    }
-                    WEvent::Configure { new_size, states } => {
-                        if let Some((w, h)) = new_size {
-                            window.resize(w, h);
-                            *dimensions = (w, h)
-                        }
-                        println!("Window states: {:?}", states);
-                        window.refresh();
-                        client::redraw(pool, window.surface(), *dimensions)
-                            .expect("Failed to draw");
-                    }
+            let display = &mut shared_data.desktop_client_state.display;
+            let surface = &mut shared_data.desktop_client_state.surface.borrow_mut();
+            let loop_signal = &mut shared_data.loop_signal;
+            if let Some(surface) = surface.as_mut() {
+                if surface.1.handle_events() {
+                    println!("exiting");
+                    loop_signal.stop();
                 }
             }
 
-            // always flush the connection before going to sleep waiting for events
             display.flush().unwrap();
         })
         .unwrap();
