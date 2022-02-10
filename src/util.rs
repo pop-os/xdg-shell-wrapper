@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Debug)]
 pub struct Seat {
     pub name: String,
-    pub kbd: Option<(wl_keyboard::WlKeyboard, calloop::RegistrationToken)>,
+    pub kbd: Option<wl_keyboard::WlKeyboard>,
     pub ptr: Option<wl_pointer::WlPointer>,
 }
 

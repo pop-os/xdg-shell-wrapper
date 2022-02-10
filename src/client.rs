@@ -3,6 +3,7 @@
 use crate::util::*;
 use crate::XdgWrapperConfig;
 use anyhow::Result;
+use sctk::reexports::client::protocol::wl_keyboard;
 use sctk::{
     default_environment,
     environment::SimpleGlobal,
@@ -21,6 +22,7 @@ use sctk::{
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
+use smithay::reexports::wayland_server::DispatchData;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 sctk::default_environment!(KbdInputExample, desktop);
@@ -240,8 +242,7 @@ pub fn new_client(
     let mut seats = Vec::<(String, Seat)>::new();
 
     // first process already existing seats
-    // TODO how to forward keyboard events?
-    let handle = loop_handle.clone();
+    // TODO create seats on server
     for seat in env.get_all_seats() {
         if let Some((has_kbd, has_ptr, name)) = sctk::seat::with_seat_data(&seat, |seat_data| {
             (
@@ -259,20 +260,11 @@ pub fn new_client(
                 if has_kbd {
                     let seat_name = name.clone();
                     trace!(log, "found seat: {:?}", &new_seat);
-                    match map_keyboard_repeat(
-                        handle.clone(),
-                        &seat,
-                        None,
-                        RepeatKind::System,
-                        move |event, _, _| send_keyboard_event(event, &seat_name),
-                    ) {
-                        Ok((kbd, repeat_source)) => {
-                            new_seat.kbd = Some((kbd, repeat_source));
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to map keyboard on seat {} : {:?}.", name, e);
-                        }
-                    }
+                    let kbd = seat.get_keyboard();
+                    kbd.quick_assign(move |_, event, dispatch_data| {
+                        send_keyboard_event(event, &seat_name, dispatch_data)
+                    });
+                    new_seat.kbd = Some(kbd.detach());
                 }
                 if has_ptr {
                     let seat_name = name.clone();
@@ -287,7 +279,6 @@ pub fn new_client(
 
     // then setup a listener for changes
 
-    let handle = loop_handle.clone();
     let seat_listener = env.listen_for_seats(move |seat, seat_data, mut dispatch_data| {
         let state = dispatch_data.get::<GlobalState>().unwrap();
         let seats = &mut state.desktop_client_state.seats;
@@ -316,23 +307,11 @@ pub fn new_client(
             if opt_kbd.is_none() {
                 // we should initalize a keyboard
                 let seat_name = seat_data.name.clone();
-                match map_keyboard_repeat(
-                    handle.clone(),
-                    &seat,
-                    None,
-                    RepeatKind::System,
-                    move |event, _, _| send_keyboard_event(event, &seat_name),
-                ) {
-                    Ok((kbd, repeat_source)) => {
-                        *opt_kbd = Some((kbd, repeat_source));
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Failed to map keyboard on seat {} : {:?}.",
-                            seat_data.name, e
-                        )
-                    }
-                }
+                let kbd = seat.get_keyboard();
+                kbd.quick_assign(move |_, event, dispatch_data| {
+                    send_keyboard_event(event, &seat_name, dispatch_data)
+                });
+                *opt_kbd = Some(kbd.detach());
             }
             if opt_ptr.is_none() {
                 // we should initalize a keyboard
@@ -343,9 +322,8 @@ pub fn new_client(
             }
         } else {
             //cleanup
-            if let Some((kbd, source)) = opt_kbd.take() {
+            if let Some(kbd) = opt_kbd.take() {
                 kbd.release();
-                handle.remove(source);
             }
             if let Some(ptr) = opt_ptr.take() {
                 ptr.release();
@@ -366,9 +344,16 @@ pub fn new_client(
     })
 }
 
-fn send_keyboard_event(_event: keyboard::Event, _seat_name: &str) {
-    // trace!(event);
-    //TODO forward event through embedded server
+// TODO call input() on keyboard handle to forward event data
+fn send_keyboard_event(
+    event: wl_keyboard::Event,
+    _seat_name: &str,
+    mut dispatch_data: DispatchData,
+) {
+    let state = dispatch_data.get::<GlobalState>().unwrap();
+    let logger = &state.log;
+
+    trace!(logger, "{:?}", event);
 }
 
 fn send_pointer_event(_event: wl_pointer::Event, _seat_name: &str) {

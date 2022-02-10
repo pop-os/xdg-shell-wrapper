@@ -8,7 +8,7 @@ mod util;
 use config::XdgWrapperConfig;
 use shlex::Shlex;
 use slog::{o, trace, Drain};
-use std::{os::unix::io::IntoRawFd, process::Command};
+use std::{os::unix::io::AsRawFd, process::Command};
 use util::*;
 
 fn main() -> Result<()> {
@@ -70,8 +70,9 @@ fn main() -> Result<()> {
         child.arg(arg);
     }
 
+    // TODO remove CLOEXEC from client socket
     child
-        .env("WAYLAND_SOCKET", client_sock.into_raw_fd().to_string())
+        .env("WAYLAND_SOCKET", client_sock.as_raw_fd().to_string())
         .spawn()
         .expect("Failed to start child process");
 
