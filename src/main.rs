@@ -6,6 +6,7 @@ mod config;
 mod server;
 mod util;
 use config::XdgWrapperConfig;
+use nix::fcntl;
 use shlex::Shlex;
 use slog::{o, trace, Drain};
 use std::{os::unix::io::AsRawFd, process::Command};
@@ -70,9 +71,14 @@ fn main() -> Result<()> {
         child.arg(arg);
     }
 
-    // TODO remove CLOEXEC from client socket
+    let raw_fd = client_sock.as_raw_fd();
+    let mut fd_flags =
+        fcntl::FdFlag::from_bits(fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD)?).unwrap();
+    fd_flags.remove(fcntl::FdFlag::FD_CLOEXEC);
+    fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_SETFD(fd_flags))?;
+
     child
-        .env("WAYLAND_SOCKET", client_sock.as_raw_fd().to_string())
+        .env("WAYLAND_SOCKET", raw_fd.to_string())
         .spawn()
         .expect("Failed to start child process");
 
