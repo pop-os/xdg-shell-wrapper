@@ -6,11 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smithay = "0.3.0"
-calloop = { version = "0.9.3", features = ["executor", "futures-io"] }
-sctk = { package = "smithay-client-toolkit", version = "0.15.3" }
-wayland-client = "0.29.4"
+smithay = { git = "https://github.com/Smithay/smithay.git" }
+sctk = { package = "smithay-client-toolkit", git = "https://github.com/Smithay/client-toolkit.git" }
+calloop = "0.9.3"
 anyhow = "1.0.53"
 ron = "0.7.0"
 serde = { version = "1.0.136", features = ["derive"] }
 xdg = "2.4.0"
+slog-term = "2.8.1"
+slog-async = "2.7.0"
+slog-stdlog = "4.1.0"
+slog-scope = "4.4.0"
+shlex = "1.1.0"
+slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }

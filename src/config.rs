@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{

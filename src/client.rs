@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use std::cmp::min;
-
 use crate::util::*;
 use crate::XdgWrapperConfig;
 use anyhow::Result;
@@ -25,14 +23,15 @@ use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::clien
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-
 sctk::default_environment!(KbdInputExample, desktop);
+use slog::{info, trace, Logger};
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RenderEvent {
     Configure { width: u32, height: u32 },
     Closed,
 }
+use smithay::wayland;
 
 default_environment!(Env,
                      fields = [
@@ -42,6 +41,7 @@ default_environment!(Env,
                          zwlr_layer_shell_v1::ZwlrLayerShellV1 => layer_shell
                      ],
 );
+
 #[derive(Debug)]
 pub struct DesktopClientState {
     pub display: client::Display,
@@ -68,6 +68,7 @@ impl Surface {
         layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         pool: AutoMemPool,
         config: XdgWrapperConfig,
+        log: Logger,
     ) -> Self {
         let layer_surface = layer_shell.get_layer_surface(
             &surface,
@@ -87,7 +88,7 @@ impl Surface {
         layer_surface.quick_assign(move |layer_surface, event, _| {
             match (event, next_render_event_handle.get()) {
                 (zwlr_layer_surface_v1::Event::Closed, _) => {
-                    println!("closing");
+                    info!(log, "Received close event. closing.");
                     next_render_event_handle.set(Some(RenderEvent::Closed));
                 }
                 (
@@ -98,6 +99,13 @@ impl Surface {
                     },
                     next,
                 ) if next != Some(RenderEvent::Closed) => {
+                    trace!(
+                        log,
+                        "received configure event {:?} {:?} {:?}",
+                        serial,
+                        width,
+                        height
+                    );
                     layer_surface.ack_configure(serial);
                     next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
                 }
@@ -175,6 +183,7 @@ impl Drop for Surface {
 pub fn new_client(
     loop_handle: calloop::LoopHandle<'static, GlobalState>,
     config: XdgWrapperConfig,
+    log: Logger,
 ) -> Result<DesktopClientState> {
     /*
      * Initial setup
@@ -187,9 +196,10 @@ pub fn new_client(
     let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
     let env_handle = env.clone();
     let surface_handle = Rc::clone(&surface);
+    let logger = log.clone();
     let output_handler = move |output: wl_output::WlOutput, info: &OutputInfo| {
         let mut handle = surface_handle.borrow_mut();
-        dbg!(&handle);
+        trace!(logger, "output: {:?} {:?}", &output, &info);
         if info.obsolete {
             // an output has been removed, release it
             handle.as_ref().filter(|(i, _)| *i != info.id);
@@ -202,9 +212,15 @@ pub fn new_client(
                 .expect("Failed to create a memory pool!");
             *handle = Some((
                 info.id,
-                Surface::new(&output, surface, &layer_shell.clone(), pool, config.clone()),
+                Surface::new(
+                    &output,
+                    surface,
+                    &layer_shell.clone(),
+                    pool,
+                    config.clone(),
+                    logger.clone(),
+                ),
             ));
-            dbg!(&handle);
         }
     };
 
@@ -224,6 +240,7 @@ pub fn new_client(
     let mut seats = Vec::<(String, Seat)>::new();
 
     // first process already existing seats
+    // TODO how to forward keyboard events?
     let handle = loop_handle.clone();
     for seat in env.get_all_seats() {
         if let Some((has_kbd, has_ptr, name)) = sctk::seat::with_seat_data(&seat, |seat_data| {
@@ -233,10 +250,15 @@ pub fn new_client(
                 seat_data.name.clone(),
             )
         }) {
+            let mut new_seat = Seat {
+                name: name.clone(),
+                kbd: None,
+                ptr: None,
+            };
             if has_kbd || has_ptr {
-                let mut new_seat: Seat = (None, None);
                 if has_kbd {
                     let seat_name = name.clone();
+                    trace!(log, "found seat: {:?}", &new_seat);
                     match map_keyboard_repeat(
                         handle.clone(),
                         &seat,
@@ -245,7 +267,7 @@ pub fn new_client(
                         move |event, _, _| send_keyboard_event(event, &seat_name),
                     ) {
                         Ok((kbd, repeat_source)) => {
-                            new_seat.0 = Some((kbd, repeat_source));
+                            new_seat.kbd = Some((kbd, repeat_source));
                         }
                         Err(e) => {
                             eprintln!("Failed to map keyboard on seat {} : {:?}.", name, e);
@@ -256,30 +278,42 @@ pub fn new_client(
                     let seat_name = name.clone();
                     let pointer = seat.get_pointer();
                     pointer.quick_assign(move |_, event, _| send_pointer_event(event, &seat_name));
-                    new_seat.1 = Some(pointer.detach());
+                    new_seat.ptr = Some(pointer.detach());
                 }
-                seats.push((name.clone(), new_seat));
-            } else {
-                seats.push((name, (None, None)));
             }
+            seats.push((name.clone(), new_seat));
         }
     }
 
     // then setup a listener for changes
 
     let handle = loop_handle.clone();
-    let seat_listener = env.listen_for_seats(move |seat, seat_data, _| {
+    let seat_listener = env.listen_for_seats(move |seat, seat_data, mut dispatch_data| {
+        let state = dispatch_data.get::<GlobalState>().unwrap();
+        let seats = &mut state.desktop_client_state.seats;
+        let logger = &state.log;
         // find the seat in the vec of seats, or insert it if it is unknown
-        let idx = seats.iter().position(|(name, _)| name == &seat_data.name);
+        trace!(logger, "seat event: {:?} {:?}", seat, seat_data);
+        let idx = seats
+            .iter()
+            .position(|Seat { name, .. }| name == &seat_data.name);
         let idx = idx.unwrap_or_else(|| {
-            seats.push((seat_data.name.clone(), (None, None)));
+            seats.push(Seat {
+                name: seat_data.name.clone(),
+                kbd: None,
+                ptr: None,
+            });
             seats.len() - 1
         });
 
-        let (_, ref mut opt_seat) = &mut seats[idx];
+        let Seat {
+            kbd: ref mut opt_kbd,
+            ptr: ref mut opt_ptr,
+            ..
+        } = &mut seats[idx];
         // we should map a keyboard if the seat has the capability & is not defunct
         if (seat_data.has_keyboard || seat_data.has_pointer) && !seat_data.defunct {
-            if opt_seat.0.is_none() {
+            if opt_kbd.is_none() {
                 // we should initalize a keyboard
                 let seat_name = seat_data.name.clone();
                 match map_keyboard_repeat(
@@ -290,7 +324,7 @@ pub fn new_client(
                     move |event, _, _| send_keyboard_event(event, &seat_name),
                 ) {
                     Ok((kbd, repeat_source)) => {
-                        (*opt_seat).0 = Some((kbd, repeat_source));
+                        *opt_kbd = Some((kbd, repeat_source));
                     }
                     Err(e) => {
                         eprintln!(
@@ -300,21 +334,20 @@ pub fn new_client(
                     }
                 }
             }
-            if opt_seat.1.is_none() {
+            if opt_ptr.is_none() {
                 // we should initalize a keyboard
                 let seat_name = seat_data.name.clone();
                 let pointer = seat.get_pointer();
                 pointer.quick_assign(move |_, event, _| send_pointer_event(event, &seat_name));
-                (*opt_seat).1 = Some(pointer.detach());
+                *opt_ptr = Some(pointer.detach());
             }
         } else {
-            let (kbd_seat, ptr_seat) = opt_seat;
             //cleanup
-            if let Some((kbd, source)) = kbd_seat.take() {
+            if let Some((kbd, source)) = opt_kbd.take() {
                 kbd.release();
                 handle.remove(source);
             }
-            if let Some(ptr) = ptr_seat.take() {
+            if let Some(ptr) = opt_ptr.take() {
                 ptr.release();
             }
         }
@@ -333,12 +366,12 @@ pub fn new_client(
     })
 }
 
-fn send_keyboard_event(event: keyboard::Event, _seat_name: &str) {
-    dbg!(event);
+fn send_keyboard_event(_event: keyboard::Event, _seat_name: &str) {
+    // trace!(event);
     //TODO forward event through embedded server
 }
 
-fn send_pointer_event(event: wl_pointer::Event, _seat_name: &str) {
-    // dbg!(event);
+fn send_pointer_event(_event: wl_pointer::Event, _seat_name: &str) {
+    // trace!(event);
     //TODO forward event through embedded server
 }
