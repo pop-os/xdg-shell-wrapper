@@ -6,9 +6,9 @@ mod config;
 mod server;
 mod util;
 use config::XdgWrapperConfig;
-use nix::fcntl;
 use shlex::Shlex;
 use slog::{o, trace, Drain};
+use smithay::reexports::nix::fcntl;
 use std::{os::unix::io::AsRawFd, process::Command};
 use util::*;
 
@@ -47,10 +47,14 @@ fn main() -> Result<()> {
 
     let mut event_loop = calloop::EventLoop::<util::GlobalState>::try_new().unwrap();
     let loop_handle = event_loop.handle();
-    let (embedded_server_state, client_sock) =
+    let (mut embedded_server_state, client_sock) =
         server::new_server(loop_handle.clone(), config.clone(), log.clone())?;
-    let desktop_client_state =
-        client::new_client(loop_handle.clone(), config.clone(), log.clone())?;
+    let desktop_client_state = client::new_client(
+        loop_handle.clone(),
+        config.clone(),
+        log.clone(),
+        &mut embedded_server_state.display,
+    )?;
     let mut global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,
@@ -72,10 +76,12 @@ fn main() -> Result<()> {
     }
 
     let raw_fd = client_sock.as_raw_fd();
-    let mut fd_flags =
+    let fd_flags =
         fcntl::FdFlag::from_bits(fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD)?).unwrap();
-    fd_flags.remove(fcntl::FdFlag::FD_CLOEXEC);
-    fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_SETFD(fd_flags))?;
+    fcntl::fcntl(
+        raw_fd,
+        fcntl::FcntlArg::F_SETFD(fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC)),
+    )?;
 
     child
         .env("WAYLAND_SOCKET", raw_fd.to_string())

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-only
-
 use crate::util::*;
 use crate::XdgWrapperConfig;
 use anyhow::Result;
@@ -13,16 +12,18 @@ use sctk::{
         client::protocol::{wl_output, wl_pointer, wl_shm, wl_surface},
         client::{Attached, Main},
     },
-    seat::{
-        keyboard::{self, map_keyboard_repeat, RepeatKind},
-        SeatListener,
-    },
+    seat::SeatListener,
     shm::AutoMemPool,
 };
+use smithay::backend::input::KeyState;
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
 use smithay::reexports::wayland_server::DispatchData;
+use smithay::reexports::wayland_server::Display;
+use smithay::wayland::seat;
+use smithay::wayland::seat::FilterResult;
+use smithay::wayland::SERIAL_COUNTER;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 sctk::default_environment!(KbdInputExample, desktop);
@@ -33,7 +34,6 @@ pub enum RenderEvent {
     Configure { width: u32, height: u32 },
     Closed,
 }
-use smithay::wayland;
 
 default_environment!(Env,
                      fields = [
@@ -186,6 +186,7 @@ pub fn new_client(
     loop_handle: calloop::LoopHandle<'static, GlobalState>,
     config: XdgWrapperConfig,
     log: Logger,
+    server_display: &mut Display,
 ) -> Result<DesktopClientState> {
     /*
      * Initial setup
@@ -253,8 +254,11 @@ pub fn new_client(
         }) {
             let mut new_seat = Seat {
                 name: name.clone(),
-                kbd: None,
-                ptr: None,
+                server: seat::Seat::new(server_display, name.clone(), log.clone()),
+                client: ClientSeat {
+                    kbd: None,
+                    ptr: None,
+                },
             };
             if has_kbd || has_ptr {
                 if has_kbd {
@@ -264,13 +268,22 @@ pub fn new_client(
                     kbd.quick_assign(move |_, event, dispatch_data| {
                         send_keyboard_event(event, &seat_name, dispatch_data)
                     });
-                    new_seat.kbd = Some(kbd.detach());
+                    new_seat.client.kbd = Some(kbd.detach());
+                    new_seat.server.0.add_keyboard(
+                        Default::default(),
+                        200,
+                        20,
+                        move |_seat, _focus| {},
+                    )?;
                 }
                 if has_ptr {
                     let seat_name = name.clone();
                     let pointer = seat.get_pointer();
-                    pointer.quick_assign(move |_, event, _| send_pointer_event(event, &seat_name));
-                    new_seat.ptr = Some(pointer.detach());
+                    pointer.quick_assign(move |_, event, dispatch_data| {
+                        send_pointer_event(event, &seat_name, dispatch_data)
+                    });
+                    new_seat.client.ptr = Some(pointer.detach());
+                    new_seat.server.0.add_pointer(move |_new_status| {});
                 }
             }
             seats.push((name.clone(), new_seat));
@@ -282,52 +295,70 @@ pub fn new_client(
     let seat_listener = env.listen_for_seats(move |seat, seat_data, mut dispatch_data| {
         let state = dispatch_data.get::<GlobalState>().unwrap();
         let seats = &mut state.desktop_client_state.seats;
+        let server_display = &mut state.embedded_server_state.display;
         let logger = &state.log;
         // find the seat in the vec of seats, or insert it if it is unknown
         trace!(logger, "seat event: {:?} {:?}", seat, seat_data);
+
+        let seat_name = seat_data.name.clone();
         let idx = seats
             .iter()
-            .position(|Seat { name, .. }| name == &seat_data.name);
+            .position(|Seat { name, .. }| name == &seat_name);
         let idx = idx.unwrap_or_else(|| {
             seats.push(Seat {
-                name: seat_data.name.clone(),
-                kbd: None,
-                ptr: None,
+                name: seat_name.clone(),
+                server: seat::Seat::new(server_display, seat_name.clone(), log.clone()),
+                client: ClientSeat {
+                    kbd: None,
+                    ptr: None,
+                },
             });
-            seats.len() - 1
+            seats.len()
         });
 
         let Seat {
-            kbd: ref mut opt_kbd,
-            ptr: ref mut opt_ptr,
+            client:
+                ClientSeat {
+                    kbd: ref mut opt_kbd,
+                    ptr: ref mut opt_ptr,
+                },
+            server: (ref mut server_seat, ref mut _server_seat_global),
             ..
         } = &mut seats[idx];
         // we should map a keyboard if the seat has the capability & is not defunct
         if (seat_data.has_keyboard || seat_data.has_pointer) && !seat_data.defunct {
             if opt_kbd.is_none() {
                 // we should initalize a keyboard
-                let seat_name = seat_data.name.clone();
                 let kbd = seat.get_keyboard();
                 kbd.quick_assign(move |_, event, dispatch_data| {
                     send_keyboard_event(event, &seat_name, dispatch_data)
                 });
                 *opt_kbd = Some(kbd.detach());
+                // TODO error handling
+                let _ =
+                    server_seat.add_keyboard(Default::default(), 200, 20, move |_seat, _focus| {});
             }
             if opt_ptr.is_none() {
                 // we should initalize a keyboard
                 let seat_name = seat_data.name.clone();
                 let pointer = seat.get_pointer();
-                pointer.quick_assign(move |_, event, _| send_pointer_event(event, &seat_name));
+                pointer.quick_assign(move |_, event, dispatch_data| {
+                    send_pointer_event(event, &seat_name, dispatch_data)
+                });
+                server_seat.add_pointer(move |_new_status| {});
                 *opt_ptr = Some(pointer.detach());
             }
         } else {
             //cleanup
             if let Some(kbd) = opt_kbd.take() {
                 kbd.release();
+                server_seat.remove_keyboard();
             }
             if let Some(ptr) = opt_ptr.take() {
                 ptr.release();
+                server_seat.remove_pointer();
             }
+            //TODO when to destroy server_seat_global?
         }
     });
 
@@ -347,16 +378,70 @@ pub fn new_client(
 // TODO call input() on keyboard handle to forward event data
 fn send_keyboard_event(
     event: wl_keyboard::Event,
-    _seat_name: &str,
+    seat_name: &str,
     mut dispatch_data: DispatchData,
 ) {
     let state = dispatch_data.get::<GlobalState>().unwrap();
     let logger = &state.log;
-
+    let seats = &state.desktop_client_state.seats;
+    if let Some(Some(kbd)) = seats
+        .iter()
+        .position(|Seat { name, .. }| name == &seat_name)
+        .map(|idx| &seats[idx])
+        .map(|seat| seat.server.0.get_keyboard())
+    {
+        match event {
+            wl_keyboard::Event::Key {
+                serial: _serial,
+                time,
+                key,
+                state,
+            } => {
+                let state = match state {
+                    client::protocol::wl_keyboard::KeyState::Pressed => KeyState::Pressed,
+                    client::protocol::wl_keyboard::KeyState::Released => KeyState::Released,
+                    _ => return,
+                };
+                kbd.input::<FilterResult<()>, _>(
+                    key,
+                    state,
+                    SERIAL_COUNTER.next_serial(),
+                    time,
+                    |_, _| {
+                        FilterResult::Forward // TODO intercept some key presses maybe
+                    },
+                );
+            }
+            _ => (),
+        };
+    }
+    // keep Modifier state in Seat
     trace!(logger, "{:?}", event);
 }
 
-fn send_pointer_event(_event: wl_pointer::Event, _seat_name: &str) {
-    // trace!(event);
-    //TODO forward event through embedded server
+fn send_pointer_event(event: wl_pointer::Event, seat_name: &str, mut dispatch_data: DispatchData) {
+    let state = dispatch_data.get::<GlobalState>().unwrap();
+    let seats = &state.desktop_client_state.seats;
+    if let Some(Some(ptr)) = seats
+        .iter()
+        .position(|Seat { name, .. }| name == &seat_name)
+        .map(|idx| &seats[idx])
+        .map(|seat| seat.server.0.get_pointer())
+    {
+        match event {
+            client::protocol::wl_pointer::Event::Motion {
+                time,
+                surface_x,
+                surface_y,
+            } => {
+                ptr.motion(
+                    smithay::utils::Point::from((surface_x, surface_y)),
+                    None, // TODO get the correct surface from the embedded xdg-shell
+                    SERIAL_COUNTER.next_serial(),
+                    time,
+                )
+            }
+            _ => (),
+        };
+    }
 }

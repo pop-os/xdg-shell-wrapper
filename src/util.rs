@@ -3,13 +3,21 @@
 use crate::client::DesktopClientState;
 use sctk::reexports::client::protocol::{wl_keyboard, wl_pointer};
 use slog::Logger;
+use smithay::reexports::wayland_server::protocol::wl_seat::WlSeat;
+use smithay::reexports::wayland_server::Global;
 use smithay::reexports::{calloop, wayland_server};
-use smithay::wayland::shell::xdg::ShellState;
+use smithay::wayland::{seat, shell::xdg::ShellState};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct Seat {
     pub name: String,
+    pub client: ClientSeat,
+    pub server: (seat::Seat, Global<WlSeat>),
+}
+
+#[derive(Debug)]
+pub struct ClientSeat {
     pub kbd: Option<wl_keyboard::WlKeyboard>,
     pub ptr: Option<wl_pointer::WlPointer>,
 }
