@@ -15,9 +15,15 @@ use sctk::{
     seat::SeatListener,
     shm::AutoMemPool,
 };
+use smithay::backend::egl::context::GlAttributes;
+use smithay::backend::egl::context::GlProfile;
+use smithay::backend::egl::EGLContext;
+use smithay::backend::egl::EGLSurface;
+use smithay::backend::renderer::gles2::Gles2Renderer;
+use smithay::backend::renderer::Bind;
 use smithay::backend::{
     egl::{
-        display::EGLDisplayHandle,
+        display::{EGLDisplay, EGLDisplayHandle},
         ffi,
         native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
         wrap_egl_call, EGLError,
@@ -66,7 +72,6 @@ pub struct DesktopClientState {
 
 #[derive(Debug)]
 pub struct ClientEglSurface {
-    surface: wl_surface::WlSurface,
     wl_egl_surface: wayland_egl::WlEglSurface,
     display: client::Display,
 }
@@ -113,7 +118,9 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
 
 #[derive(Debug)]
 pub struct Surface {
-    pub egl_surface: ClientEglSurface,
+    pub egl_display: EGLDisplay,
+    pub egl_surface: Rc<EGLSurface>,
+    pub renderer: Gles2Renderer,
     pub surface: wl_surface::WlSurface,
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
     pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
@@ -147,10 +154,11 @@ impl Surface {
 
         let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
         let next_render_event_handle = Rc::clone(&next_render_event);
+        let logger = log.clone();
         layer_surface.quick_assign(move |layer_surface, event, _| {
             match (event, next_render_event_handle.get()) {
                 (zwlr_layer_surface_v1::Event::Closed, _) => {
-                    info!(log, "Received close event. closing.");
+                    info!(logger, "Received close event. closing.");
                     next_render_event_handle.set(Some(RenderEvent::Closed));
                 }
                 (
@@ -162,7 +170,7 @@ impl Surface {
                     next,
                 ) if next != Some(RenderEvent::Closed) => {
                     trace!(
-                        log,
+                        logger,
                         "received configure event {:?} {:?} {:?}",
                         serial,
                         width,
@@ -178,13 +186,48 @@ impl Surface {
 
         // Commit so that the server will send a configure event
         surface.commit();
+        let client_egl_surface = ClientEglSurface {
+            wl_egl_surface: wayland_egl::WlEglSurface::new(&surface, x as i32, y as i32),
+            display: display,
+        };
+
+        let egl_display = EGLDisplay::new(&client_egl_surface, log.clone())
+            .expect("Failed to initialize EGL display");
+        let egl_context = EGLContext::new_with_config(
+            &egl_display,
+            GlAttributes {
+                version: (2, 0),
+                profile: Some(GlProfile::Compatibility),
+                debug: true,
+                vsync: false,
+            },
+            Default::default(),
+            log.clone(),
+        )
+        .expect("Failed to initialize EGL context");
+        let egl_surface = Rc::new(
+            EGLSurface::new(
+                &egl_display,
+                egl_context
+                    .pixel_format()
+                    .expect("Failed to get pixel format from EGL context "),
+                egl_context.config_id(),
+                client_egl_surface,
+                log.clone(),
+            )
+            .expect("Failed to initialize EGL Surface"),
+        );
+        let mut renderer = unsafe {
+            Gles2Renderer::new(egl_context, log.clone()).expect("Failed to initialize EGL Surface")
+        };
+        renderer
+            .bind(egl_surface.clone())
+            .expect("Failed to bind surface to GL");
 
         Self {
-            egl_surface: ClientEglSurface {
-                surface: surface.clone(),
-                wl_egl_surface: wayland_egl::WlEglSurface::new(&surface, x as i32, y as i32),
-                display: display,
-            },
+            egl_display,
+            egl_surface,
+            renderer,
             surface,
             layer_surface,
             next_render_event,
