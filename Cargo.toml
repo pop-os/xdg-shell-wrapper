@@ -19,3 +19,5 @@ slog-stdlog = "4.1.0"
 slog-scope = "4.4.0"
 shlex = "1.1.0"
 slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }
+wayland-egl = "0.29.4"
+libc = "0.2.117"

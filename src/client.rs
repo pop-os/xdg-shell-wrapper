@@ -2,32 +2,43 @@
 use crate::util::*;
 use crate::XdgWrapperConfig;
 use anyhow::Result;
-use sctk::reexports::client::protocol::wl_keyboard;
 use sctk::{
     default_environment,
     environment::SimpleGlobal,
     output::{with_output_info, OutputInfo, OutputStatusListener},
     reexports::{
-        calloop, client,
+        calloop,
         client::protocol::{wl_output, wl_pointer, wl_shm, wl_surface},
+        client::{self, protocol::wl_keyboard},
         client::{Attached, Main},
     },
     seat::SeatListener,
     shm::AutoMemPool,
 };
-use smithay::backend::input::KeyState;
+use smithay::backend::{
+    egl::{
+        display::EGLDisplayHandle,
+        ffi,
+        native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
+        wrap_egl_call, EGLError,
+    },
+    input::KeyState,
+};
+use smithay::egl_platform;
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
-use smithay::reexports::wayland_server::DispatchData;
-use smithay::reexports::wayland_server::Display;
-use smithay::wayland::seat;
-use smithay::wayland::seat::FilterResult;
-use smithay::wayland::SERIAL_COUNTER;
+use smithay::reexports::wayland_server::{DispatchData, Display};
+use smithay::wayland::{
+    seat::{self, FilterResult},
+    SERIAL_COUNTER,
+};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 sctk::default_environment!(KbdInputExample, desktop);
+use libc::{c_int, c_void};
 use slog::{info, trace, Logger};
+use std::sync::Arc;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RenderEvent {
@@ -36,12 +47,12 @@ pub enum RenderEvent {
 }
 
 default_environment!(Env,
-                     fields = [
-                         layer_shell: SimpleGlobal<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
-                     ],
-                     singles = [
-                         zwlr_layer_shell_v1::ZwlrLayerShellV1 => layer_shell
-                     ],
+    fields = [
+        layer_shell: SimpleGlobal<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
+    ],
+    singles = [
+        zwlr_layer_shell_v1::ZwlrLayerShellV1 => layer_shell
+    ],
 );
 
 #[derive(Debug)]
@@ -54,7 +65,55 @@ pub struct DesktopClientState {
 }
 
 #[derive(Debug)]
+pub struct ClientEglSurface {
+    surface: wl_surface::WlSurface,
+    wl_egl_surface: wayland_egl::WlEglSurface,
+    display: client::Display,
+}
+
+static SURFACE_ATTRIBUTES: [c_int; 3] = [
+    ffi::egl::RENDER_BUFFER as c_int,
+    ffi::egl::BACK_BUFFER as c_int,
+    ffi::egl::NONE as c_int,
+];
+
+impl EGLNativeDisplay for ClientEglSurface {
+    fn supported_platforms(&self) -> Vec<EGLPlatform<'_>> {
+        let display: *mut c_void = self.display.c_ptr() as *mut _;
+        vec![
+            // see: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_platform_wayland.txt
+            egl_platform!(PLATFORM_WAYLAND_KHR, display, &["EGL_KHR_platform_wayland"]),
+            // see: https://www.khronos.org/registry/EGL/extensions/EXT/EGL_EXT_platform_wayland.txt
+            egl_platform!(PLATFORM_WAYLAND_EXT, display, &["EGL_EXT_platform_wayland"]),
+        ]
+    }
+}
+
+unsafe impl EGLNativeSurface for ClientEglSurface {
+    fn create(
+        &self,
+        display: &Arc<EGLDisplayHandle>,
+        config_id: ffi::egl::types::EGLConfig,
+    ) -> Result<*const c_void, EGLError> {
+        wrap_egl_call(|| unsafe {
+            ffi::egl::CreatePlatformWindowSurfaceEXT(
+                display.handle,
+                config_id,
+                self.wl_egl_surface.ptr() as *mut _,
+                SURFACE_ATTRIBUTES.as_ptr(),
+            )
+        })
+    }
+
+    fn resize(&self, width: i32, height: i32, dx: i32, dy: i32) -> bool {
+        wayland_egl::WlEglSurface::resize(&self.wl_egl_surface, width, height, dx, dy);
+        true
+    }
+}
+
+#[derive(Debug)]
 pub struct Surface {
+    pub egl_surface: ClientEglSurface,
     pub surface: wl_surface::WlSurface,
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
     pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
@@ -71,6 +130,7 @@ impl Surface {
         pool: AutoMemPool,
         config: XdgWrapperConfig,
         log: Logger,
+        display: client::Display,
     ) -> Self {
         let layer_surface = layer_shell.get_layer_surface(
             &surface,
@@ -110,6 +170,7 @@ impl Surface {
                     );
                     layer_surface.ack_configure(serial);
                     next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
+                    // TODO handle resize for egl surface here?
                 }
                 (_, _) => {}
             }
@@ -119,6 +180,11 @@ impl Surface {
         surface.commit();
 
         Self {
+            egl_surface: ClientEglSurface {
+                surface: surface.clone(),
+                wl_egl_surface: wayland_egl::WlEglSurface::new(&surface, x as i32, y as i32),
+                display: display,
+            },
             surface,
             layer_surface,
             next_render_event,
@@ -200,6 +266,7 @@ pub fn new_client(
     let env_handle = env.clone();
     let surface_handle = Rc::clone(&surface);
     let logger = log.clone();
+    let display_ = display.clone();
     let output_handler = move |output: wl_output::WlOutput, info: &OutputInfo| {
         let mut handle = surface_handle.borrow_mut();
         trace!(logger, "output: {:?} {:?}", &output, &info);
@@ -222,6 +289,7 @@ pub fn new_client(
                     pool,
                     config.clone(),
                     logger.clone(),
+                    display_.clone(),
                 ),
             ));
         }
