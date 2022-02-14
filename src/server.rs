@@ -4,10 +4,13 @@ use crate::{config::XdgWrapperConfig, util::*};
 use anyhow::Result;
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
 use slog::{trace, Logger};
-use smithay::reexports::{nix::fcntl, wayland_server};
-use smithay::wayland::{
-    compositor::compositor_init,
-    shell::xdg::{xdg_shell_init, XdgRequest},
+
+use smithay::{
+    reexports::{nix::fcntl, wayland_server},
+    wayland::{
+        compositor::compositor_init,
+        shell::xdg::{xdg_shell_init, XdgRequest},
+    },
 };
 use std::{
     os::unix::{io::AsRawFd, net::UnixStream},
@@ -39,9 +42,14 @@ pub fn new_server(
     })?;
     compositor_init(
         &mut display,
-        |surface, dispatch_data| {
-            dbg!(surface);
-            dbg!(dispatch_data);
+        |surface, mut dispatch_data| {
+            println!("received commit from client!");
+            let state = dispatch_data.get::<GlobalState>().unwrap();
+            let desktop_client_surface = &mut state.desktop_client_state.surface;
+            if let Some((_, desktop_client_surface)) = desktop_client_surface.borrow_mut().as_mut()
+            {
+                desktop_client_surface.render(surface);
+            }
         },
         log.clone(),
     );
@@ -49,11 +57,11 @@ pub fn new_server(
     let logger = log.clone();
     let (shell_state, _) = xdg_shell_init(
         &mut display,
-        // your implementation
         move |event: XdgRequest, _dispatch_data| {
+            println!("received XDG request!");
             trace!(logger, "xdg shell event: {:?}", event);
         },
-        log.clone(), // put a logger if you want
+        log.clone(),
     );
 
     Ok((

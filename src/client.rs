@@ -8,7 +8,7 @@ use sctk::{
     output::{with_output_info, OutputInfo, OutputStatusListener},
     reexports::{
         calloop,
-        client::protocol::{wl_output, wl_pointer, wl_shm, wl_surface},
+        client::protocol::{wl_output, wl_pointer, wl_surface},
         client::{self, protocol::wl_keyboard},
         client::{Attached, Main},
     },
@@ -21,6 +21,7 @@ use smithay::backend::egl::EGLContext;
 use smithay::backend::egl::EGLSurface;
 use smithay::backend::renderer::gles2::Gles2Renderer;
 use smithay::backend::renderer::Bind;
+use smithay::backend::renderer::Renderer;
 use smithay::backend::{
     egl::{
         display::{EGLDisplay, EGLDisplayHandle},
@@ -29,11 +30,13 @@ use smithay::backend::{
         wrap_egl_call, EGLError,
     },
     input::KeyState,
+    renderer::utils::{draw_surface_tree, on_commit_buffer_handler},
 };
 use smithay::egl_platform;
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
+use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::reexports::wayland_server::{DispatchData, Display};
 use smithay::wayland::{
     seat::{self, FilterResult},
@@ -127,6 +130,7 @@ pub struct Surface {
     pub pool: AutoMemPool,
     pub dimensions: (u32, u32),
     pub config: XdgWrapperConfig,
+    pub log: Logger,
 }
 
 impl Surface {
@@ -234,6 +238,7 @@ impl Surface {
             pool,
             dimensions: (0, 0),
             config,
+            log,
         }
     }
 
@@ -245,7 +250,7 @@ impl Surface {
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
                     self.dimensions = (width, height);
-                    self.draw();
+                    // self.draw();
                 }
                 false
             }
@@ -253,34 +258,35 @@ impl Surface {
         }
     }
 
-    fn draw(&mut self) {
-        let stride = 4 * self.dimensions.0 as i32;
+    pub fn render(&mut self, surface: WlSurface) {
         let width = self.dimensions.0 as i32;
         let height = self.dimensions.1 as i32;
+        let logger = self.log.clone();
+        let egl_surface = &self.egl_surface;
 
-        // Note: unwrap() is only used here in the interest of simplicity of the example.
-        // A "real" application should handle the case where both pools are still in use by the
-        // compositor.
-        let (canvas, buffer) = self
-            .pool
-            .buffer(width, height, stride, wl_shm::Format::Argb8888)
-            .unwrap();
+        on_commit_buffer_handler(&surface);
+        self.renderer
+            .render(
+                (width, height).into(),
+                smithay::utils::Transform::Normal,
+                move |self_: &mut Gles2Renderer, frame| {
+                    let damage = [smithay::utils::Rectangle {
+                        loc: (0, 0).into(),
+                        size: (width, height).into(),
+                    }];
+                    draw_surface_tree(self_, frame, &surface, 1.0, (0, 0).into(), &damage, &logger)
+                        .expect("Failed to draw surface tree");
+                    let mut damage = [smithay::utils::Rectangle {
+                        loc: (0, 0).into(),
+                        size: (width, height).into(),
+                    }];
 
-        for dst_pixel in canvas.chunks_exact_mut(4) {
-            let pixel = 0xff00ff00u32.to_ne_bytes();
-            dst_pixel[0] = pixel[0];
-            dst_pixel[1] = pixel[1];
-            dst_pixel[2] = pixel[2];
-            dst_pixel[3] = pixel[3];
-        }
-
-        // Attach the buffer to the surface and mark the entire surface as damaged
-        self.surface.attach(Some(&buffer), 0, 0);
-        self.surface
-            .damage_buffer(0, 0, width as i32, height as i32);
-
-        // Finally, commit the surface
-        self.surface.commit();
+                    egl_surface
+                        .swap_buffers(Some(&mut damage))
+                        .expect("Failed to swap buffers.");
+                },
+            )
+            .expect("Failed to render to layer shell surface.");
     }
 }
 
@@ -315,7 +321,9 @@ pub fn new_client(
         trace!(logger, "output: {:?} {:?}", &output, &info);
         if info.obsolete {
             // an output has been removed, release it
-            handle.as_ref().filter(|(i, _)| *i != info.id);
+            if handle.as_ref().filter(|(i, _)| *i != info.id).is_some() {
+                *handle = None;
+            }
             output.release();
         } else if handle.is_none() {
             // an output has been created, construct a surface for it
