@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 #![feature(drain_filter)]
+
+use std::{os::unix::io::AsRawFd, process::Command};
+
 use anyhow::Result;
-mod client;
-mod config;
-mod server;
-mod util;
-use config::XdgWrapperConfig;
 use shlex::Shlex;
 use slog::{o, trace, Drain};
 use smithay::reexports::nix::fcntl;
-use std::{os::unix::io::AsRawFd, process::Command};
-use util::*;
+
+use config::XdgWrapperConfig;
+use shared_state::*;
+
+mod client;
+mod config;
+mod server;
+mod shared_state;
+mod util;
 
 fn main() -> Result<()> {
     // A logger facility, here we use the terminal
@@ -46,7 +51,7 @@ fn main() -> Result<()> {
         }
     };
 
-    let mut event_loop = calloop::EventLoop::<util::GlobalState>::try_new().unwrap();
+    let mut event_loop = calloop::EventLoop::<GlobalState>::try_new().unwrap();
     let loop_handle = event_loop.handle();
     let (mut embedded_server_state, (_display_sock, client_sock)) =
         server::new_server(loop_handle.clone(), config.clone(), log.clone())?;

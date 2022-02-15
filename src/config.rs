@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+use std::collections::HashMap;
+use std::fs::File;
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
-use std::collections::HashMap;
-use std::fs::File;
 use xdg::BaseDirectories;
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]

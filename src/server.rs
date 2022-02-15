@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::{config::XdgWrapperConfig, util::*};
+use std::{
+    os::unix::{io::AsRawFd, net::UnixStream},
+    time::Duration,
+};
+
 use anyhow::Result;
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
 use slog::{trace, Logger};
-
 use smithay::{
     reexports::{nix::fcntl, wayland_server},
     wayland::{
@@ -12,10 +15,9 @@ use smithay::{
         shell::xdg::{xdg_shell_init, XdgRequest},
     },
 };
-use std::{
-    os::unix::{io::AsRawFd, net::UnixStream},
-    time::Duration,
-};
+
+use crate::config::XdgWrapperConfig;
+use crate::shared_state::*;
 
 pub fn new_server(
     loop_handle: calloop::LoopHandle<'static, GlobalState>,
