@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+#![feature(drain_filter)]
 use anyhow::Result;
 mod client;
 mod config;
@@ -47,18 +48,19 @@ fn main() -> Result<()> {
 
     let mut event_loop = calloop::EventLoop::<util::GlobalState>::try_new().unwrap();
     let loop_handle = event_loop.handle();
-    let (mut embedded_server_state, client_sock) =
+    let (mut embedded_server_state, (_display_sock, client_sock)) =
         server::new_server(loop_handle.clone(), config.clone(), log.clone())?;
-    let desktop_client_state = client::new_client(
+    let (desktop_client_state, outputs) = client::new_client(
         loop_handle.clone(),
         config.clone(),
         log.clone(),
-        &mut embedded_server_state.display,
+        &mut embedded_server_state,
     )?;
     let mut global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,
         loop_signal: event_loop.get_signal(),
+        outputs,
         log: log.clone(),
     };
 

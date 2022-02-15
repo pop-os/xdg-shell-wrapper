@@ -21,7 +21,7 @@ pub fn new_server(
     loop_handle: calloop::LoopHandle<'static, GlobalState>,
     _config: XdgWrapperConfig,
     log: Logger,
-) -> Result<(EmbeddedServerState, UnixStream)> {
+) -> Result<(EmbeddedServerState, (UnixStream, UnixStream))> {
     let mut display = wayland_server::Display::new();
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
     let raw_fd = display_sock.as_raw_fd();
@@ -70,6 +70,6 @@ pub fn new_server(
             client,
             shell_state,
         },
-        client_sock,
+        (display_sock, client_sock),
     ))
 }

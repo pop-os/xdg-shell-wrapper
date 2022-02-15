@@ -5,10 +5,13 @@ use anyhow::Result;
 use sctk::{
     default_environment,
     environment::SimpleGlobal,
-    output::{with_output_info, OutputInfo, OutputStatusListener},
+    output::{with_output_info, Mode as c_Mode, OutputInfo, OutputStatusListener},
     reexports::{
         calloop,
-        client::protocol::{wl_output, wl_pointer, wl_surface},
+        client::protocol::{
+            wl_output::{self as c_wl_output, Subpixel as c_Subpixel},
+            wl_pointer as c_wl_pointer, wl_surface as c_wl_surface,
+        },
         client::{self, protocol::wl_keyboard},
         client::{Attached, Main},
     },
@@ -16,7 +19,6 @@ use sctk::{
     shm::AutoMemPool,
 };
 use smithay::backend::egl::context::GlAttributes;
-use smithay::backend::egl::context::GlProfile;
 use smithay::backend::egl::EGLContext;
 use smithay::backend::egl::EGLSurface;
 use smithay::backend::renderer::gles2::Gles2Renderer;
@@ -36,8 +38,12 @@ use smithay::egl_platform;
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
-use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::reexports::wayland_server::{DispatchData, Display};
+use smithay::reexports::wayland_server::protocol::{
+    wl_output::{Subpixel as s_Subpixel, WlOutput as s_WlOutput},
+    wl_surface::WlSurface,
+};
+use smithay::reexports::wayland_server::{DispatchData, Display as s_Display, Global as s_Global};
+use smithay::wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties};
 use smithay::wayland::{
     seat::{self, FilterResult},
     SERIAL_COUNTER,
@@ -124,7 +130,7 @@ pub struct Surface {
     pub egl_display: EGLDisplay,
     pub egl_surface: Rc<EGLSurface>,
     pub renderer: Gles2Renderer,
-    pub surface: wl_surface::WlSurface,
+    pub surface: c_wl_surface::WlSurface,
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
     pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
     pub pool: AutoMemPool,
@@ -135,8 +141,8 @@ pub struct Surface {
 
 impl Surface {
     fn new(
-        output: &wl_output::WlOutput,
-        surface: wl_surface::WlSurface,
+        output: &c_wl_output::WlOutput,
+        surface: c_wl_surface::WlSurface,
         layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         pool: AutoMemPool,
         config: XdgWrapperConfig,
@@ -200,10 +206,10 @@ impl Surface {
         let egl_context = EGLContext::new_with_config(
             &egl_display,
             GlAttributes {
-                version: (2, 0),
-                profile: Some(GlProfile::Compatibility),
-                debug: true,
-                vsync: false,
+                version: (3, 0),
+                profile: None,
+                debug: cfg!(debug_assertions),
+                vsync: true,
             },
             Default::default(),
             log.clone(),
@@ -301,8 +307,8 @@ pub fn new_client(
     loop_handle: calloop::LoopHandle<'static, GlobalState>,
     config: XdgWrapperConfig,
     log: Logger,
-    server_display: &mut Display,
-) -> Result<DesktopClientState> {
+    server_state: &mut EmbeddedServerState,
+) -> Result<(DesktopClientState, Vec<OutputGroup>)> {
     /*
      * Initial setup
      */
@@ -316,7 +322,14 @@ pub fn new_client(
     let surface_handle = Rc::clone(&surface);
     let logger = log.clone();
     let display_ = display.clone();
-    let output_handler = move |output: wl_output::WlOutput, info: &OutputInfo| {
+    let server_display = &mut server_state.display;
+    let output_handler = move |output: client::protocol::wl_output::WlOutput,
+                               info: &OutputInfo,
+                               server_display: &mut s_Display,
+                               s_outputs: &mut Vec<OutputGroup>| {
+        // remove output with id if obsolete
+        // add output to list if new output
+        // if no output in handle after removing output, replace with first output from list
         let mut handle = surface_handle.borrow_mut();
         trace!(logger, "output: {:?} {:?}", &output, &info);
         if info.obsolete {
@@ -324,36 +337,89 @@ pub fn new_client(
             if handle.as_ref().filter(|(i, _)| *i != info.id).is_some() {
                 *handle = None;
             }
+
+            // remove outputs from embedded server when they are removed from the client
+            for (_, global_output, _, _) in s_outputs.drain_filter(|(_, _, i, _)| *i != info.id) {
+                global_output.destroy();
+            }
+
             output.release();
-        } else if handle.is_none() {
-            // an output has been created, construct a surface for it
-            let surface = env_handle.create_surface().detach();
-            let pool = env_handle
-                .create_auto_pool()
-                .expect("Failed to create a memory pool!");
-            *handle = Some((
-                info.id,
-                Surface::new(
-                    &output,
-                    surface,
-                    &layer_shell.clone(),
-                    pool,
-                    config.clone(),
-                    logger.clone(),
-                    display_.clone(),
-                ),
-            ));
+        } else {
+            // Create the Output for the server with given name and physical properties
+            let (s_output, _s_output_global) = s_Output::new(
+                server_display,    // the display
+                info.name.clone(), // the name of this output,
+                PhysicalProperties {
+                    size: info.physical_size.into(), // dimensions (width, height) in mm
+                    subpixel: match info.subpixel {
+                        c_Subpixel::None => s_Subpixel::None,
+                        c_Subpixel::HorizontalRgb => s_Subpixel::HorizontalRgb,
+                        c_Subpixel::HorizontalBgr => s_Subpixel::HorizontalBgr,
+                        c_Subpixel::VerticalRgb => s_Subpixel::VerticalRgb,
+                        c_Subpixel::VerticalBgr => s_Subpixel::VerticalBgr,
+                        _ => s_Subpixel::Unknown,
+                    }, // subpixel information
+                    make: info.make.clone(),         // make of the monitor
+                    model: info.model.clone(),       // model of the monitor
+                },
+                logger.clone(), // insert a logger here
+            );
+            for c_Mode {
+                dimensions,
+                refresh_rate,
+                is_preferred,
+                ..
+            } in &info.modes
+            {
+                let s_mode = s_Mode {
+                    size: dimensions.clone().into(),
+                    refresh: *refresh_rate,
+                };
+                if *is_preferred {
+                    s_output.set_preferred(s_mode);
+                } else {
+                    s_output.add_mode(s_mode);
+                }
+            }
+        }
+        if handle.is_none() {
+            if let Some((_, _, _, output)) = s_outputs.first() {
+                // construct a surface for an output if possible
+                let surface = env_handle.create_surface().detach();
+                let pool = env_handle
+                    .create_auto_pool()
+                    .expect("Failed to create a memory pool!");
+                *handle = Some((
+                    info.id,
+                    Surface::new(
+                        output,
+                        surface,
+                        &layer_shell.clone(),
+                        pool,
+                        config.clone(),
+                        logger.clone(),
+                        display_.clone(),
+                    ),
+                ));
+            }
         }
     };
 
+    let mut s_outputs = Vec::new();
     for output in env.get_all_outputs() {
         if let Some(info) = with_output_info(&output, Clone::clone) {
-            output_handler(output, &info);
+            output_handler(output, &info, server_display, &mut s_outputs);
         }
     }
 
-    let output_listener =
-        env.listen_for_outputs(move |output, info, _| output_handler(output, info));
+    let output_listener = env.listen_for_outputs(move |output, info, mut dispatch_data| {
+        let state = dispatch_data.get::<GlobalState>().unwrap();
+        let EmbeddedServerState {
+            ref mut display, ..
+        } = &mut state.embedded_server_state;
+        let outputs = &mut state.outputs;
+        output_handler(output, info, display, outputs);
+    });
 
     /*
      * Keyboard initialization
@@ -485,13 +551,16 @@ pub fn new_client(
         .quick_insert(loop_handle)
         .unwrap();
 
-    Ok(DesktopClientState {
-        surface,
-        display,
-        output_listener,
-        seat_listener,
-        seats: Default::default(),
-    })
+    Ok((
+        DesktopClientState {
+            surface,
+            display,
+            output_listener,
+            seat_listener,
+            seats: Default::default(),
+        },
+        s_outputs,
+    ))
 }
 
 // TODO call input() on keyboard handle to forward event data
@@ -538,7 +607,11 @@ fn send_keyboard_event(
     trace!(logger, "{:?}", event);
 }
 
-fn send_pointer_event(event: wl_pointer::Event, seat_name: &str, mut dispatch_data: DispatchData) {
+fn send_pointer_event(
+    event: c_wl_pointer::Event,
+    seat_name: &str,
+    mut dispatch_data: DispatchData,
+) {
     let state = dispatch_data.get::<GlobalState>().unwrap();
     let seats = &state.desktop_client_state.seats;
     if let Some(Some(ptr)) = seats
