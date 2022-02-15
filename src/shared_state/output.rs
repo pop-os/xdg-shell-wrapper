@@ -7,23 +7,14 @@ use sctk::environment::Environment;
 use sctk::{
     output::{Mode as c_Mode, OutputInfo},
     reexports::{
-        client::protocol::{
-            wl_output::{self as c_wl_output, Subpixel as c_Subpixel},
-            wl_pointer as c_wl_pointer, wl_surface as c_wl_surface,
-        },
-        client::{self, protocol::wl_keyboard, Attached, Display},
+        client::protocol::wl_output::Subpixel as c_Subpixel,
+        client::{self, Attached, Display},
     },
 };
 use slog::Logger;
-use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
-    zwlr_layer_shell_v1, zwlr_layer_surface_v1,
-};
+use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1;
 use smithay::reexports::wayland_server::{
-    protocol::{
-        wl_output::{Subpixel as s_Subpixel, WlOutput as s_WlOutput},
-        wl_surface::WlSurface,
-    },
-    Display as s_Display,
+    protocol::wl_output::Subpixel as s_Subpixel, Display as s_Display,
 };
 use smithay::wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties};
 
@@ -60,7 +51,7 @@ pub fn handle_output(
         output.release();
     } else {
         // Create the Output for the server with given name and physical properties
-        let (s_output, _s_output_global) = s_Output::new(
+        let (s_output, s_output_global) = s_Output::new(
             server_display,    // the display
             info.name.clone(), // the name of this output,
             PhysicalProperties {
@@ -95,6 +86,7 @@ pub fn handle_output(
                 s_output.add_mode(s_mode);
             }
         }
+        s_outputs.push((s_output, s_output_global, info.id, output));
     }
     if handle.is_none() {
         if let Some((_, _, _, output)) = s_outputs.first() {

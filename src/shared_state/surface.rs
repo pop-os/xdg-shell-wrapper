@@ -9,11 +9,10 @@ use libc::{c_int, c_void};
 use sctk::{
     reexports::{
         client::protocol::{
-            wl_output::{self as c_wl_output, Subpixel as c_Subpixel},
-            wl_pointer as c_wl_pointer, wl_surface as c_wl_surface,
+            wl_output::{self as c_wl_output},
+            wl_surface as c_wl_surface,
         },
-        client::{self, protocol::wl_keyboard},
-        client::{Attached, Main},
+        client::{self, Attached, Main},
     },
     shm::AutoMemPool,
 };

@@ -2,24 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::Result;
-use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::{
-    default_environment,
-    environment::SimpleGlobal,
-    output::with_output_info,
-    reexports::{
-        calloop,
-        client::protocol::wl_keyboard,
-        client::protocol::{
-            wl_output::{self as c_wl_output, Subpixel as c_Subpixel},
-            wl_pointer as c_wl_pointer, wl_surface as c_wl_surface,
-        },
-    },
+    default_environment, environment::SimpleGlobal, output::with_output_info, reexports::calloop,
 };
 use slog::{trace, Logger};
-use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
-    zwlr_layer_shell_v1, zwlr_layer_surface_v1,
-};
+use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1;
 use smithay::wayland::seat::{self};
 
 // SPDX-License-Identifier: GPL-3.0-only
@@ -63,7 +50,7 @@ pub fn new_client(
             let logger = log.clone();
             let display_ = display.clone();
             let config = config.clone();
-            let output_handler = handle_output(
+            handle_output(
                 config,
                 &layer_shell,
                 env_handle,
@@ -158,7 +145,7 @@ pub fn new_client(
     // then setup a listener for changes
 
     let logger = log.clone();
-    let seat_listener = env.listen_for_seats(move |seat, seat_data, mut dispatch_data| {
+    let seat_listener = env.listen_for_seats(move |seat, seat_data, dispatch_data| {
         seat_handler(logger.clone(), seat, seat_data, dispatch_data)
     });
 

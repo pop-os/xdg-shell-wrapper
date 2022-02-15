@@ -1,21 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use sctk::reexports::{
-    client::protocol::{
-        wl_output::{self as c_wl_output, Subpixel as c_Subpixel},
-        wl_pointer as c_wl_pointer,
-        wl_seat::WlSeat,
-        wl_surface as c_wl_surface,
-    },
+    client::protocol::{wl_pointer as c_wl_pointer, wl_seat::WlSeat},
     client::Attached,
     client::{self, protocol::wl_keyboard},
 };
 use sctk::seat::SeatData;
 use slog::{trace, Logger};
 use smithay::backend::input::KeyState;
-use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
-    zwlr_layer_shell_v1, zwlr_layer_surface_v1,
-};
 use smithay::reexports::wayland_server::DispatchData;
 use smithay::wayland::{
     seat::{self, FilterResult},
