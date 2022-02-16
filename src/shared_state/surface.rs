@@ -10,7 +10,7 @@ use sctk::{
     reexports::{
         client::protocol::{
             wl_output::{self as c_wl_output},
-            wl_surface as c_wl_surface,
+            wl_shm, wl_surface as c_wl_surface,
         },
         client::{self, Attached, Main},
     },
@@ -223,12 +223,42 @@ impl Surface {
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
                     self.dimensions = (width, height);
-                    // self.draw();
+                    self.draw();
                 }
                 false
             }
             None => false,
         }
+    }
+
+    pub fn draw(&mut self) {
+        let stride = 4 * self.dimensions.0 as i32;
+        let width = self.dimensions.0 as i32;
+        let height = self.dimensions.1 as i32;
+
+        // Note: unwrap() is only used here in the interest of simplicity of the example.
+        // A "real" application should handle the case where both pools are still in use by the
+        // compositor.
+        let (canvas, buffer) = self
+            .pool
+            .buffer(width, height, stride, wl_shm::Format::Argb8888)
+            .unwrap();
+
+        for dst_pixel in canvas.chunks_exact_mut(4) {
+            let pixel = 0xff00ff00u32.to_ne_bytes();
+            dst_pixel[0] = pixel[0];
+            dst_pixel[1] = pixel[1];
+            dst_pixel[2] = pixel[2];
+            dst_pixel[3] = pixel[3];
+        }
+
+        // Attach the buffer to the surface and mark the entire surface as damaged
+        self.surface.attach(Some(&buffer), 0, 0);
+        self.surface
+            .damage_buffer(0, 0, width as i32, height as i32);
+
+        // Finally, commit the surface
+        self.surface.commit();
     }
 
     pub fn render(&mut self, surface: s_WlSurface) {
