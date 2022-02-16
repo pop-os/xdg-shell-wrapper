@@ -16,7 +16,6 @@ use smithay::wayland::{
 
 use crate::{ClientSeat, GlobalState, Seat};
 
-// TODO call input() on keyboard handle to forward event data
 pub fn send_keyboard_event(
     event: wl_keyboard::Event,
     seat_name: &str,

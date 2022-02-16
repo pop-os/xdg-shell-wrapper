@@ -7,12 +7,20 @@ use std::{
 
 use anyhow::Result;
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
-use slog::{trace, Logger};
+use slog::Logger;
 use smithay::{
-    reexports::{nix::fcntl, wayland_server},
+    reexports::{
+        nix::fcntl,
+        wayland_server::{
+            self,
+            protocol::{wl_data_device_manager::DndAction, wl_shm::Format},
+        },
+    },
     wayland::{
         compositor::compositor_init,
+        data_device::{default_action_chooser, init_data_device},
         shell::xdg::{xdg_shell_init, XdgRequest},
+        shm::init_shm_global,
     },
 };
 
@@ -42,6 +50,14 @@ pub fn new_server(
         display.dispatch(Duration::ZERO, &mut ())?;
         Ok(calloop::PostAction::Continue)
     })?;
+
+    init_data_device(
+        &mut display,
+        |dnd_event| { /* a callback to react to client DnD/selection actions */ },
+        default_action_chooser,
+        log.clone(),
+    );
+
     compositor_init(
         &mut display,
         |surface, mut dispatch_data| {
@@ -56,15 +72,15 @@ pub fn new_server(
         log.clone(),
     );
 
-    let logger = log.clone();
     let (shell_state, _) = xdg_shell_init(
         &mut display,
-        move |event: XdgRequest, _dispatch_data| {
+        move |_event: XdgRequest, _dispatch_data| {
             println!("received XDG request!");
-            trace!(logger, "xdg shell event: {:?}", event);
         },
         log.clone(),
     );
+
+    init_shm_global(&mut display, vec![Format::Yuyv, Format::C8], log.clone());
 
     Ok((
         EmbeddedServerState {
