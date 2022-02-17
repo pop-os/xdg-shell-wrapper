@@ -28,10 +28,14 @@ use crate::config::XdgWrapperConfig;
 use crate::shared_state::*;
 
 pub fn new_server(
-    loop_handle: calloop::LoopHandle<'static, GlobalState>,
+    loop_handle: calloop::LoopHandle<'static, (GlobalState, wayland_server::Display)>,
     _config: XdgWrapperConfig,
     log: Logger,
-) -> Result<(EmbeddedServerState, (UnixStream, UnixStream))> {
+) -> Result<(
+    EmbeddedServerState,
+    wayland_server::Display,
+    (UnixStream, UnixStream),
+)> {
     let mut display = wayland_server::Display::new();
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
     let raw_fd = display_sock.as_raw_fd();
@@ -46,8 +50,7 @@ pub fn new_server(
 
     let display_event_source = Generic::new(display.get_poll_fd(), Interest::READ, Mode::Edge);
     loop_handle.insert_source(display_event_source, move |_e, _metadata, shared_data| {
-        let display = &mut shared_data.embedded_server_state.display;
-        display.dispatch(Duration::ZERO, &mut ())?;
+        // let display = &mut shared_data.embedded_server_state.display;
         Ok(calloop::PostAction::Continue)
     })?;
 
@@ -84,10 +87,10 @@ pub fn new_server(
 
     Ok((
         EmbeddedServerState {
-            display,
             client,
             shell_state,
         },
+        display,
         (display_sock, client_sock),
     ))
 }

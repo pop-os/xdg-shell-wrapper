@@ -6,7 +6,9 @@ use sctk::{
     default_environment, environment::SimpleGlobal, output::with_output_info, reexports::calloop,
 };
 use slog::{trace, Logger};
-use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1;
+use smithay::reexports::{
+    wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1, wayland_server,
+};
 use smithay::wayland::seat::{self};
 
 // SPDX-License-Identifier: GPL-3.0-only
@@ -25,10 +27,10 @@ default_environment!(Env,
 );
 
 pub fn new_client(
-    loop_handle: calloop::LoopHandle<'static, GlobalState>,
+    loop_handle: calloop::LoopHandle<'static, (GlobalState, wayland_server::Display)>,
     config: XdgWrapperConfig,
     log: Logger,
-    server_state: &mut EmbeddedServerState,
+    server_display: &mut wayland_server::Display,
 ) -> Result<(DesktopClientState, Vec<OutputGroup>)> {
     /*
      * Initial setup
@@ -38,8 +40,6 @@ pub fn new_client(
             .expect("Unable to connect to a Wayland compositor");
 
     let surface = Rc::new(RefCell::new(None));
-
-    let server_display = &mut server_state.display;
 
     let mut s_outputs = Vec::new();
     for output in env.get_all_outputs() {
@@ -71,8 +71,9 @@ pub fn new_client(
     let logger = log.clone();
     let display_ = display.clone();
     let output_listener = env.listen_for_outputs(move |output, info, mut dispatch_data| {
-        let state = dispatch_data.get::<GlobalState>().unwrap();
-        let server_display = &mut state.embedded_server_state.display;
+        let (state, server_display) = dispatch_data
+            .get::<(GlobalState, wayland_server::Display)>()
+            .unwrap();
         let outputs = &mut state.outputs;
         handle_output(
             config.clone(),

@@ -2,12 +2,12 @@
 
 #![feature(drain_filter)]
 
-use std::{os::unix::io::AsRawFd, process::Command};
+use std::{os::unix::io::AsRawFd, process::Command, time::Duration};
 
 use anyhow::Result;
 use shlex::Shlex;
 use slog::{o, trace, Drain};
-use smithay::reexports::nix::fcntl;
+use smithay::reexports::{nix::fcntl, wayland_server::Display};
 
 use config::XdgWrapperConfig;
 use shared_state::*;
@@ -51,17 +51,17 @@ fn main() -> Result<()> {
         }
     };
 
-    let mut event_loop = calloop::EventLoop::<GlobalState>::try_new().unwrap();
+    let mut event_loop = calloop::EventLoop::<(GlobalState, Display)>::try_new().unwrap();
     let loop_handle = event_loop.handle();
-    let (mut embedded_server_state, (_display_sock, client_sock)) =
+    let (embedded_server_state, mut display, (_display_sock, client_sock)) =
         server::new_server(loop_handle.clone(), config.clone(), log.clone())?;
     let (desktop_client_state, outputs) = client::new_client(
         loop_handle.clone(),
         config.clone(),
         log.clone(),
-        &mut embedded_server_state,
+        &mut display,
     )?;
-    let mut global_state = GlobalState {
+    let global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,
         loop_signal: event_loop.get_signal(),
@@ -96,20 +96,29 @@ fn main() -> Result<()> {
         .expect("Failed to start child process");
 
     event_loop
-        .run(None, &mut global_state, |shared_data| {
-            let display = &mut shared_data.desktop_client_state.display;
-            let surface = &mut shared_data.desktop_client_state.surface.borrow_mut();
-            let loop_signal = &mut shared_data.loop_signal;
-            if surface.is_some() {
-                let remove_surface = surface.as_mut().unwrap().1.handle_events();
-                if remove_surface {
-                    println!("exiting");
-                    surface.take();
-                    loop_signal.stop();
+        .run(None, &mut (global_state, display), |shared_data| {
+            let (shared_data, server_display) = shared_data;
+            {
+                let display = &mut shared_data.desktop_client_state.display;
+                let surface = &mut shared_data.desktop_client_state.surface.borrow_mut();
+                let loop_signal = &mut shared_data.loop_signal;
+                if surface.is_some() {
+                    let remove_surface = surface.as_mut().unwrap().1.handle_events();
+                    if remove_surface {
+                        println!("exiting");
+                        surface.take();
+                        loop_signal.stop();
+                    }
                 }
-            }
 
-            display.flush().unwrap();
+                display.flush().unwrap();
+            }
+            {
+                server_display
+                    .dispatch(Duration::ZERO, shared_data)
+                    .unwrap();
+                server_display.flush_clients(shared_data);
+            }
         })
         .unwrap();
     Ok(())

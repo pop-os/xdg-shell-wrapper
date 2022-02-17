@@ -8,7 +8,7 @@ use sctk::reexports::{
 use sctk::seat::SeatData;
 use slog::{trace, Logger};
 use smithay::backend::input::KeyState;
-use smithay::reexports::wayland_server::DispatchData;
+use smithay::reexports::wayland_server::{DispatchData, Display};
 use smithay::wayland::{
     seat::{self, FilterResult},
     SERIAL_COUNTER,
@@ -21,7 +21,7 @@ pub fn send_keyboard_event(
     seat_name: &str,
     mut dispatch_data: DispatchData,
 ) {
-    let state = dispatch_data.get::<GlobalState>().unwrap();
+    let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let logger = &state.log;
     let seats = &state.desktop_client_state.seats;
     if let Some(Some(kbd)) = seats
@@ -64,7 +64,7 @@ pub fn send_pointer_event(
     seat_name: &str,
     mut dispatch_data: DispatchData,
 ) {
-    let state = dispatch_data.get::<GlobalState>().unwrap();
+    let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let seats = &state.desktop_client_state.seats;
     if let Some(Some(ptr)) = seats
         .iter()
@@ -96,9 +96,8 @@ pub fn seat_handler(
     seat_data: &SeatData,
     mut dispatch_data: DispatchData,
 ) {
-    let state = dispatch_data.get::<GlobalState>().unwrap();
+    let (state, server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let seats = &mut state.desktop_client_state.seats;
-    let server_display = &mut state.embedded_server_state.display;
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown
     trace!(logger, "seat event: {:?} {:?}", seat, seat_data);
