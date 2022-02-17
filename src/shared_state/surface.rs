@@ -223,42 +223,12 @@ impl Surface {
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
                     self.dimensions = (width, height);
-                    self.draw();
+                    self.surface.commit();
                 }
                 false
             }
             None => false,
         }
-    }
-
-    pub fn draw(&mut self) {
-        let stride = 4 * self.dimensions.0 as i32;
-        let width = self.dimensions.0 as i32;
-        let height = self.dimensions.1 as i32;
-
-        // Note: unwrap() is only used here in the interest of simplicity of the example.
-        // A "real" application should handle the case where both pools are still in use by the
-        // compositor.
-        let (canvas, buffer) = self
-            .pool
-            .buffer(width, height, stride, wl_shm::Format::Argb8888)
-            .unwrap();
-
-        for dst_pixel in canvas.chunks_exact_mut(4) {
-            let pixel = 0xff00ff00u32.to_ne_bytes();
-            dst_pixel[0] = pixel[0];
-            dst_pixel[1] = pixel[1];
-            dst_pixel[2] = pixel[2];
-            dst_pixel[3] = pixel[3];
-        }
-
-        // Attach the buffer to the surface and mark the entire surface as damaged
-        self.surface.attach(Some(&buffer), 0, 0);
-        self.surface
-            .damage_buffer(0, 0, width as i32, height as i32);
-
-        // Finally, commit the surface
-        self.surface.commit();
     }
 
     pub fn render(&mut self, surface: s_WlSurface) {
@@ -279,17 +249,18 @@ impl Surface {
                     }];
                     draw_surface_tree(self_, frame, &surface, 1.0, (0, 0).into(), &damage, &logger)
                         .expect("Failed to draw surface tree");
-                    let mut damage = [smithay::utils::Rectangle {
-                        loc: (0, 0).into(),
-                        size: (width, height).into(),
-                    }];
-
-                    egl_surface
-                        .swap_buffers(Some(&mut damage))
-                        .expect("Failed to swap buffers.");
                 },
             )
             .expect("Failed to render to layer shell surface.");
+
+        let mut damage = [smithay::utils::Rectangle {
+            loc: (0, 0).into(),
+            size: (width, height).into(),
+        }];
+
+        egl_surface
+            .swap_buffers(Some(&mut damage))
+            .expect("Failed to swap buffers.");
     }
 }
 
