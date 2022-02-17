@@ -261,6 +261,8 @@ impl Surface {
         egl_surface
             .swap_buffers(Some(&mut damage))
             .expect("Failed to swap buffers.");
+
+        println!("done rendering surface...");
     }
 }
 

@@ -17,6 +17,11 @@ mod config;
 mod server;
 mod shared_state;
 mod util;
+use smithay::{
+    backend::{allocator::dmabuf::Dmabuf, renderer::ImportDma},
+    reexports::wayland_server::protocol::wl_buffer::WlBuffer,
+    wayland::dmabuf::init_dmabuf_global,
+};
 
 fn main() -> Result<()> {
     // A logger facility, here we use the terminal
@@ -61,6 +66,26 @@ fn main() -> Result<()> {
         log.clone(),
         &mut display,
     )?;
+
+    let _dmabuf_global = init_dmabuf_global(
+        &mut display,
+        desktop_client_state
+            .surface
+            .borrow_mut()
+            .as_ref()
+            .unwrap()
+            .1
+            .renderer
+            .dmabuf_formats()
+            .copied()
+            .collect::<Vec<_>>(),
+        |_buffer, _dispatch_data| {
+            /* validate the dmabuf and import it into your renderer state */
+            true
+        },
+        log.clone(),
+    );
+
     let global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,

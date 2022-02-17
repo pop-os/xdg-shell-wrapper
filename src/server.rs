@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
-use slog::Logger;
+use slog::{trace, Logger};
 use smithay::{
     reexports::{
         nix::fcntl,
@@ -64,7 +64,6 @@ pub fn new_server(
     compositor_init(
         &mut display,
         |surface, mut dispatch_data| {
-            println!("received commit from client!");
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let desktop_client_surface = &mut state.desktop_client_state.surface;
             if let Some((_, desktop_client_surface)) = desktop_client_surface.borrow_mut().as_mut()
@@ -77,8 +76,26 @@ pub fn new_server(
 
     let (shell_state, _) = xdg_shell_init(
         &mut display,
-        move |_event: XdgRequest, _dispatch_data| {
-            println!("received XDG request!");
+        move |request: XdgRequest, mut dispatch_data| {
+            let state = dispatch_data.get::<GlobalState>().unwrap();
+            let log = &mut state.log;
+            match request {
+                XdgRequest::NewToplevel { surface } => {
+                    let layer_shell_surface = state.desktop_client_state.surface.borrow_mut();
+
+                    let _ = surface.with_pending_state(move |top_level_state| {
+                        if let Some(layer_shell_surface) = layer_shell_surface.as_ref() {
+                            let w = layer_shell_surface.1.dimensions.0 as i32;
+                            let h = layer_shell_surface.1.dimensions.1 as i32;
+                            top_level_state.size = Some((w, h).into());
+                        }
+                    });
+                    surface.send_configure();
+                }
+                _ => {
+                    trace!(log, "Received xdg request.");
+                }
+            }
         },
         log.clone(),
     );
