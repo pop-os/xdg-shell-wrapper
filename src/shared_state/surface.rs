@@ -29,9 +29,10 @@ use smithay::backend::{
     renderer::{
         gles2::Gles2Renderer,
         utils::{draw_surface_tree, on_commit_buffer_handler},
-        Bind, ImportEgl, Renderer,
+        Bind, ImportEgl, Renderer, Frame,
     },
 };
+use smithay::desktop::utils::send_frames_surface_tree;
 use smithay::egl_platform;
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
@@ -179,7 +180,7 @@ impl Surface {
                 version: (3, 0),
                 profile: None,
                 debug: cfg!(debug_assertions),
-                vsync: true,
+                vsync: false,
             },
             Default::default(),
             log.clone(),
@@ -235,7 +236,7 @@ impl Surface {
         }
     }
 
-    pub fn render(&mut self, surface: s_WlSurface) {
+    pub fn render(&mut self, surface: s_WlSurface, time: u32) {
         let width = self.dimensions.0 as i32;
         let height = self.dimensions.1 as i32;
         let logger = self.log.clone();
@@ -246,13 +247,14 @@ impl Surface {
             .render(
                 (width, height).into(),
                 smithay::utils::Transform::Normal,
-                move |self_: &mut Gles2Renderer, frame| {
-                    let damage = [smithay::utils::Rectangle {
+                |self_: &mut Gles2Renderer, frame| {
+                    let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
                         loc: (0, 0).into(),
                         size: (width, height).into(),
-                    }];
-                    draw_surface_tree(self_, frame, &surface, 1.0, (0, 0).into(), &damage, &logger)
-                        .expect("Failed to draw surface tree");
+                    };
+                    frame.clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)]);
+                        draw_surface_tree(self_, frame, &surface, 1.0, (0, 0).into(), &[damage], &logger)
+                            .expect("Failed to draw surface tree");
                 },
             )
             .expect("Failed to render to layer shell surface.");
@@ -265,6 +267,8 @@ impl Surface {
         egl_surface
             .swap_buffers(Some(&mut damage))
             .expect("Failed to swap buffers.");
+
+        send_frames_surface_tree(&surface, time);
     }
 }
 

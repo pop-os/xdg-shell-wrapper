@@ -61,14 +61,16 @@ pub fn new_server(
         log.clone(),
     );
 
+    let log_handle = log.clone();
     compositor_init(
         &mut display,
-        |surface, mut dispatch_data| {
+        move |surface, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let desktop_client_surface = &mut state.desktop_client_state.surface;
             if let Some((_, desktop_client_surface)) = desktop_client_surface.borrow_mut().as_mut()
             {
-                desktop_client_surface.render(surface);
+                desktop_client_surface.render(surface, state.start_time.elapsed().as_millis() as u32);
+                slog::debug!(&log_handle, "Rendered");
             }
         },
         log.clone(),
