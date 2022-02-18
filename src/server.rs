@@ -92,6 +92,9 @@ pub fn new_server(
                     });
                     surface.send_configure();
                 }
+                XdgRequest::NewPopup { surface, .. } => {
+                    let _ = surface.send_configure();
+                }
                 _ => {
                     trace!(log, "Received xdg request.");
                 }
