@@ -45,6 +45,7 @@ pub struct GlobalState {
     pub loop_signal: calloop::LoopSignal,
     pub outputs: Vec<OutputGroup>,
     pub log: Logger,
+    pub start_time: std::time::Instant,
 }
 
 #[derive(Debug)]
