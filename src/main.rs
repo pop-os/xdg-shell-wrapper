@@ -92,6 +92,7 @@ fn main() -> Result<()> {
         loop_signal: event_loop.get_signal(),
         outputs,
         log: log.clone(),
+        start_time: std::time::Instant::now(),
     };
 
     // start child process
@@ -117,6 +118,7 @@ fn main() -> Result<()> {
 
     child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
+        //.env("WAYLAND_DEBUG", "1")
         .spawn()
         .expect("Failed to start child process");
 
@@ -135,7 +137,6 @@ fn main() -> Result<()> {
                         loop_signal.stop();
                     }
                 }
-
                 display.flush().unwrap();
             }
             {
