@@ -29,14 +29,16 @@ use smithay::backend::{
     renderer::{
         gles2::Gles2Renderer,
         utils::{draw_surface_tree, on_commit_buffer_handler},
-        Bind, Renderer,
+        Bind, ImportEgl, Renderer,
     },
 };
 use smithay::egl_platform;
 use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
-use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface as s_WlSurface;
+use smithay::reexports::wayland_server::{
+    protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display,
+};
 
 use crate::XdgWrapperConfig;
 
@@ -115,6 +117,7 @@ impl Surface {
         config: XdgWrapperConfig,
         log: Logger,
         display: client::Display,
+        server_display: &mut s_Display,
     ) -> Self {
         let layer_surface = layer_shell.get_layer_surface(
             &surface,
@@ -197,6 +200,7 @@ impl Surface {
         let mut renderer = unsafe {
             Gles2Renderer::new(egl_context, log.clone()).expect("Failed to initialize EGL Surface")
         };
+        renderer.bind_wl_display(&server_display);
         renderer
             .bind(egl_surface.clone())
             .expect("Failed to bind surface to GL");
@@ -261,8 +265,6 @@ impl Surface {
         egl_surface
             .swap_buffers(Some(&mut damage))
             .expect("Failed to swap buffers.");
-
-        println!("done rendering surface...");
     }
 }
 

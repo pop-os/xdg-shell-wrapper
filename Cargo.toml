@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smithay = { git = "https://github.com/Smithay/smithay.git" }
+smithay = { git = "https://github.com/Smithay/smithay.git", features = ["use_system_lib"] }
 sctk = { package = "smithay-client-toolkit", git = "https://github.com/Smithay/client-toolkit.git" }
 calloop = "0.9.3"
 anyhow = "1.0.53"

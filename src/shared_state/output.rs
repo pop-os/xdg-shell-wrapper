@@ -105,6 +105,7 @@ pub fn handle_output(
                     config.clone(),
                     logger.clone(),
                     display_.clone(),
+                    server_display,
                 ),
             ));
         }
