@@ -2,7 +2,7 @@
 
 #![feature(drain_filter)]
 
-use std::{os::unix::io::AsRawFd, process::Command, time::Duration};
+use std::{os::unix::io::AsRawFd, process::Command, thread, time::Duration};
 
 use anyhow::Result;
 use shlex::Shlex;
@@ -124,27 +124,33 @@ fn main() -> Result<()> {
         .expect("Failed to start child process");
 
     let mut shared_data = (global_state, display);
+    let mut iter_since_render = -1;
     loop {
-        // TODO: use a sensible timeout to not busy loop needlessly
+        iter_since_render = i32::clamp(iter_since_render + 1, 0, 99999);
+        dbg!(iter_since_render);
         event_loop
-            .dispatch(None, &mut shared_data);
+            .dispatch(None, &mut shared_data)
+            .expect("Failed to dispatch events...");
+
         let (shared_data, server_display) = &mut shared_data;
         {
             let display = &mut shared_data.desktop_client_state.display;
             display.flush().unwrap();
-            
+
             let surface = &mut shared_data.desktop_client_state.surface.borrow_mut();
-            let loop_signal = &mut shared_data.loop_signal;
             if surface.is_some() {
                 let remove_surface = surface.as_mut().unwrap().1.handle_events();
                 if remove_surface {
                     println!("exiting");
                     surface.take();
                     break;
-                } else {
-                    // TODO: only render, when new client buffer or frame-callback called.
-                    // Probably just add a "dirty"-flag to the surface state or something
-                    surface.as_mut().unwrap().1.render(shared_data.start_time.elapsed().as_millis() as u32);
+                } else if let Some((_, surface)) = surface.as_mut() {
+                    if surface.dirty {
+                        // TODO: only render, when new client buffer or frame-callback called.
+                        // Probably just add a "dirty"-flag to the surface state or something
+                        surface.render(shared_data.start_time.elapsed().as_millis() as u32);
+                        iter_since_render = 0;
+                    }
                 }
             }
         }
@@ -153,6 +159,13 @@ fn main() -> Result<()> {
                 .dispatch(Duration::ZERO, shared_data)
                 .unwrap();
             server_display.flush_clients(shared_data);
+        }
+        if iter_since_render > 0 && iter_since_render < 120 {
+            thread::sleep(Duration::from_millis(8));
+        } else if iter_since_render > 0 && iter_since_render < 600 {
+            thread::sleep(Duration::from_millis(32));
+        } else if iter_since_render > 0 && iter_since_render < 3000 {
+            thread::sleep(Duration::from_millis(128));
         }
     }
     Ok(())

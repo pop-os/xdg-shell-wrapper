@@ -16,7 +16,7 @@ use sctk::{
     },
     shm::AutoMemPool,
 };
-use slog::{info, trace, Logger};
+use slog::{info, trace, warn, Logger};
 use smithay::backend::egl::ffi::egl::GetConfigAttrib;
 use smithay::backend::egl::ffi::egl::SwapInterval;
 use smithay::backend::{
@@ -110,6 +110,7 @@ pub struct Surface {
     pub dimensions: (u32, u32),
     pub config: XdgWrapperConfig,
     pub log: Logger,
+    pub dirty: bool,
 }
 
 impl Surface {
@@ -139,7 +140,6 @@ impl Surface {
         let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
         let next_render_event_handle = Rc::clone(&next_render_event);
         let logger = log.clone();
-        
 
         // Commit so that the server will send a configure event
         surface.commit();
@@ -189,7 +189,12 @@ impl Surface {
         let mut renderer = unsafe {
             Gles2Renderer::new(egl_context, log.clone()).expect("Failed to initialize EGL Surface")
         };
-        renderer.bind_wl_display(&server_display);
+        if let Err(_err) = renderer.bind_wl_display(&server_display) {
+            warn!(
+                logger,
+                "Failed to bind display to Egl renderer. Hardware acceleration will not be used."
+            );
+        }
         renderer
             .bind(egl_surface.clone())
             .expect("Failed to bind surface to GL");
@@ -224,7 +229,7 @@ impl Surface {
                 (_, _) => {}
             }
         });
-    
+
         Self {
             egl_display,
             egl_surface,
@@ -237,6 +242,7 @@ impl Surface {
             dimensions: (0, 0),
             config,
             log,
+            dirty: true,
         }
     }
 
@@ -275,7 +281,9 @@ impl Surface {
                         loc: (0, 0).into(),
                         size: (width, height).into(),
                     };
-                    frame.clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)]);
+                    frame
+                        .clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)])
+                        .expect("Failed to clear frame.");
                     if let Some(surface) = self.server_surface.as_ref() {
                         draw_surface_tree(
                             self_,
@@ -287,6 +295,7 @@ impl Surface {
                             &logger,
                         )
                         .expect("Failed to draw surface tree");
+                        self.dirty = true;
                     }
                 },
             )
@@ -297,15 +306,14 @@ impl Surface {
             size: (width, height).into(),
         }];
 
-        println!("swapping buffers...");
         egl_surface
             .swap_buffers(Some(&mut damage))
             .expect("Failed to swap buffers.");
-        println!("done swapping buffers...");
 
         if let Some(surface) = self.server_surface.as_ref() {
             send_frames_surface_tree(surface, time);
         }
+        self.dirty = false;
     }
 }
 

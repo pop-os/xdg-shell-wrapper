@@ -71,6 +71,7 @@ pub fn new_server(
             if let Some((_, desktop_client_surface)) = desktop_client_surface.borrow_mut().as_mut()
             {
                 desktop_client_surface.server_surface = Some(surface);
+                desktop_client_surface.dirty = true;
             }
         },
         log.clone(),

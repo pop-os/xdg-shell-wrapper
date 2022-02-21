@@ -93,10 +93,9 @@ pub fn new_client(
      * Keyboard initialization
      */
 
-    let mut seats = Vec::<(String, Seat)>::new();
+    let mut seats = Vec::<Seat>::new();
 
     // first process already existing seats
-    // TODO create seats on server
     for seat in env.get_all_seats() {
         if let Some((has_kbd, has_ptr, name)) = sctk::seat::with_seat_data(&seat, |seat_data| {
             (
@@ -139,10 +138,9 @@ pub fn new_client(
                     new_seat.server.0.add_pointer(move |_new_status| {});
                 }
             }
-            seats.push((name.clone(), new_seat));
+            seats.push(new_seat);
         }
     }
-
     // then setup a listener for changes
 
     let logger = log.clone();
@@ -160,7 +158,7 @@ pub fn new_client(
             display,
             output_listener,
             seat_listener,
-            seats: Default::default(),
+            seats: seats,
         },
         s_outputs,
     ))

@@ -21,10 +21,10 @@ pub fn send_keyboard_event(
     seat_name: &str,
     mut dispatch_data: DispatchData,
 ) {
-    dbg!(&event);
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let logger = &state.log;
     let seats = &state.desktop_client_state.seats;
+
     if let Some(Some(kbd)) = seats
         .iter()
         .position(|Seat { name, .. }| name == &seat_name)
@@ -65,7 +65,6 @@ pub fn send_pointer_event(
     seat_name: &str,
     mut dispatch_data: DispatchData,
 ) {
-    dbg!(&event);
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let seats = &state.desktop_client_state.seats;
     if let Some(Some(ptr)) = seats
@@ -80,12 +79,23 @@ pub fn send_pointer_event(
                 surface_x,
                 surface_y,
             } => {
+                let server_surface = state
+                    .desktop_client_state
+                    .surface
+                    .borrow()
+                    .as_ref()
+                    .map(|(_, s)| {
+                        s.server_surface
+                            .clone()
+                            .map(|server_s| (server_s, smithay::utils::Point::from((0, 0))))
+                    })
+                    .unwrap_or_default();
                 ptr.motion(
                     smithay::utils::Point::from((surface_x, surface_y)),
-                    None, // TODO get the correct surface from the embedded xdg-shell
+                    server_surface,
                     SERIAL_COUNTER.next_serial(),
                     time,
-                )
+                );
             }
             _ => (),
         };
@@ -139,7 +149,11 @@ pub fn seat_handler(
             });
             *opt_kbd = Some(kbd.detach());
             // TODO error handling
-            let _ = server_seat.add_keyboard(Default::default(), 200, 20, move |_seat, _focus| {});
+            if let Err(e) =
+                server_seat.add_keyboard(Default::default(), 200, 20, move |_seat, _focus| {})
+            {
+                slog::error!(logger, "failed to add keyboard: {}", e);
+            }
         }
         if opt_ptr.is_none() {
             // we should initalize a keyboard
