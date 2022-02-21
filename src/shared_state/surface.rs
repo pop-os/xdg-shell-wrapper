@@ -17,6 +17,8 @@ use sctk::{
     shm::AutoMemPool,
 };
 use slog::{info, trace, Logger};
+use smithay::backend::egl::ffi::egl::GetConfigAttrib;
+use smithay::backend::egl::ffi::egl::SwapInterval;
 use smithay::backend::{
     egl::{
         context::{EGLContext, GlAttributes},
@@ -29,7 +31,7 @@ use smithay::backend::{
     renderer::{
         gles2::Gles2Renderer,
         utils::{draw_surface_tree, on_commit_buffer_handler},
-        Bind, ImportEgl, Renderer, Frame,
+        Bind, Frame, ImportEgl, Renderer,
     },
 };
 use smithay::desktop::utils::send_frames_surface_tree;
@@ -186,6 +188,19 @@ impl Surface {
             log.clone(),
         )
         .expect("Failed to initialize EGL context");
+
+        let mut min_interval_attr = 23239;
+        unsafe {
+            GetConfigAttrib(
+                egl_display.get_display_handle().handle,
+                egl_context.config_id(),
+                ffi::egl::MIN_SWAP_INTERVAL as c_int,
+                &mut min_interval_attr,
+            );
+        }
+
+        dbg!(min_interval_attr);
+        unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) };
         let egl_surface = Rc::new(
             EGLSurface::new(
                 &egl_display,
@@ -253,8 +268,16 @@ impl Surface {
                         size: (width, height).into(),
                     };
                     frame.clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)]);
-                        draw_surface_tree(self_, frame, &surface, 1.0, (0, 0).into(), &[damage], &logger)
-                            .expect("Failed to draw surface tree");
+                    draw_surface_tree(
+                        self_,
+                        frame,
+                        &surface,
+                        1.0,
+                        (0, 0).into(),
+                        &[damage],
+                        &logger,
+                    )
+                    .expect("Failed to draw surface tree");
                 },
             )
             .expect("Failed to render to layer shell surface.");
@@ -264,9 +287,11 @@ impl Surface {
             size: (width, height).into(),
         }];
 
+        println!("swapping buffers...");
         egl_surface
             .swap_buffers(Some(&mut damage))
             .expect("Failed to swap buffers.");
+        println!("done swapping buffers...");
 
         send_frames_surface_tree(&surface, time);
     }

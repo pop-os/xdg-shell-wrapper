@@ -21,6 +21,7 @@ pub fn send_keyboard_event(
     seat_name: &str,
     mut dispatch_data: DispatchData,
 ) {
+    dbg!(&event);
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let logger = &state.log;
     let seats = &state.desktop_client_state.seats;
@@ -64,6 +65,7 @@ pub fn send_pointer_event(
     seat_name: &str,
     mut dispatch_data: DispatchData,
 ) {
+    dbg!(&event);
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let seats = &state.desktop_client_state.seats;
     if let Some(Some(ptr)) = seats

@@ -26,7 +26,8 @@ use smithay::{
 fn main() -> Result<()> {
     // A logger facility, here we use the terminal
     let log = slog::Logger::root(
-        slog_async::Async::default(slog_term::term_full().fuse()).fuse(),
+        // slog_async::Async::default(slog_term::term_full().fuse()).fuse(),
+        slog::Discard,
         o!(),
     );
 
@@ -118,7 +119,7 @@ fn main() -> Result<()> {
 
     child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
-        //.env("WAYLAND_DEBUG", "1")
+        .env("WAYLAND_DEBUG", "0")
         .spawn()
         .expect("Failed to start child process");
 
