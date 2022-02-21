@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+use smithay::backend::renderer::utils::on_commit_buffer_handler;
 use std::{
     os::unix::{io::AsRawFd, net::UnixStream},
     time::Duration,
@@ -61,16 +62,15 @@ pub fn new_server(
         log.clone(),
     );
 
-    let log_handle = log.clone();
     compositor_init(
         &mut display,
         move |surface, mut dispatch_data| {
+            on_commit_buffer_handler(&surface);
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let desktop_client_surface = &mut state.desktop_client_state.surface;
             if let Some((_, desktop_client_surface)) = desktop_client_surface.borrow_mut().as_mut()
             {
-                desktop_client_surface.render(surface, state.start_time.elapsed().as_millis() as u32);
-                slog::debug!(&log_handle, "Rendered");
+                desktop_client_surface.server_surface = Some(surface);
             }
         },
         log.clone(),
