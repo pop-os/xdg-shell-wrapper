@@ -119,34 +119,41 @@ fn main() -> Result<()> {
 
     child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
-        .env("WAYLAND_DEBUG", "0")
+        .env_remove("WAYLAND_DEBUG")
         .spawn()
         .expect("Failed to start child process");
 
-    event_loop
-        .run(None, &mut (global_state, display), |shared_data| {
-            let (shared_data, server_display) = shared_data;
-            {
-                let display = &mut shared_data.desktop_client_state.display;
-                let surface = &mut shared_data.desktop_client_state.surface.borrow_mut();
-                let loop_signal = &mut shared_data.loop_signal;
-                if surface.is_some() {
-                    let remove_surface = surface.as_mut().unwrap().1.handle_events();
-                    if remove_surface {
-                        println!("exiting");
-                        surface.take();
-                        loop_signal.stop();
-                    }
+    let mut shared_data = (global_state, display);
+    loop {
+        // TODO: use a sensible timeout to not busy loop needlessly
+        event_loop
+            .dispatch(None, &mut shared_data);
+        let (shared_data, server_display) = &mut shared_data;
+        {
+            let display = &mut shared_data.desktop_client_state.display;
+            display.flush().unwrap();
+            
+            let surface = &mut shared_data.desktop_client_state.surface.borrow_mut();
+            let loop_signal = &mut shared_data.loop_signal;
+            if surface.is_some() {
+                let remove_surface = surface.as_mut().unwrap().1.handle_events();
+                if remove_surface {
+                    println!("exiting");
+                    surface.take();
+                    break;
+                } else {
+                    // TODO: only render, when new client buffer or frame-callback called.
+                    // Probably just add a "dirty"-flag to the surface state or something
+                    surface.as_mut().unwrap().1.render(shared_data.start_time.elapsed().as_millis() as u32);
                 }
-                display.flush().unwrap();
             }
-            {
-                server_display
-                    .dispatch(Duration::ZERO, shared_data)
-                    .unwrap();
-                server_display.flush_clients(shared_data);
-            }
-        })
-        .unwrap();
+        }
+        {
+            server_display
+                .dispatch(Duration::ZERO, shared_data)
+                .unwrap();
+            server_display.flush_clients(shared_data);
+        }
+    }
     Ok(())
 }

@@ -103,6 +103,7 @@ pub struct Surface {
     pub egl_surface: Rc<EGLSurface>,
     pub renderer: Gles2Renderer,
     pub surface: c_wl_surface::WlSurface,
+    pub server_surface: Option<s_WlSurface>,
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
     pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
     pub pool: AutoMemPool,
@@ -138,34 +139,7 @@ impl Surface {
         let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
         let next_render_event_handle = Rc::clone(&next_render_event);
         let logger = log.clone();
-        layer_surface.quick_assign(move |layer_surface, event, _| {
-            match (event, next_render_event_handle.get()) {
-                (zwlr_layer_surface_v1::Event::Closed, _) => {
-                    info!(logger, "Received close event. closing.");
-                    next_render_event_handle.set(Some(RenderEvent::Closed));
-                }
-                (
-                    zwlr_layer_surface_v1::Event::Configure {
-                        serial,
-                        width,
-                        height,
-                    },
-                    next,
-                ) if next != Some(RenderEvent::Closed) => {
-                    trace!(
-                        logger,
-                        "received configure event {:?} {:?} {:?}",
-                        serial,
-                        width,
-                        height
-                    );
-                    layer_surface.ack_configure(serial);
-                    next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
-                    // TODO handle resize for egl surface here?
-                }
-                (_, _) => {}
-            }
-        });
+        
 
         // Commit so that the server will send a configure event
         surface.commit();
@@ -200,7 +174,6 @@ impl Surface {
         }
 
         dbg!(min_interval_attr);
-        unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) };
         let egl_surface = Rc::new(
             EGLSurface::new(
                 &egl_display,
@@ -220,13 +193,45 @@ impl Surface {
         renderer
             .bind(egl_surface.clone())
             .expect("Failed to bind surface to GL");
+        dbg!(unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) });
 
+        //let egl_surface_clone = egl_surface.clone();
+        layer_surface.quick_assign(move |layer_surface, event, _| {
+            match (event, next_render_event_handle.get()) {
+                (zwlr_layer_surface_v1::Event::Closed, _) => {
+                    info!(logger, "Received close event. closing.");
+                    next_render_event_handle.set(Some(RenderEvent::Closed));
+                }
+                (
+                    zwlr_layer_surface_v1::Event::Configure {
+                        serial,
+                        width,
+                        height,
+                    },
+                    next,
+                ) if next != Some(RenderEvent::Closed) => {
+                    trace!(
+                        logger,
+                        "received configure event {:?} {:?} {:?}",
+                        serial,
+                        width,
+                        height
+                    );
+                    layer_surface.ack_configure(serial);
+                    next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
+                    // TODO handle resize for egl surface here?
+                }
+                (_, _) => {}
+            }
+        });
+    
         Self {
             egl_display,
             egl_surface,
             renderer,
             surface,
             layer_surface,
+            server_surface: None,
             next_render_event,
             pool,
             dimensions: (0, 0),
@@ -243,7 +248,8 @@ impl Surface {
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
                     self.dimensions = (width, height);
-                    self.surface.commit();
+                    self.egl_surface.resize(width as i32, height as i32, 0, 0);
+                    //self.surface.commit();
                 }
                 false
             }
@@ -251,13 +257,15 @@ impl Surface {
         }
     }
 
-    pub fn render(&mut self, surface: s_WlSurface, time: u32) {
+    pub fn render(&mut self, time: u32) {
         let width = self.dimensions.0 as i32;
         let height = self.dimensions.1 as i32;
         let logger = self.log.clone();
         let egl_surface = &self.egl_surface;
 
-        on_commit_buffer_handler(&surface);
+        self.renderer
+            .bind(egl_surface.clone())
+            .expect("Failed to bind surface to GL");
         self.renderer
             .render(
                 (width, height).into(),
@@ -268,16 +276,18 @@ impl Surface {
                         size: (width, height).into(),
                     };
                     frame.clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)]);
-                    draw_surface_tree(
-                        self_,
-                        frame,
-                        &surface,
-                        1.0,
-                        (0, 0).into(),
-                        &[damage],
-                        &logger,
-                    )
-                    .expect("Failed to draw surface tree");
+                    if let Some(surface) = self.server_surface.as_ref() {
+                        draw_surface_tree(
+                            self_,
+                            frame,
+                            surface,
+                            1.0,
+                            (0, 0).into(),
+                            &[damage],
+                            &logger,
+                        )
+                        .expect("Failed to draw surface tree");
+                    }
                 },
             )
             .expect("Failed to render to layer shell surface.");
@@ -293,7 +303,9 @@ impl Surface {
             .expect("Failed to swap buffers.");
         println!("done swapping buffers...");
 
-        send_frames_surface_tree(&surface, time);
+        if let Some(surface) = self.server_surface.as_ref() {
+            send_frames_surface_tree(surface, time);
+        }
     }
 }
 
