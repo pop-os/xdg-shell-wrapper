@@ -275,15 +275,16 @@ impl Surface {
         self.renderer
             .render(
                 (width, height).into(),
-                smithay::utils::Transform::Normal,
+                smithay::utils::Transform::Flipped180,
                 |self_: &mut Gles2Renderer, frame| {
                     let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
                         loc: (0, 0).into(),
                         size: (width, height).into(),
                     };
-                    frame
-                        .clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)])
-                        .expect("Failed to clear frame.");
+                    // TODO clear when appropriate
+                    // frame
+                    //     .clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)])
+                    //     .expect("Failed to clear frame.");
                     if let Some(surface) = self.server_surface.as_ref() {
                         draw_surface_tree(
                             self_,
