@@ -83,7 +83,10 @@ pub fn new_server(
         move |request: XdgRequest, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let seats = &mut state.desktop_client_state.seats;
+            let kbd_focus = &state.desktop_client_state.kbd_focus;
+            let focused_surface = &mut state.embedded_server_state.focused_surface;
             let log = &mut state.log;
+
             match request {
                 XdgRequest::NewToplevel { surface } => {
                     let layer_shell_surface = state.desktop_client_state.surface.borrow_mut();
@@ -97,9 +100,12 @@ pub fn new_server(
                     });
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
-                    for s in seats {
-                        if let Some(kbd) = s.server.0.get_keyboard() {
-                            kbd.set_focus(wl_surface, SERIAL_COUNTER.next_serial());
+                    *focused_surface = wl_surface.map(|s| s.clone());
+                    if *kbd_focus {
+                        for s in seats {
+                            if let Some(kbd) = s.server.0.get_keyboard() {
+                                kbd.set_focus(wl_surface, SERIAL_COUNTER.next_serial());
+                            }
                         }
                     }
                 }
@@ -120,6 +126,7 @@ pub fn new_server(
         EmbeddedServerState {
             client,
             shell_state,
+            focused_surface: None,
         },
         display,
         (display_sock, client_sock),

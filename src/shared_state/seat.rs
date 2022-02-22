@@ -8,9 +8,9 @@ use sctk::reexports::{
 use sctk::seat::SeatData;
 use slog::{trace, Logger};
 use smithay::backend::input::KeyState;
-use smithay::reexports::wayland_server::{DispatchData, Display};
+use smithay::reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display};
 use smithay::wayland::{
-    seat::{self, FilterResult},
+    seat::{self, AxisFrame, FilterResult},
     SERIAL_COUNTER,
 };
 
@@ -25,6 +25,8 @@ pub fn send_keyboard_event(
     let logger = &state.log;
     let seats = &state.desktop_client_state.seats;
     let client = &state.embedded_server_state.client;
+    let focused_surface = &state.embedded_server_state.focused_surface;
+    let kbd_focus = &mut state.desktop_client_state.kbd_focus;
 
     if let Some(Some(kbd)) = seats
         .iter()
@@ -44,7 +46,6 @@ pub fn send_keyboard_event(
                     client::protocol::wl_keyboard::KeyState::Released => KeyState::Released,
                     _ => return,
                 };
-                dbg!(kbd.has_focus(client));
                 kbd.input::<FilterResult<()>, _>(
                     key,
                     state,
@@ -55,11 +56,22 @@ pub fn send_keyboard_event(
                     },
                 );
             }
+            wl_keyboard::Event::RepeatInfo { rate, delay } => {
+                kbd.change_repeat_info(rate, delay);
+            }
+            wl_keyboard::Event::Enter { .. } => {
+                *kbd_focus = true;
+                kbd.set_focus(focused_surface.as_ref(), SERIAL_COUNTER.next_serial());
+            }
+            wl_keyboard::Event::Leave { .. } => {
+                *kbd_focus = false;
+                kbd.set_focus(None, SERIAL_COUNTER.next_serial());
+            }
             _ => (),
         };
     }
     // keep Modifier state in Seat
-    trace!(logger, "{:?}", event);
+    // trace!(logger, "{:?}", event);
 }
 
 pub fn send_pointer_event(
@@ -69,6 +81,8 @@ pub fn send_pointer_event(
 ) {
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let seats = &state.desktop_client_state.seats;
+    let axis_frame = &mut state.desktop_client_state.axis_frame;
+
     if let Some(Some(ptr)) = seats
         .iter()
         .position(|Seat { name, .. }| name == &seat_name)
@@ -76,7 +90,7 @@ pub fn send_pointer_event(
         .map(|seat| seat.server.0.get_pointer())
     {
         match event {
-            client::protocol::wl_pointer::Event::Motion {
+            c_wl_pointer::Event::Motion {
                 time,
                 surface_x,
                 surface_y,
@@ -99,6 +113,69 @@ pub fn send_pointer_event(
                     time,
                 );
             }
+            c_wl_pointer::Event::Button {
+                time,
+                button,
+                state,
+                ..
+            } => {
+                if let Some(button_state) = wl_pointer::ButtonState::from_raw(state.to_raw()) {
+                    ptr.button(button, button_state, SERIAL_COUNTER.next_serial(), time);
+                }
+            }
+            c_wl_pointer::Event::Axis { time, axis, value } => {
+                let af = axis_frame.frame.take().unwrap_or(AxisFrame::new(time));
+                if let Some(axis) = wl_pointer::Axis::from_raw(axis.to_raw()) {
+                    match axis {
+                        wl_pointer::Axis::HorizontalScroll => {
+                            if let Some(discrete) = axis_frame.h_discrete {
+                                af.discrete(axis, discrete);
+                            }
+                        }
+                        wl_pointer::Axis::VerticalScroll => {
+                            if let Some(discrete) = axis_frame.v_discrete {
+                                af.discrete(axis, discrete);
+                            }
+                        }
+                        _ => return,
+                    }
+                    af.value(axis, value);
+                    axis_frame.frame = Some(af);
+                }
+            }
+            c_wl_pointer::Event::Frame => {
+                axis_frame.h_discrete = None;
+                axis_frame.v_discrete = None;
+
+                if let Some(af) = axis_frame.frame.take() {
+                    if let Some(axis_source) = axis_frame.source.take() {
+                        af.source(axis_source);
+                    }
+                    ptr.axis(af);
+                }
+            }
+            c_wl_pointer::Event::AxisSource { axis_source } => {
+                axis_frame.source = wl_pointer::AxisSource::from_raw(axis_source.to_raw());
+            }
+            c_wl_pointer::Event::AxisStop { time, axis } => {
+                let af = axis_frame.frame.take().unwrap_or(AxisFrame::new(time));
+                if let Some(axis) = wl_pointer::Axis::from_raw(axis.to_raw()) {
+                    af.stop(axis);
+                    axis_frame.frame = Some(af);
+                }
+            }
+            c_wl_pointer::Event::AxisDiscrete { axis, discrete } => match axis {
+                c_wl_pointer::Axis::HorizontalScroll => {
+                    axis_frame.h_discrete.replace(discrete);
+                }
+                c_wl_pointer::Axis::VerticalScroll => {
+                    axis_frame.v_discrete.replace(discrete);
+                }
+                _ => return,
+            },
+            // TODO do these need to be handled?
+            c_wl_pointer::Event::Enter { .. } => {}
+            c_wl_pointer::Event::Leave { .. } => {}
             _ => (),
         };
     }

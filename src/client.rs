@@ -159,6 +159,8 @@ pub fn new_client(
             output_listener,
             seat_listener,
             seats: seats,
+            kbd_focus: false,
+            axis_frame: Default::default(),
         },
         s_outputs,
     ))

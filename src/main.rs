@@ -127,7 +127,6 @@ fn main() -> Result<()> {
     let mut iter_since_render = -1;
     loop {
         iter_since_render = i32::clamp(iter_since_render + 1, 0, 99999);
-        dbg!(iter_since_render);
         event_loop
             .dispatch(None, &mut shared_data)
             .expect("Failed to dispatch events...");

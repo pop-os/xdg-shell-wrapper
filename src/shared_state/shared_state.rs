@@ -15,7 +15,10 @@ use smithay::reexports::{
     calloop,
     wayland_server::{
         self,
-        protocol::{wl_output::WlOutput as s_WlOutput, wl_seat::WlSeat},
+        protocol::{
+            wl_output::WlOutput as s_WlOutput, wl_pointer::AxisSource, wl_seat::WlSeat,
+            wl_surface::WlSurface,
+        },
         Global,
     },
 };
@@ -38,6 +41,14 @@ pub struct ClientSeat {
 
 pub type OutputGroup = (s_Output, Global<s_WlOutput>, u32, c_WlOutput);
 
+#[derive(Debug, Default)]
+pub struct AxisFrameData {
+    pub frame: Option<seat::AxisFrame>,
+    pub source: Option<AxisSource>,
+    pub h_discrete: Option<i32>,
+    pub v_discrete: Option<i32>,
+}
+
 #[derive(Debug)]
 pub struct GlobalState {
     pub desktop_client_state: DesktopClientState,
@@ -52,6 +63,7 @@ pub struct GlobalState {
 pub struct EmbeddedServerState {
     pub client: wayland_server::Client,
     pub shell_state: Arc<Mutex<ShellState>>,
+    pub focused_surface: Option<WlSurface>,
 }
 
 #[derive(Debug)]
@@ -61,4 +73,6 @@ pub struct DesktopClientState {
     pub seat_listener: SeatListener,
     pub output_listener: OutputStatusListener,
     pub surface: Rc<RefCell<Option<(u32, Surface)>>>,
+    pub axis_frame: AxisFrameData,
+    pub kbd_focus: bool,
 }
