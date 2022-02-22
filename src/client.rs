@@ -9,7 +9,7 @@ use slog::{trace, Logger};
 use smithay::reexports::{
     wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1, wayland_server,
 };
-use smithay::wayland::seat::{self};
+use smithay::wayland::seat;
 
 // SPDX-License-Identifier: GPL-3.0-only
 use crate::shared_state::*;
@@ -125,7 +125,7 @@ pub fn new_client(
                         Default::default(),
                         200,
                         20,
-                        move |_seat, _focus| {},
+                        move |seat, focus| {},
                     )?;
                 }
                 if has_ptr {

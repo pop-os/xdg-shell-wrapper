@@ -22,6 +22,7 @@ use smithay::{
         data_device::{default_action_chooser, init_data_device},
         shell::xdg::{xdg_shell_init, XdgRequest},
         shm::init_shm_global,
+        SERIAL_COUNTER,
     },
 };
 
@@ -81,6 +82,7 @@ pub fn new_server(
         &mut display,
         move |request: XdgRequest, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();
+            let seats = &mut state.desktop_client_state.seats;
             let log = &mut state.log;
             match request {
                 XdgRequest::NewToplevel { surface } => {
@@ -94,6 +96,12 @@ pub fn new_server(
                         }
                     });
                     surface.send_configure();
+                    let wl_surface = surface.get_surface();
+                    for s in seats {
+                        if let Some(kbd) = s.server.0.get_keyboard() {
+                            kbd.set_focus(wl_surface, SERIAL_COUNTER.next_serial());
+                        }
+                    }
                 }
                 XdgRequest::NewPopup { surface, .. } => {
                     let _ = surface.send_configure();

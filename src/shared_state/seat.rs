@@ -24,6 +24,7 @@ pub fn send_keyboard_event(
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let logger = &state.log;
     let seats = &state.desktop_client_state.seats;
+    let client = &state.embedded_server_state.client;
 
     if let Some(Some(kbd)) = seats
         .iter()
@@ -43,6 +44,7 @@ pub fn send_keyboard_event(
                     client::protocol::wl_keyboard::KeyState::Released => KeyState::Released,
                     _ => return,
                 };
+                dbg!(kbd.has_focus(client));
                 kbd.input::<FilterResult<()>, _>(
                     key,
                     state,
