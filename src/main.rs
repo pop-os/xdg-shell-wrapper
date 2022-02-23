@@ -26,8 +26,7 @@ use smithay::{
 fn main() -> Result<()> {
     // A logger facility, here we use the terminal
     let log = slog::Logger::root(
-        // slog_async::Async::default(slog_term::term_full().fuse()).fuse(),
-        slog::Discard,
+        slog_async::Async::default(slog_term::term_full().fuse()).fuse(),
         o!(),
     );
 
