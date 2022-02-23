@@ -281,10 +281,9 @@ impl Surface {
                         loc: (0, 0).into(),
                         size: (width, height).into(),
                     };
-                    // TODO clear when appropriate
-                    // frame
-                    //     .clear([0.0, 0.0, 0.0, 1.0], &[damage.to_physical(1)])
-                    //     .expect("Failed to clear frame.");
+                    frame
+                        .clear([0.0, 0.0, 0.0, 0.0], &[damage.to_physical(1)])
+                        .expect("Failed to clear frame.");
                     if let Some(surface) = self.server_surface.as_ref() {
                         draw_surface_tree(
                             self_,

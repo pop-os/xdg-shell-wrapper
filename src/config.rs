@@ -167,7 +167,7 @@ impl Default for XdgWrapperConfig {
             anchor: Anchor::Center,
             layer: Layer::Top,
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
-            dimensions: (800, 600),
+            dimensions: (1000, 600),
             exec: "".into(),
         }
     }

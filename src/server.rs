@@ -89,15 +89,6 @@ pub fn new_server(
 
             match request {
                 XdgRequest::NewToplevel { surface } => {
-                    let layer_shell_surface = state.desktop_client_state.surface.borrow_mut();
-
-                    let _ = surface.with_pending_state(move |top_level_state| {
-                        if let Some(layer_shell_surface) = layer_shell_surface.as_ref() {
-                            let w = layer_shell_surface.1.dimensions.0 as i32;
-                            let h = layer_shell_surface.1.dimensions.1 as i32;
-                            top_level_state.size = Some((w, h).into());
-                        }
-                    });
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
                     *focused_surface = wl_surface.map(|s| s.clone());
