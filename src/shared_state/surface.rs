@@ -282,7 +282,7 @@ impl Surface {
                         size: (width, height).into(),
                     };
                     frame
-                        .clear([0.0, 0.0, 0.0, 0.0], &[damage.to_physical(1)])
+                        .clear([1.0, 1.0, 1.0, 1.0], &[damage.to_physical(1)])
                         .expect("Failed to clear frame.");
                     if let Some(surface) = self.server_surface.as_ref() {
                         draw_surface_tree(
