@@ -124,45 +124,53 @@ pub fn send_pointer_event(
                 }
             }
             c_wl_pointer::Event::Axis { time, axis, value } => {
-                let af = axis_frame.frame.take().unwrap_or(AxisFrame::new(time));
+                let mut af = axis_frame.frame.take().unwrap_or(AxisFrame::new(time));
+                if let Some(axis_source) = axis_frame.source.take() {
+                    af = af.source(axis_source);
+                }
                 if let Some(axis) = wl_pointer::Axis::from_raw(axis.to_raw()) {
                     match axis {
                         wl_pointer::Axis::HorizontalScroll => {
                             if let Some(discrete) = axis_frame.h_discrete {
-                                af.discrete(axis, discrete);
+                                af = af.discrete(axis, discrete);
                             }
                         }
                         wl_pointer::Axis::VerticalScroll => {
                             if let Some(discrete) = axis_frame.v_discrete {
-                                af.discrete(axis, discrete);
+                                af = af.discrete(axis, discrete);
                             }
                         }
                         _ => return,
                     }
-                    af.value(axis, value);
-                    axis_frame.frame = Some(af);
+                    af = af.value(axis, value);
                 }
+                axis_frame.frame = Some(af);
             }
             c_wl_pointer::Event::Frame => {
-                axis_frame.h_discrete = None;
-                axis_frame.v_discrete = None;
-
                 if let Some(af) = axis_frame.frame.take() {
-                    if let Some(axis_source) = axis_frame.source.take() {
-                        af.source(axis_source);
-                    }
                     ptr.axis(af);
                 }
+                axis_frame.h_discrete = None;
+                axis_frame.v_discrete = None;
             }
             c_wl_pointer::Event::AxisSource { axis_source } => {
-                axis_frame.source = wl_pointer::AxisSource::from_raw(axis_source.to_raw());
+                // add source to the current frame if it exists
+                let source = wl_pointer::AxisSource::from_raw(axis_source.to_raw());
+                if let Some(af) = axis_frame.frame.as_mut() {
+                    if let Some(source) = source {
+                        *af = af.source(source);
+                    }
+                } else {
+                    // hold on to source and add to the next frame
+                    axis_frame.source = source;
+                }
             }
             c_wl_pointer::Event::AxisStop { time, axis } => {
-                let af = axis_frame.frame.take().unwrap_or(AxisFrame::new(time));
+                let mut af = axis_frame.frame.take().unwrap_or(AxisFrame::new(time));
                 if let Some(axis) = wl_pointer::Axis::from_raw(axis.to_raw()) {
-                    af.stop(axis);
-                    axis_frame.frame = Some(af);
+                    af = af.stop(axis);
                 }
+                axis_frame.frame = Some(af);
             }
             c_wl_pointer::Event::AxisDiscrete { axis, discrete } => match axis {
                 c_wl_pointer::Axis::HorizontalScroll => {
