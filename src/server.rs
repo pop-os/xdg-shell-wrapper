@@ -1,24 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use smithay::backend::renderer::utils::on_commit_buffer_handler;
-use std::{
-    os::unix::{io::AsRawFd, net::UnixStream},
-    time::Duration,
-};
+use core::cell::RefMut;
+use smithay::wayland::compositor::SurfaceAttributes;
+use smithay::wayland::compositor::{get_role, with_states};
+use std::os::unix::{io::AsRawFd, net::UnixStream};
 
 use anyhow::Result;
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
-use slog::{trace, Logger};
+use slog::{error, trace, Logger};
 use smithay::{
+    backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
     reexports::{
         nix::fcntl,
-        wayland_server::{
-            self,
-            protocol::{wl_data_device_manager::DndAction, wl_shm::Format},
-        },
+        wayland_server::{self, protocol::wl_shm::Format},
     },
     wayland::{
-        compositor::compositor_init,
+        compositor::{compositor_init, BufferAssignment},
         data_device::{default_action_chooser, init_data_device},
         shell::xdg::{xdg_shell_init, XdgRequest},
         shm::init_shm_global,
@@ -51,33 +48,84 @@ pub fn new_server(
     let client = unsafe { display.create_client(raw_fd, &mut ()) };
 
     let display_event_source = Generic::new(display.get_poll_fd(), Interest::READ, Mode::Edge);
-    loop_handle.insert_source(display_event_source, move |_e, _metadata, shared_data| {
+    loop_handle.insert_source(display_event_source, move |_e, _metadata, _shared_data| {
         // let display = &mut shared_data.embedded_server_state.display;
         Ok(calloop::PostAction::Continue)
     })?;
 
+    trace!(log.clone(), "init embedded server data device");
     init_data_device(
         &mut display,
-        |dnd_event| { /* a callback to react to client DnD/selection actions */ },
+        |_dnd_event| { /* a callback to react to client DnD/selection actions */ },
         default_action_chooser,
         log.clone(),
     );
 
+    trace!(log.clone(), "init embedded compositor");
     compositor_init(
         &mut display,
         move |surface, mut dispatch_data| {
-            on_commit_buffer_handler(&surface);
             let state = dispatch_data.get::<GlobalState>().unwrap();
-            let desktop_client_surface = &mut state.desktop_client_state.surface;
-            if let Some((_, desktop_client_surface)) = desktop_client_surface.borrow_mut().as_mut()
-            {
-                desktop_client_surface.server_surface = Some(surface);
-                desktop_client_surface.dirty = true;
+            let cursor_surface = &mut state.desktop_client_state.cursor_surface;
+            let cached_buffers = &mut state.cached_buffers;
+            let globals = &state.desktop_client_state.globals;
+            let log = &mut state.log;
+
+            let role = get_role(&surface);
+            trace!(log, "role: {:?} surface: {:?}", &role, &surface);
+            if role == "xdg_toplevel".into() {
+                on_commit_buffer_handler(&surface);
+                let desktop_client_surface = &mut state.desktop_client_state.surface;
+                if let Some((_, desktop_client_surface)) =
+                    desktop_client_surface.borrow_mut().as_mut()
+                {
+                    trace!(log.clone(), "rendering top level surface");
+                    desktop_client_surface.server_surface = Some(surface);
+                    desktop_client_surface.dirty = true;
+                }
+            } else if role == "cursor_image".into() {
+                // pass cursor image to parent compositor
+                trace!(log, "received surface with cursor image");
+                for Seat { client, .. } in &mut state.desktop_client_state.seats {
+                    if let Some(ptr) = client.ptr.as_ref() {
+                        trace!(log, "updating cursore for pointer {:?}", &ptr);
+                        let _ = with_states(&surface, |data| {
+                            let surface_attributes =
+                                data.cached_state.current::<SurfaceAttributes>();
+                            dbg!(&surface_attributes);
+                            let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
+                            dbg!(&buf);
+                            if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
+                                if let Some(BufferType::Shm) = buffer_type(buffer) {
+                                    trace!(log, "attaching buffer to cursor surface.");
+                                    let _ = cached_buffers.write_and_attach_buffer(
+                                        &buf.as_ref().unwrap(),
+                                        cursor_surface,
+                                        globals,
+                                    );
+
+                                    trace!(log, "requesting update");
+                                    ptr.set_cursor(
+                                        SERIAL_COUNTER.next_serial().into(),
+                                        Some(cursor_surface),
+                                        0,
+                                        0,
+                                    );
+                                }
+                            } else {
+                                // ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);
+                            }
+                        });
+                    }
+                }
+            } else if role == "xdg_popup".into() {
+                // TODO render popup on surface
             }
         },
         log.clone(),
     );
 
+    trace!(log.clone(), "init xdg_shell for embedded compositor");
     let (shell_state, _) = xdg_shell_init(
         &mut display,
         move |request: XdgRequest, mut dispatch_data| {
@@ -112,6 +160,8 @@ pub fn new_server(
     );
 
     init_shm_global(&mut display, vec![Format::Yuyv, Format::C8], log.clone());
+
+    trace!(log.clone(), "embedded server setup complete");
 
     Ok((
         EmbeddedServerState {

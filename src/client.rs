@@ -3,7 +3,10 @@ use std::rc::Rc;
 
 use anyhow::Result;
 use sctk::{
-    default_environment, environment::SimpleGlobal, output::with_output_info, reexports::calloop,
+    default_environment,
+    environment::SimpleGlobal,
+    output::with_output_info,
+    reexports::{calloop, client::GlobalManager},
 };
 use slog::{trace, Logger};
 use smithay::reexports::{
@@ -38,6 +41,9 @@ pub fn new_client(
     let (env, display, queue) =
         sctk::new_default_environment!(Env, fields = [layer_shell: SimpleGlobal::new(),])
             .expect("Unable to connect to a Wayland compositor");
+
+    let attached_display = (*display).clone().attach(queue.token());
+    let globals = GlobalManager::new(&attached_display);
 
     let surface = Rc::new(RefCell::new(None));
 
@@ -125,7 +131,7 @@ pub fn new_client(
                         Default::default(),
                         200,
                         20,
-                        move |seat, focus| {},
+                        move |_seat, _focus| {},
                     )?;
                 }
                 if has_ptr {
@@ -152,6 +158,9 @@ pub fn new_client(
         .quick_insert(loop_handle)
         .unwrap();
 
+    let cursor_surface = env.create_surface().detach();
+
+    trace!(log.clone(), "client setup complete");
     Ok((
         DesktopClientState {
             surface,
@@ -161,6 +170,8 @@ pub fn new_client(
             seats: seats,
             kbd_focus: false,
             axis_frame: Default::default(),
+            cursor_surface: cursor_surface,
+            globals,
         },
         s_outputs,
     ))

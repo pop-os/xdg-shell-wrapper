@@ -10,7 +10,7 @@ use sctk::{
     reexports::{
         client::protocol::{
             wl_output::{self as c_wl_output},
-            wl_shm, wl_surface as c_wl_surface,
+            wl_surface as c_wl_surface,
         },
         client::{self, Attached, Main},
     },
@@ -28,11 +28,7 @@ use smithay::backend::{
         surface::EGLSurface,
         wrap_egl_call, EGLError,
     },
-    renderer::{
-        gles2::Gles2Renderer,
-        utils::{draw_surface_tree, on_commit_buffer_handler},
-        Bind, Frame, ImportEgl, Renderer,
-    },
+    renderer::{gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, ImportEgl, Renderer},
 };
 use smithay::desktop::utils::send_frames_surface_tree;
 use smithay::egl_platform;
@@ -282,7 +278,7 @@ impl Surface {
                         size: (width, height).into(),
                     };
                     frame
-                        .clear([1.0, 1.0, 1.0, 1.0], &[damage.to_physical(1)])
+                        .clear([1.0, 1.0, 1.0, 0.0], &[damage.to_physical(1)])
                         .expect("Failed to clear frame.");
                     if let Some(surface) = self.server_surface.as_ref() {
                         draw_surface_tree(

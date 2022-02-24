@@ -22,9 +22,7 @@ pub fn send_keyboard_event(
     mut dispatch_data: DispatchData,
 ) {
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
-    let logger = &state.log;
     let seats = &state.desktop_client_state.seats;
-    let client = &state.embedded_server_state.client;
     let focused_surface = &state.embedded_server_state.focused_surface;
     let kbd_focus = &mut state.desktop_client_state.kbd_focus;
 

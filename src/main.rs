@@ -17,11 +17,7 @@ mod config;
 mod server;
 mod shared_state;
 mod util;
-use smithay::{
-    backend::{allocator::dmabuf::Dmabuf, renderer::ImportDma},
-    reexports::wayland_server::protocol::wl_buffer::WlBuffer,
-    wayland::dmabuf::init_dmabuf_global,
-};
+use smithay::{backend::renderer::ImportDma, wayland::dmabuf::init_dmabuf_global};
 
 fn main() -> Result<()> {
     // A logger facility, here we use the terminal
@@ -93,6 +89,7 @@ fn main() -> Result<()> {
         outputs,
         log: log.clone(),
         start_time: std::time::Instant::now(),
+        cached_buffers: CachedBuffers::new(log.clone()),
     };
 
     // start child process

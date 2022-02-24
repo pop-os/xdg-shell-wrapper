@@ -7,24 +7,27 @@ use std::sync::{Arc, Mutex};
 use sctk::output::OutputStatusListener;
 use sctk::reexports::client::{
     self,
-    protocol::{wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer},
+    protocol::{wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_surface},
+    GlobalManager,
 };
 use sctk::seat::SeatListener;
 use slog::Logger;
-use smithay::reexports::{
-    calloop,
-    wayland_server::{
-        self,
-        protocol::{
-            wl_output::WlOutput as s_WlOutput, wl_pointer::AxisSource, wl_seat::WlSeat,
-            wl_surface::WlSurface,
+use smithay::{
+    reexports::{
+        calloop,
+        wayland_server::{
+            self,
+            protocol::{
+                wl_output::WlOutput as s_WlOutput, wl_pointer::AxisSource, wl_seat::WlSeat,
+                wl_surface::WlSurface,
+            },
+            Global,
         },
-        Global,
     },
+    wayland::{output::Output as s_Output, seat, shell::xdg::ShellState},
 };
-use smithay::wayland::{output::Output as s_Output, seat, shell::xdg::ShellState};
 
-use crate::Surface;
+use crate::{CachedBuffers, Surface};
 
 #[derive(Debug)]
 pub struct Seat {
@@ -57,6 +60,7 @@ pub struct GlobalState {
     pub outputs: Vec<OutputGroup>,
     pub log: Logger,
     pub start_time: std::time::Instant,
+    pub cached_buffers: CachedBuffers,
 }
 
 #[derive(Debug)]
@@ -73,6 +77,8 @@ pub struct DesktopClientState {
     pub seat_listener: SeatListener,
     pub output_listener: OutputStatusListener,
     pub surface: Rc<RefCell<Option<(u32, Surface)>>>,
+    pub cursor_surface: wl_surface::WlSurface,
     pub axis_frame: AxisFrameData,
     pub kbd_focus: bool,
+    pub globals: GlobalManager,
 }
