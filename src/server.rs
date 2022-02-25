@@ -68,7 +68,7 @@ pub fn new_server(
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let cursor_surface = &mut state.desktop_client_state.cursor_surface;
             let cached_buffers = &mut state.cached_buffers;
-            let globals = &state.desktop_client_state.globals;
+            let shm = &state.desktop_client_state.shm;
             let log = &mut state.log;
 
             let role = get_role(&surface);
@@ -92,16 +92,16 @@ pub fn new_server(
                         let _ = with_states(&surface, |data| {
                             let surface_attributes =
                                 data.cached_state.current::<SurfaceAttributes>();
-                            dbg!(&surface_attributes);
+                            // dbg!(&surface_attributes);
                             let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
-                            dbg!(&buf);
+                            // dbg!(&buf);
                             if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
                                 if let Some(BufferType::Shm) = buffer_type(buffer) {
                                     trace!(log, "attaching buffer to cursor surface.");
                                     let _ = cached_buffers.write_and_attach_buffer(
                                         &buf.as_ref().unwrap(),
                                         cursor_surface,
-                                        globals,
+                                        shm,
                                     );
 
                                     trace!(log, "requesting update");

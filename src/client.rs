@@ -6,7 +6,10 @@ use sctk::{
     default_environment,
     environment::SimpleGlobal,
     output::with_output_info,
-    reexports::{calloop, client::GlobalManager},
+    reexports::{
+        calloop,
+        client::{protocol::wl_shm, GlobalManager},
+    },
 };
 use slog::{trace, Logger};
 use smithay::reexports::{
@@ -160,6 +163,8 @@ pub fn new_client(
 
     let cursor_surface = env.create_surface().detach();
 
+    let shm = env.get_global::<wl_shm::WlShm>().unwrap();
+
     trace!(log.clone(), "client setup complete");
     Ok((
         DesktopClientState {
@@ -172,6 +177,7 @@ pub fn new_client(
             axis_frame: Default::default(),
             cursor_surface: cursor_surface,
             globals,
+            shm,
         },
         s_outputs,
     ))

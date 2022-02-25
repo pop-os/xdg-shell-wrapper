@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use sctk::output::OutputStatusListener;
 use sctk::reexports::client::{
     self,
-    protocol::{wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_surface},
-    GlobalManager,
+    protocol::{wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_shm, wl_surface},
+    Attached, GlobalManager, Main,
 };
 use sctk::seat::SeatListener;
 use slog::Logger;
@@ -81,4 +81,5 @@ pub struct DesktopClientState {
     pub axis_frame: AxisFrameData,
     pub kbd_focus: bool,
     pub globals: GlobalManager,
+    pub shm: Attached<wl_shm::WlShm>,
 }

@@ -7,7 +7,7 @@ use sctk::{
             wl_shm_pool::WlShmPool,
             wl_surface::WlSurface,
         },
-        GlobalManager, Main,
+        Attached, GlobalManager, Main,
     },
     shm,
 };
@@ -46,7 +46,7 @@ impl CachedBuffers {
         &mut self,
         buffer_assignment: &BufferAssignment,
         surface: &WlSurface,
-        globals: &GlobalManager,
+        shm: &Attached<wl_shm::WlShm>,
     ) -> Result<()> {
         if let BufferAssignment::NewBuffer {
             buffer: source_buffer,
@@ -64,7 +64,7 @@ impl CachedBuffers {
                                 buffer_metadata.width,
                                 buffer_metadata.height,
                                 format,
-                                globals,
+                                shm,
                             );
                             trace!(
                                 self.log,
@@ -98,7 +98,7 @@ impl CachedBuffers {
         x: i32,
         y: i32,
         format: shm::Format,
-        globals: &GlobalManager,
+        shm: &Attached<wl_shm::WlShm>,
     ) -> usize {
         let mut best_candidate = None;
         for (i, buffer) in self.buffers.iter().enumerate() {
@@ -128,7 +128,7 @@ impl CachedBuffers {
             return i;
         }
         // need to create new pool / buffer and use that instead
-        let new_buffer = Buffer::new(globals, x, y, format, self.log.clone());
+        let new_buffer = Buffer::new(shm, x, y, format, self.log.clone());
         self.buffers.push(new_buffer);
         self.buffers.len() - 1
     }
@@ -149,14 +149,13 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(
-        globals: &GlobalManager,
+        shm: &Attached<wl_shm::WlShm>,
         x: i32,
         y: i32,
         format: wl_shm::Format,
         log: Logger,
     ) -> Self {
         let file = tempfile().expect("Unable to create a tempfile");
-        let shm = globals.instantiate_exact::<wl_shm::WlShm>(1).unwrap();
         let size = x * y * 4;
         let pool = shm.create_pool(
             file.as_raw_fd(),
