@@ -25,7 +25,7 @@ pub fn handle_output(
     config: XdgWrapperConfig,
     layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     env_handle: Environment<Env>,
-    surface_handle: Rc<RefCell<Option<(u32, Surface)>>>,
+    surface_handle: &mut Option<(u32, Surface)>,
     logger: Logger,
     display_: Display,
     output: client::protocol::wl_output::WlOutput,
@@ -36,11 +36,14 @@ pub fn handle_output(
     // remove output with id if obsolete
     // add output to list if new output
     // if no output in handle after removing output, replace with first output from list
-    let mut handle = surface_handle.borrow_mut();
     if info.obsolete {
         // an output has been removed, release it
-        if handle.as_ref().filter(|(i, _)| *i != info.id).is_some() {
-            *handle = None;
+        if surface_handle
+            .as_ref()
+            .filter(|(i, _)| *i != info.id)
+            .is_some()
+        {
+            *surface_handle = None;
         }
 
         // remove outputs from embedded server when they are removed from the client
@@ -88,14 +91,14 @@ pub fn handle_output(
         }
         s_outputs.push((s_output, s_output_global, info.id, output));
     }
-    if handle.is_none() {
+    if surface_handle.is_none() {
         if let Some((_, _, _, output)) = s_outputs.first() {
             // construct a surface for an output if possible
             let surface = env_handle.create_surface().detach();
             let pool = env_handle
                 .create_auto_pool()
                 .expect("Failed to create a memory pool!");
-            *handle = Some((
+            *surface_handle = Some((
                 info.id,
                 Surface::new(
                     output,

@@ -38,6 +38,7 @@ use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::clien
 use smithay::reexports::wayland_server::{
     protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display,
 };
+use smithay::utils::{Logical, Rectangle};
 
 use crate::XdgWrapperConfig;
 
@@ -107,6 +108,7 @@ pub struct Surface {
     pub config: XdgWrapperConfig,
     pub log: Logger,
     pub dirty: bool,
+    pub xdg_window: Option<smithay::desktop::Window>,
 }
 
 impl Surface {
@@ -220,7 +222,6 @@ impl Surface {
                     );
                     layer_surface.ack_configure(serial);
                     next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
-                    // TODO handle resize for egl surface here?
                 }
                 (_, _) => {}
             }
@@ -239,6 +240,7 @@ impl Surface {
             config,
             log,
             dirty: true,
+            xdg_window: Default::default(),
         }
     }
 
@@ -264,6 +266,11 @@ impl Surface {
         let height = self.dimensions.1 as i32;
         let logger = self.log.clone();
         let egl_surface = &self.egl_surface;
+        let loc = &self
+            .xdg_window
+            .as_ref()
+            .map(|w| w.geometry().loc)
+            .unwrap_or_default();
 
         self.renderer
             .bind(egl_surface.clone())
@@ -274,9 +281,11 @@ impl Surface {
                 smithay::utils::Transform::Flipped180,
                 |self_: &mut Gles2Renderer, frame| {
                     let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                        loc: (0, 0).into(),
+                        loc: loc.clone(),
                         size: (width, height).into(),
                     };
+
+                    let loc = (-loc.x, -loc.y);
                     frame
                         .clear([1.0, 1.0, 1.0, 0.0], &[damage.to_physical(1)])
                         .expect("Failed to clear frame.");
@@ -286,7 +295,7 @@ impl Surface {
                             frame,
                             surface,
                             1.0,
-                            (0, 0).into(),
+                            loc.into(),
                             &[damage],
                             &logger,
                         )

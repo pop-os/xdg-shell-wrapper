@@ -48,14 +48,14 @@ pub fn new_client(
     let attached_display = (*display).clone().attach(queue.token());
     let globals = GlobalManager::new(&attached_display);
 
-    let surface = Rc::new(RefCell::new(None));
+    let mut surface = None;
 
     let mut s_outputs = Vec::new();
     for output in env.get_all_outputs() {
         if let Some(info) = with_output_info(&output, Clone::clone) {
             let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
             let env_handle = env.clone();
-            let surface_handle = Rc::clone(&surface);
+            let surface_handle = &surface;
             let logger = log.clone();
             let display_ = display.clone();
             let config = config.clone();
@@ -63,7 +63,7 @@ pub fn new_client(
                 config,
                 &layer_shell,
                 env_handle,
-                surface_handle,
+                &mut surface,
                 logger,
                 display_,
                 output,
@@ -76,7 +76,6 @@ pub fn new_client(
 
     let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
     let env_handle = env.clone();
-    let surface_handle = Rc::clone(&surface);
     let logger = log.clone();
     let display_ = display.clone();
     let output_listener = env.listen_for_outputs(move |output, info, mut dispatch_data| {
@@ -84,11 +83,12 @@ pub fn new_client(
             .get::<(GlobalState, wayland_server::Display)>()
             .unwrap();
         let outputs = &mut state.outputs;
-        handle_output(
+        let surface = &mut state.desktop_client_state.surface;
+        &mut handle_output(
             config.clone(),
             &layer_shell,
             env_handle.clone(),
-            surface_handle.clone(),
+            surface,
             logger.clone(),
             display_.clone(),
             output,
@@ -168,7 +168,7 @@ pub fn new_client(
     trace!(log.clone(), "client setup complete");
     Ok((
         DesktopClientState {
-            surface,
+            surface: surface,
             display,
             output_listener,
             seat_listener,

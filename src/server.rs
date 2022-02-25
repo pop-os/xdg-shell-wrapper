@@ -76,9 +76,7 @@ pub fn new_server(
             if role == "xdg_toplevel".into() {
                 on_commit_buffer_handler(&surface);
                 let desktop_client_surface = &mut state.desktop_client_state.surface;
-                if let Some((_, desktop_client_surface)) =
-                    desktop_client_surface.borrow_mut().as_mut()
-                {
+                if let Some((_, desktop_client_surface)) = desktop_client_surface.as_mut() {
                     trace!(log.clone(), "rendering top level surface");
                     desktop_client_surface.server_surface = Some(surface);
                     desktop_client_surface.dirty = true;
@@ -137,6 +135,14 @@ pub fn new_server(
 
             match request {
                 XdgRequest::NewToplevel { surface } => {
+                    let layer_shell_surface = state.desktop_client_state.surface.as_mut();
+                    let _ = surface.with_pending_state(move |top_level_state| {
+                        if let Some(layer_shell_surface) = layer_shell_surface.as_ref() {
+                            let w = layer_shell_surface.1.dimensions.0 as i32;
+                            let h = layer_shell_surface.1.dimensions.1 as i32;
+                            top_level_state.size = Some((w, h).into());
+                        }
+                    });
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
                     *focused_surface = wl_surface.map(|s| s.clone());
@@ -146,6 +152,14 @@ pub fn new_server(
                                 kbd.set_focus(wl_surface, SERIAL_COUNTER.next_serial());
                             }
                         }
+                    }
+
+                    let mut layer_shell_surface = state.desktop_client_state.surface.as_mut();
+                    let window =
+                        smithay::desktop::Window::new(smithay::desktop::Kind::Xdg(surface));
+
+                    if let Some((_, surface)) = &mut layer_shell_surface {
+                        surface.xdg_window.replace(window);
                     }
                 }
                 XdgRequest::NewPopup { surface, .. } => {

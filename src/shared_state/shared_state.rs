@@ -76,7 +76,7 @@ pub struct DesktopClientState {
     pub seats: Vec<Seat>,
     pub seat_listener: SeatListener,
     pub output_listener: OutputStatusListener,
-    pub surface: Rc<RefCell<Option<(u32, Surface)>>>,
+    pub surface: Option<(u32, Surface)>,
     pub cursor_surface: wl_surface::WlSurface,
     pub axis_frame: AxisFrameData,
     pub kbd_focus: bool,

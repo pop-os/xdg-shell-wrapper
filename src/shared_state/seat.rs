@@ -96,7 +96,6 @@ pub fn send_pointer_event(
                 let server_surface = state
                     .desktop_client_state
                     .surface
-                    .borrow()
                     .as_ref()
                     .map(|(_, s)| {
                         s.server_surface

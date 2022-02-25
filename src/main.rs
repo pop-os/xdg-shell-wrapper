@@ -63,25 +63,6 @@ fn main() -> Result<()> {
         &mut display,
     )?;
 
-    let _dmabuf_global = init_dmabuf_global(
-        &mut display,
-        desktop_client_state
-            .surface
-            .borrow_mut()
-            .as_ref()
-            .unwrap()
-            .1
-            .renderer
-            .dmabuf_formats()
-            .copied()
-            .collect::<Vec<_>>(),
-        |_buffer, _dispatch_data| {
-            /* validate the dmabuf and import it into your renderer state */
-            true
-        },
-        log.clone(),
-    );
-
     let global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,
@@ -132,7 +113,7 @@ fn main() -> Result<()> {
             let display = &mut shared_data.desktop_client_state.display;
             display.flush().unwrap();
 
-            let surface = &mut shared_data.desktop_client_state.surface.borrow_mut();
+            let surface = &mut shared_data.desktop_client_state.surface.as_mut();
             if surface.is_some() {
                 let remove_surface = surface.as_mut().unwrap().1.handle_events();
                 if remove_surface {
