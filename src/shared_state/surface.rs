@@ -244,6 +244,15 @@ impl Surface {
         }
     }
 
+    pub fn pointer_loc(&self, x: f64, y: f64) -> (f64, f64) {
+        let loc = &self
+            .xdg_window
+            .as_ref()
+            .map(|w| w.geometry().loc)
+            .unwrap_or_default();
+        (x + loc.x as f64, y + loc.y as f64)
+    }
+
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface should be dropped.
     pub fn handle_events(&mut self) -> bool {

@@ -103,8 +103,14 @@ pub fn send_pointer_event(
                             .map(|server_s| (server_s, smithay::utils::Point::from((0, 0))))
                     })
                     .unwrap_or_default();
+                let loc = state
+                    .desktop_client_state
+                    .surface
+                    .as_ref()
+                    .map(|(_, s)| s.pointer_loc(surface_x, surface_y))
+                    .unwrap_or_default();
                 ptr.motion(
-                    smithay::utils::Point::from((surface_x, surface_y)),
+                    loc.into(),
                     server_surface,
                     SERIAL_COUNTER.next_serial(),
                     time,
