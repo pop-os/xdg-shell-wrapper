@@ -13,6 +13,7 @@ use sctk::reexports::client::{
 use sctk::seat::SeatListener;
 use slog::Logger;
 use smithay::{
+    desktop::{PopupManager, Window},
     reexports::{
         calloop,
         wayland_server::{
@@ -67,7 +68,9 @@ pub struct GlobalState {
 pub struct EmbeddedServerState {
     pub client: wayland_server::Client,
     pub shell_state: Arc<Mutex<ShellState>>,
+    pub root_window: Option<Rc<RefCell<Window>>>,
     pub focused_surface: Option<WlSurface>,
+    pub popup_manager: PopupManager,
 }
 
 #[derive(Debug)]

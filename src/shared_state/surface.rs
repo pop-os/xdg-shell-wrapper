@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -108,7 +108,7 @@ pub struct Surface {
     pub config: XdgWrapperConfig,
     pub log: Logger,
     pub dirty: bool,
-    pub xdg_window: Option<smithay::desktop::Window>,
+    pub xdg_window: Option<Rc<RefCell<smithay::desktop::Window>>>,
 }
 
 impl Surface {
@@ -244,15 +244,6 @@ impl Surface {
         }
     }
 
-    pub fn pointer_loc(&self, x: f64, y: f64) -> (f64, f64) {
-        let loc = &self
-            .xdg_window
-            .as_ref()
-            .map(|w| w.geometry().loc)
-            .unwrap_or_default();
-        (x + loc.x as f64, y + loc.y as f64)
-    }
-
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface should be dropped.
     pub fn handle_events(&mut self) -> bool {
@@ -278,7 +269,7 @@ impl Surface {
         let loc = &self
             .xdg_window
             .as_ref()
-            .map(|w| w.geometry().loc)
+            .map(|w| w.borrow().geometry().loc)
             .unwrap_or_default();
 
         self.renderer

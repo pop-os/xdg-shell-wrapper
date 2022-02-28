@@ -7,11 +7,14 @@ use sctk::reexports::{
 };
 use sctk::seat::SeatData;
 use slog::{trace, Logger};
-use smithay::backend::input::KeyState;
-use smithay::reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display};
-use smithay::wayland::{
-    seat::{self, AxisFrame, FilterResult},
-    SERIAL_COUNTER,
+use smithay::{
+    backend::input::KeyState,
+    desktop::WindowSurfaceType,
+    reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display},
+    wayland::{
+        seat::{self, AxisFrame, FilterResult},
+        SERIAL_COUNTER,
+    },
 };
 
 use crate::{ClientSeat, GlobalState, Seat};
@@ -81,6 +84,7 @@ pub fn send_pointer_event(
     let seats = &state.desktop_client_state.seats;
     let axis_frame = &mut state.desktop_client_state.axis_frame;
 
+    let root_window = &state.embedded_server_state.root_window;
     if let Some(Some(ptr)) = seats
         .iter()
         .position(|Seat { name, .. }| name == &seat_name)
@@ -93,28 +97,29 @@ pub fn send_pointer_event(
                 surface_x,
                 surface_y,
             } => {
-                let server_surface = state
-                    .desktop_client_state
-                    .surface
+                let (root_surface_x, root_surface_y) = root_window
                     .as_ref()
-                    .map(|(_, s)| {
-                        s.server_surface
-                            .clone()
-                            .map(|server_s| (server_s, smithay::utils::Point::from((0, 0))))
+                    .map(move |w| {
+                        let loc = w.borrow().geometry().loc;
+                        (surface_x + loc.x as f64, surface_y + loc.y as f64)
                     })
                     .unwrap_or_default();
-                let loc = state
-                    .desktop_client_state
-                    .surface
-                    .as_ref()
-                    .map(|(_, s)| s.pointer_loc(surface_x, surface_y))
-                    .unwrap_or_default();
-                ptr.motion(
-                    loc.into(),
-                    server_surface,
-                    SERIAL_COUNTER.next_serial(),
-                    time,
-                );
+
+                if let Some(Some((cur_surface, offset))) = root_window.as_ref().map(|w| {
+                    w.borrow()
+                        .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
+                }) {
+                    ptr.motion(
+                        (
+                            root_surface_x - offset.x as f64,
+                            root_surface_y - offset.y as f64,
+                        )
+                            .into(),
+                        Some((cur_surface, smithay::utils::Point::from((0, 0)))),
+                        SERIAL_COUNTER.next_serial(),
+                        time,
+                    );
+                }
             }
             c_wl_pointer::Event::Button {
                 time,

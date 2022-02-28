@@ -84,7 +84,7 @@ pub fn new_client(
             .unwrap();
         let outputs = &mut state.outputs;
         let surface = &mut state.desktop_client_state.surface;
-        &mut handle_output(
+        handle_output(
             config.clone(),
             &layer_shell,
             env_handle.clone(),

@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use core::cell::RefMut;
 use smithay::wayland::compositor::SurfaceAttributes;
 use smithay::wayland::compositor::{get_role, with_states};
-use std::os::unix::{io::AsRawFd, net::UnixStream};
+use std::{
+    cell::{RefCell, RefMut},
+    os::unix::{io::AsRawFd, net::UnixStream},
+    rc::Rc,
+};
 
 use anyhow::Result;
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
 use slog::{error, trace, Logger};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
+    desktop::{PopupKind, PopupManager},
     reexports::{
         nix::fcntl,
         wayland_server::{self, protocol::wl_shm::Format},
@@ -67,8 +71,9 @@ pub fn new_server(
         move |surface, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let cursor_surface = &mut state.desktop_client_state.cursor_surface;
-            let cached_buffers = &mut state.cached_buffers;
             let shm = &state.desktop_client_state.shm;
+            let cached_buffers = &mut state.cached_buffers;
+            let root_window = &mut state.embedded_server_state.root_window;
             let log = &mut state.log;
 
             let role = get_role(&surface);
@@ -90,9 +95,7 @@ pub fn new_server(
                         let _ = with_states(&surface, |data| {
                             let surface_attributes =
                                 data.cached_state.current::<SurfaceAttributes>();
-                            // dbg!(&surface_attributes);
                             let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
-                            // dbg!(&buf);
                             if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
                                 if let Some(BufferType::Shm) = buffer_type(buffer) {
                                     trace!(log, "attaching buffer to cursor surface.");
@@ -111,13 +114,13 @@ pub fn new_server(
                                     );
                                 }
                             } else {
-                                // ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);
+                                ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);
                             }
                         });
                     }
                 }
             } else if role == "xdg_popup".into() {
-                // TODO render popup on surface
+                // TODO what to do here? Render popup?
             }
         },
         log.clone(),
@@ -130,11 +133,17 @@ pub fn new_server(
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let seats = &mut state.desktop_client_state.seats;
             let kbd_focus = &state.desktop_client_state.kbd_focus;
-            let focused_surface = &mut state.embedded_server_state.focused_surface;
+            let EmbeddedServerState {
+                focused_surface,
+                popup_manager,
+                root_window,
+                ..
+            } = &mut state.embedded_server_state;
             let log = &mut state.log;
 
             match request {
                 XdgRequest::NewToplevel { surface } => {
+                    println!("new toplevel...");
                     let layer_shell_surface = state.desktop_client_state.surface.as_mut();
                     let _ = surface.with_pending_state(move |top_level_state| {
                         if let Some(layer_shell_surface) = layer_shell_surface.as_ref() {
@@ -155,17 +164,43 @@ pub fn new_server(
                     }
 
                     let mut layer_shell_surface = state.desktop_client_state.surface.as_mut();
-                    let window =
-                        smithay::desktop::Window::new(smithay::desktop::Kind::Xdg(surface));
-
+                    let window = Rc::new(RefCell::new(smithay::desktop::Window::new(
+                        smithay::desktop::Kind::Xdg(surface),
+                    )));
                     if let Some((_, surface)) = &mut layer_shell_surface {
-                        surface.xdg_window.replace(window);
+                        surface.xdg_window.replace(window.clone());
                     }
+                    root_window.replace(window);
                 }
                 XdgRequest::NewPopup { surface, .. } => {
                     let _ = surface.send_configure();
+                    if let Err(e) = popup_manager.track_popup(PopupKind::Xdg(surface)) {
+                        error!(log, "{}", e);
+                    }
                 }
-                _ => {
+                XdgRequest::Grab {
+                    surface,
+                    seat,
+                    serial,
+                } => {
+                    println!("grabbing pointer...");
+                    if *kbd_focus {
+                        for s in seats {
+                            if s.server.0.owns(&seat) {
+                                println!("updating popup manager to do grab...");
+                                if let Err(e) = popup_manager.grab_popup(
+                                    PopupKind::Xdg(surface),
+                                    &s.server.0,
+                                    serial,
+                                ) {
+                                    error!(log.clone(), "{}", e);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                e => {
                     trace!(log, "Received xdg request.");
                 }
             }
@@ -177,11 +212,15 @@ pub fn new_server(
 
     trace!(log.clone(), "embedded server setup complete");
 
+    let popup_manager = PopupManager::new(log.clone());
+
     Ok((
         EmbeddedServerState {
             client,
             shell_state,
-            focused_surface: None,
+            popup_manager,
+            root_window: Default::default(),
+            focused_surface: Default::default(),
         },
         display,
         (display_sock, client_sock),
