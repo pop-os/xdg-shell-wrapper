@@ -16,29 +16,33 @@ use sctk::{
     },
     shm::AutoMemPool,
 };
-use slog::{info, trace, warn, Logger};
-use smithay::backend::egl::ffi::egl::GetConfigAttrib;
-use smithay::backend::egl::ffi::egl::SwapInterval;
-use smithay::backend::{
-    egl::{
-        context::{EGLContext, GlAttributes},
-        display::{EGLDisplay, EGLDisplayHandle},
-        ffi,
-        native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
-        surface::EGLSurface,
-        wrap_egl_call, EGLError,
+use slog::{error, info, trace, warn, Logger};
+use smithay::{
+    backend::{
+        egl::{
+            context::{EGLContext, GlAttributes},
+            display::{EGLDisplay, EGLDisplayHandle},
+            ffi::{
+                self,
+                egl::{GetConfigAttrib, SwapInterval},
+            },
+            native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
+            surface::EGLSurface,
+            wrap_egl_call, EGLError,
+        },
+        renderer::{
+            gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, ImportEgl, Renderer,
+        },
     },
-    renderer::{gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, ImportEgl, Renderer},
+    desktop::{utils::send_frames_surface_tree, PopupKind, PopupManager},
+    egl_platform,
+    reexports::{
+        wayland_protocols::wlr::unstable::layer_shell::v1::client::{
+            zwlr_layer_shell_v1, zwlr_layer_surface_v1,
+        },
+        wayland_server::{protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display},
+    },
 };
-use smithay::desktop::utils::send_frames_surface_tree;
-use smithay::egl_platform;
-use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
-    zwlr_layer_shell_v1, zwlr_layer_surface_v1,
-};
-use smithay::reexports::wayland_server::{
-    protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display,
-};
-use smithay::utils::{Logical, Rectangle};
 
 use crate::XdgWrapperConfig;
 
@@ -266,6 +270,11 @@ impl Surface {
         let height = self.dimensions.1 as i32;
         let logger = self.log.clone();
         let egl_surface = &self.egl_surface;
+        let popup_surfaces = self
+            .server_surface
+            .as_ref()
+            .map(|surface| Some(PopupManager::popups_for_surface(&surface)))
+            .unwrap_or(None);
         let loc = &self
             .xdg_window
             .as_ref()
@@ -300,7 +309,30 @@ impl Surface {
                             &logger,
                         )
                         .expect("Failed to draw surface tree");
-                        self.dirty = true;
+                    }
+                    if let Some(Ok(popup_surfaces)) = popup_surfaces {
+                        for (popup_kind, offset) in popup_surfaces {
+                            let geometry = popup_kind.geometry();
+                            let popup_surface = match popup_kind {
+                                PopupKind::Xdg(p) => p,
+                            };
+                            if popup_surface.alive() {
+                                if let Some(popup_surface) = popup_surface.get_surface() {
+                                    if let Err(e) = draw_surface_tree(
+                                        self_,
+                                        frame,
+                                        popup_surface,
+                                        1.0,
+                                        (geometry.loc.x + offset.x, geometry.loc.y + offset.y)
+                                            .into(),
+                                        &[geometry],
+                                        &logger,
+                                    ) {
+                                        error!(logger, "{}", e);
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
             )

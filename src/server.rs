@@ -70,26 +70,29 @@ pub fn new_server(
         &mut display,
         move |surface, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();
-            let cursor_surface = &mut state.desktop_client_state.cursor_surface;
-            let shm = &state.desktop_client_state.shm;
+            let DesktopClientState {
+                cursor_surface,
+                surface: desktop_client_surface,
+                seats,
+                shm,
+                ..
+            } = &mut state.desktop_client_state;
+            let popup_manager = &mut state.embedded_server_state.popup_manager;
             let cached_buffers = &mut state.cached_buffers;
-            let root_window = &mut state.embedded_server_state.root_window;
             let log = &mut state.log;
 
             let role = get_role(&surface);
             trace!(log, "role: {:?} surface: {:?}", &role, &surface);
             if role == "xdg_toplevel".into() {
                 on_commit_buffer_handler(&surface);
-                let desktop_client_surface = &mut state.desktop_client_state.surface;
                 if let Some((_, desktop_client_surface)) = desktop_client_surface.as_mut() {
-                    trace!(log.clone(), "rendering top level surface");
                     desktop_client_surface.server_surface = Some(surface);
                     desktop_client_surface.dirty = true;
                 }
             } else if role == "cursor_image".into() {
                 // pass cursor image to parent compositor
                 trace!(log, "received surface with cursor image");
-                for Seat { client, .. } in &mut state.desktop_client_state.seats {
+                for Seat { client, .. } in seats {
                     if let Some(ptr) = client.ptr.as_ref() {
                         trace!(log, "updating cursore for pointer {:?}", &ptr);
                         let _ = with_states(&surface, |data| {
@@ -120,7 +123,9 @@ pub fn new_server(
                     }
                 }
             } else if role == "xdg_popup".into() {
-                // TODO what to do here? Render popup?
+                desktop_client_surface.as_mut().map(|s| s.1.dirty = true);
+                on_commit_buffer_handler(&surface);
+                popup_manager.commit(&surface);
             }
         },
         log.clone(),
@@ -173,6 +178,7 @@ pub fn new_server(
                     root_window.replace(window);
                 }
                 XdgRequest::NewPopup { surface, .. } => {
+                    // TODO fix positioning
                     let _ = surface.send_configure();
                     if let Err(e) = popup_manager.track_popup(PopupKind::Xdg(surface)) {
                         error!(log, "{}", e);
@@ -183,7 +189,6 @@ pub fn new_server(
                     seat,
                     serial,
                 } => {
-                    println!("grabbing pointer...");
                     if *kbd_focus {
                         for s in seats {
                             if s.server.0.owns(&seat) {
@@ -201,7 +206,7 @@ pub fn new_server(
                     }
                 }
                 e => {
-                    trace!(log, "Received xdg request.");
+                    trace!(log, "{:?}", e);
                 }
             }
         },

@@ -12,10 +12,14 @@ use sctk::{
     },
 };
 use slog::{trace, Logger};
-use smithay::reexports::{
-    wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1, wayland_server,
+use smithay::{
+    desktop::PopupManager,
+    reexports::{
+        wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
+        wayland_server,
+    },
+    wayland::seat,
 };
-use smithay::wayland::seat;
 
 // SPDX-License-Identifier: GPL-3.0-only
 use crate::shared_state::*;

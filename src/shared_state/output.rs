@@ -3,6 +3,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::client::Env;
+use crate::{OutputGroup, Surface, XdgWrapperConfig};
 use sctk::environment::Environment;
 use sctk::{
     output::{Mode as c_Mode, OutputInfo},
@@ -12,14 +14,13 @@ use sctk::{
     },
 };
 use slog::Logger;
-use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1;
-use smithay::reexports::wayland_server::{
-    protocol::wl_output::Subpixel as s_Subpixel, Display as s_Display,
+use smithay::{
+    reexports::{
+        wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
+        wayland_server::{protocol::wl_output::Subpixel as s_Subpixel, Display as s_Display},
+    },
+    wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties},
 };
-use smithay::wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties};
-
-use crate::client::Env;
-use crate::{OutputGroup, Surface, XdgWrapperConfig};
 
 pub fn handle_output(
     config: XdgWrapperConfig,
