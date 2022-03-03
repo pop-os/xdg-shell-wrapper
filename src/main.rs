@@ -2,7 +2,12 @@
 
 #![feature(drain_filter)]
 
-use std::{os::unix::io::AsRawFd, process::Command, thread, time::Duration};
+use std::{
+    os::unix::io::AsRawFd,
+    process::Command,
+    thread,
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
 use shlex::Shlex;
@@ -102,40 +107,47 @@ fn main() -> Result<()> {
 
     let mut shared_data = (global_state, display);
     let mut iter_since_render = -1;
+    let mut last_cleanup = Instant::now();
+    let five_min = Duration::from_secs(300);
     loop {
+        // cleanup popup manager
+        if last_cleanup.elapsed() > five_min {
+            shared_data.0.embedded_server_state.popup_manager.cleanup();
+            last_cleanup = Instant::now();
+        }
+
+        // dispatch desktop client events
         iter_since_render = i32::clamp(iter_since_render + 1, 0, 99999);
         event_loop
             .dispatch(None, &mut shared_data)
             .expect("Failed to dispatch events...");
 
+        // rendering
         let (shared_data, server_display) = &mut shared_data;
         {
             let display = &mut shared_data.desktop_client_state.display;
             display.flush().unwrap();
 
-            let surface = &mut shared_data.desktop_client_state.surface.as_mut();
-            if surface.is_some() {
-                let remove_surface = surface.as_mut().unwrap().1.handle_events();
-                if remove_surface {
-                    println!("exiting");
-                    surface.take();
-                    break;
-                } else if let Some((_, surface)) = surface.as_mut() {
-                    if surface.dirty {
-                        // TODO: only render, when new client buffer or frame-callback called.
-                        // Probably just add a "dirty"-flag to the surface state or something
-                        surface.render(shared_data.start_time.elapsed().as_millis() as u32);
-                        iter_since_render = 0;
-                    }
+            let renderer = &mut shared_data.desktop_client_state.renderer.as_mut();
+            if let Some(renderer) = renderer {
+                renderer.apply_display(&server_display);
+                let updated =
+                    renderer.handle_events(shared_data.start_time.elapsed().as_millis() as u32);
+                if updated {
+                    iter_since_render = 0;
                 }
             }
         }
+
+        // dispatch server events
         {
             server_display
                 .dispatch(Duration::ZERO, shared_data)
                 .unwrap();
             server_display.flush_clients(shared_data);
         }
+
+        // sleep if not much is changing...
         if iter_since_render > 0 && iter_since_render < 120 {
             thread::sleep(Duration::from_millis(8));
         } else if iter_since_render > 0 && iter_since_render < 600 {
@@ -144,5 +156,4 @@ fn main() -> Result<()> {
             thread::sleep(Duration::from_millis(128));
         }
     }
-    Ok(())
 }

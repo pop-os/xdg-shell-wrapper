@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use crate::client::Env;
-use crate::{OutputGroup, Surface, XdgWrapperConfig};
-use sctk::environment::Environment;
+use crate::{client::Env, OutputGroup, WrapperRenderer, XdgWrapperConfig};
 use sctk::{
+    environment::Environment,
     output::{Mode as c_Mode, OutputInfo},
     reexports::{
         client::protocol::wl_output::Subpixel as c_Subpixel,
@@ -26,7 +22,7 @@ pub fn handle_output(
     config: XdgWrapperConfig,
     layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     env_handle: Environment<Env>,
-    surface_handle: &mut Option<(u32, Surface)>,
+    renderer_handle: &mut Option<WrapperRenderer>,
     logger: Logger,
     display_: Display,
     output: client::protocol::wl_output::WlOutput,
@@ -39,12 +35,12 @@ pub fn handle_output(
     // if no output in handle after removing output, replace with first output from list
     if info.obsolete {
         // an output has been removed, release it
-        if surface_handle
+        if renderer_handle
             .as_ref()
-            .filter(|(i, _)| *i != info.id)
+            .filter(|r| r.output_id != info.id)
             .is_some()
         {
-            *surface_handle = None;
+            *renderer_handle = None;
         }
 
         // remove outputs from embedded server when they are removed from the client
@@ -92,25 +88,20 @@ pub fn handle_output(
         }
         s_outputs.push((s_output, s_output_global, info.id, output));
     }
-    if surface_handle.is_none() {
+    if renderer_handle.is_none() {
         if let Some((_, _, _, output)) = s_outputs.first() {
             // construct a surface for an output if possible
-            let surface = env_handle.create_surface().detach();
             let pool = env_handle
                 .create_auto_pool()
                 .expect("Failed to create a memory pool!");
-            *surface_handle = Some((
+            *renderer_handle = Some(WrapperRenderer::new(
+                output.clone(),
                 info.id,
-                Surface::new(
-                    output,
-                    surface,
-                    &layer_shell.clone(),
-                    pool,
-                    config.clone(),
-                    logger.clone(),
-                    display_.clone(),
-                    server_display,
-                ),
+                pool,
+                config.clone(),
+                display_.clone(),
+                layer_shell.clone(),
+                logger.clone(),
             ));
         }
     }

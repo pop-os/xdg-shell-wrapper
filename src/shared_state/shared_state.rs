@@ -4,13 +4,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use sctk::output::OutputStatusListener;
-use sctk::reexports::client::{
-    self,
-    protocol::{wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_shm, wl_surface},
-    Attached, GlobalManager, Main,
+use sctk::{
+    environment::Environment,
+    output::OutputStatusListener,
+    reexports::client::{
+        self,
+        protocol::{
+            wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_shm, wl_surface,
+        },
+        Attached, GlobalManager,
+    },
+    seat::SeatListener,
 };
-use sctk::seat::SeatListener;
 use slog::Logger;
 use smithay::{
     desktop::{PopupManager, Window},
@@ -28,7 +33,7 @@ use smithay::{
     wayland::{output::Output as s_Output, seat, shell::xdg::ShellState},
 };
 
-use crate::{CachedBuffers, Surface};
+use crate::{client::Env, CachedBuffers, WrapperRenderer};
 
 #[derive(Debug)]
 pub struct Seat {
@@ -53,7 +58,6 @@ pub struct AxisFrameData {
     pub v_discrete: Option<i32>,
 }
 
-#[derive(Debug)]
 pub struct GlobalState {
     pub desktop_client_state: DesktopClientState,
     pub embedded_server_state: EmbeddedServerState,
@@ -73,16 +77,16 @@ pub struct EmbeddedServerState {
     pub popup_manager: PopupManager,
 }
 
-#[derive(Debug)]
 pub struct DesktopClientState {
     pub display: client::Display,
     pub seats: Vec<Seat>,
     pub seat_listener: SeatListener,
     pub output_listener: OutputStatusListener,
-    pub surface: Option<(u32, Surface)>,
+    pub renderer: Option<WrapperRenderer>,
     pub cursor_surface: wl_surface::WlSurface,
     pub axis_frame: AxisFrameData,
     pub kbd_focus: bool,
     pub globals: GlobalManager,
     pub shm: Attached<wl_shm::WlShm>,
+    pub env_handle: Environment<Env>,
 }

@@ -32,9 +32,10 @@ use smithay::{
         },
         renderer::{
             gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, ImportEgl, Renderer,
+            Unbind,
         },
     },
-    desktop::{utils::send_frames_surface_tree, PopupKind, PopupManager},
+    desktop::{utils::send_frames_surface_tree, Kind, PopupKind, PopupManager, Window},
     egl_platform,
     reexports::{
         wayland_protocols::wlr::unstable::layer_shell::v1::client::{
@@ -42,6 +43,7 @@ use smithay::{
         },
         wayland_server::{protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display},
     },
+    wayland::shell::xdg::PopupSurface,
 };
 
 use crate::XdgWrapperConfig;
@@ -99,59 +101,274 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
 }
 
 #[derive(Debug)]
-pub struct Surface {
-    pub egl_display: EGLDisplay,
+pub struct Popup {
+    pub c_surface: c_wl_surface::WlSurface,
+    pub s_surface: PopupSurface,
     pub egl_surface: Rc<EGLSurface>,
-    pub renderer: Gles2Renderer,
-    pub surface: c_wl_surface::WlSurface,
-    pub server_surface: Option<s_WlSurface>,
-    pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
-    pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
-    pub pool: AutoMemPool,
-    pub dimensions: (u32, u32),
-    pub config: XdgWrapperConfig,
-    pub log: Logger,
-    pub dirty: bool,
-    pub xdg_window: Option<Rc<RefCell<smithay::desktop::Window>>>,
+    pub egl_display: EGLDisplay,
 }
 
-impl Surface {
+#[derive(Debug)]
+pub struct WrapperSurface {
+    pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
+    pub renderer: Gles2Renderer,
+    pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
+    pub dimensions: (u32, u32),
+    pub c_top_level: c_wl_surface::WlSurface,
+    pub popups: Vec<Popup>,
+    pub s_top_level: Rc<RefCell<smithay::desktop::Window>>,
+    pub egl_display: EGLDisplay,
+    pub egl_surface: Rc<EGLSurface>,
+    pub dirty: bool,
+    pub is_root: bool,
+    pub log: Logger,
+}
+
+impl WrapperSurface {
+    /// Handles any events that have occurred since the last call, redrawing if needed.
+    /// Returns true if the surface should be dropped.
+    pub fn handle_events(&mut self) -> bool {
+        match self.next_render_event.take() {
+            Some(RenderEvent::Closed) => true,
+            Some(RenderEvent::Configure { width, height }) => {
+                if self.dimensions != (width, height) {
+                    self.dimensions = (width, height);
+                    self.egl_surface.resize(width as i32, height as i32, 0, 0);
+                    self.dirty = true;
+                }
+                false
+            }
+            None => false,
+        }
+    }
+
+    pub fn render(&mut self, time: u32) {
+        // render top level surface
+        {
+            let width = self.dimensions.0 as i32;
+            let height = self.dimensions.1 as i32;
+            let logger = self.log.clone();
+            let egl_surface = &self.egl_surface;
+            let s_top_level = self.s_top_level.borrow();
+            let server_surface = match s_top_level.toplevel() {
+                Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
+                    Some(s) => s,
+                    _ => return,
+                },
+                _ => return,
+            };
+            let loc = s_top_level.geometry().loc;
+
+            self.renderer.unbind();
+            self.renderer
+                .bind(egl_surface.clone())
+                .expect("Failed to bind surface to GL");
+            self.renderer
+                .render(
+                    (width, height).into(),
+                    smithay::utils::Transform::Flipped180,
+                    |self_: &mut Gles2Renderer, frame| {
+                        let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
+                            loc: loc.clone(),
+                            size: (width, height).into(),
+                        };
+
+                        let loc = (-loc.x, -loc.y);
+                        frame
+                            .clear([1.0, 1.0, 1.0, 0.0], &[damage.to_physical(1)])
+                            .expect("Failed to clear frame.");
+                        draw_surface_tree(
+                            self_,
+                            frame,
+                            server_surface,
+                            1.0,
+                            loc.into(),
+                            &[damage],
+                            &logger,
+                        )
+                        .expect("Failed to draw surface tree");
+                    },
+                )
+                .expect("Failed to render to layer shell surface.");
+
+            let mut damage = [smithay::utils::Rectangle {
+                loc: (0, 0).into(),
+                size: (width, height).into(),
+            }];
+
+            egl_surface
+                .swap_buffers(Some(&mut damage))
+                .expect("Failed to swap buffers.");
+
+            send_frames_surface_tree(server_surface, time);
+        }
+        // render popups
+        for Popup {
+            c_surface,
+            s_surface,
+            egl_surface,
+            ..
+        } in &self.popups
+        {
+            let geometry = PopupKind::Xdg(s_surface.clone()).geometry();
+            let loc = geometry.loc;
+            let (width, height) = geometry.size.into();
+            let wl_surface = match s_surface.get_surface() {
+                Some(s) => s,
+                _ => return,
+            };
+
+            let logger = self.log.clone();
+            self.renderer.unbind();
+            self.renderer
+                .bind(egl_surface.clone())
+                .expect("Failed to bind surface to GL");
+            self.renderer
+                .render(
+                    (width, height).into(),
+                    smithay::utils::Transform::Flipped180,
+                    |self_: &mut Gles2Renderer, frame| {
+                        let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
+                            loc: loc.clone(),
+                            size: (width, height).into(),
+                        };
+
+                        let loc = (-loc.x, -loc.y);
+                        frame
+                            .clear([1.0, 1.0, 1.0, 0.0], &[damage.to_physical(1)])
+                            .expect("Failed to clear frame.");
+                        draw_surface_tree(
+                            self_,
+                            frame,
+                            wl_surface,
+                            1.0,
+                            loc.into(),
+                            &[damage],
+                            &logger,
+                        )
+                        .expect("Failed to draw surface tree");
+                    },
+                )
+                .expect("Failed to render to layer shell surface.");
+
+            let mut damage = [smithay::utils::Rectangle {
+                loc: (0, 0).into(),
+                size: (width, height).into(),
+            }];
+
+            egl_surface
+                .swap_buffers(Some(&mut damage))
+                .expect("Failed to swap buffers.");
+
+            send_frames_surface_tree(wl_surface, time);
+        }
+        self.dirty = false;
+    }
+}
+
+#[derive(Debug)]
+pub struct WrapperRenderer {
+    pub surfaces: Vec<WrapperSurface>,
+    pub pool: AutoMemPool,
+    pub layer_shell: Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
+    pub output: c_wl_output::WlOutput,
+    pub output_id: u32,
+    pub c_display: client::Display,
+    pub config: XdgWrapperConfig,
+    pub log: Logger,
+    pub needs_update: bool,
+}
+
+impl WrapperRenderer {
     pub(crate) fn new(
-        output: &c_wl_output::WlOutput,
-        surface: c_wl_surface::WlSurface,
-        layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
+        output: c_wl_output::WlOutput,
+        output_id: u32,
         pool: AutoMemPool,
         config: XdgWrapperConfig,
+        c_display: client::Display,
+        layer_shell: Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         log: Logger,
-        display: client::Display,
-        server_display: &mut s_Display,
     ) -> Self {
-        let layer_surface = layer_shell.get_layer_surface(
-            &surface,
-            Some(output),
-            config.layer.into(),
-            "example".to_owned(),
-        );
+        Self {
+            surfaces: Default::default(),
+            layer_shell,
+            output,
+            output_id,
+            c_display,
+            pool,
+            config,
+            log,
+            needs_update: false,
+        }
+    }
 
-        layer_surface.set_anchor(config.anchor.into());
-        layer_surface.set_keyboard_interactivity(config.keyboard_interactivity.into());
-        let (x, y) = config.dimensions;
-        layer_surface.set_size(x, y);
-        // Anchor to the top left corner of the output
+    pub fn handle_events(&mut self, time: u32) -> bool {
+        let mut updated = false;
+        let mut surfaces = self
+            .surfaces
+            .drain(..)
+            .filter_map(|mut s| {
+                let remove = s.handle_events();
+                if remove {
+                    if s.is_root {
+                        trace!(self.log, "root window removed, exiting...");
+                        std::process::exit(0);
+                    }
+                    return None;
+                } else if s.dirty {
+                    updated = true;
+                    s.render(time);
+                }
+                return Some(s);
+            })
+            .collect();
+        self.surfaces.append(&mut surfaces);
+        updated
+    }
 
-        let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
-        let next_render_event_handle = Rc::clone(&next_render_event);
-        let logger = log.clone();
-
-        // Commit so that the server will send a configure event
-        surface.commit();
-        let client_egl_surface = ClientEglSurface {
-            wl_egl_surface: wayland_egl::WlEglSurface::new(&surface, x as i32, y as i32),
-            display: display,
+    pub fn apply_display(&mut self, s_display: &s_Display) {
+        if !self.needs_update {
+            return;
         };
 
-        let egl_display = EGLDisplay::new(&client_egl_surface, log.clone())
+        for s in &mut self.surfaces {
+            if let Err(_err) = s.renderer.bind_wl_display(s_display) {
+                warn!(
+                    self.log.clone(),
+                    "Failed to bind display to Egl renderer. Hardware acceleration will not be used."
+                );
+            }
+        }
+        self.needs_update = false;
+    }
+
+    pub fn add_top_level(
+        &mut self,
+        c_surface: c_wl_surface::WlSurface,
+        s_top_level: Rc<RefCell<Window>>,
+    ) {
+        self.needs_update = true;
+        let layer_surface = self.layer_shell.get_layer_surface(
+            &c_surface,
+            Some(&self.output),
+            self.config.layer.into(),
+            "example".to_owned(),
+        );
+        layer_surface.set_anchor(self.config.anchor.into());
+        layer_surface.set_keyboard_interactivity(self.config.keyboard_interactivity.into());
+        let (x, y) = self.config.dimensions;
+        layer_surface.set_size(x, y);
+
+        // Commit so that the server will send a configure event
+        c_surface.commit();
+
+        let client_egl_surface = ClientEglSurface {
+            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, x as i32, y as i32),
+            display: self.c_display.clone(),
+        };
+        let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
             .expect("Failed to initialize EGL display");
+
         let egl_context = EGLContext::new_with_config(
             &egl_display,
             GlAttributes {
@@ -161,7 +378,7 @@ impl Surface {
                 vsync: false,
             },
             Default::default(),
-            log.clone(),
+            self.log.clone(),
         )
         .expect("Failed to initialize EGL context");
 
@@ -184,25 +401,26 @@ impl Surface {
                     .expect("Failed to get pixel format from EGL context "),
                 egl_context.config_id(),
                 client_egl_surface,
-                log.clone(),
+                self.log.clone(),
             )
             .expect("Failed to initialize EGL Surface"),
         );
+
         let mut renderer = unsafe {
-            Gles2Renderer::new(egl_context, log.clone()).expect("Failed to initialize EGL Surface")
+            Gles2Renderer::new(egl_context, self.log.clone())
+                .expect("Failed to initialize EGL Surface")
         };
-        if let Err(_err) = renderer.bind_wl_display(&server_display) {
-            warn!(
-                logger,
-                "Failed to bind display to Egl renderer. Hardware acceleration will not be used."
-            );
-        }
         renderer
             .bind(egl_surface.clone())
             .expect("Failed to bind surface to GL");
         dbg!(unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) });
 
+        let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
+        let next_render_event_handle = Rc::clone(&next_render_event);
+
         //let egl_surface_clone = egl_surface.clone();
+        let next_render_event_handle = next_render_event.clone();
+        let logger = self.log.clone();
         layer_surface.quick_assign(move |layer_surface, event, _| {
             match (event, next_render_event_handle.get()) {
                 (zwlr_layer_surface_v1::Event::Closed, _) => {
@@ -230,133 +448,105 @@ impl Surface {
                 (_, _) => {}
             }
         });
-
-        Self {
+        let is_root = self.surfaces.len() == 0;
+        let top_level = WrapperSurface {
+            renderer,
+            dimensions: self.config.dimensions,
             egl_display,
             egl_surface,
-            renderer,
-            surface,
             layer_surface,
-            server_surface: None,
+            is_root,
             next_render_event,
-            pool,
-            dimensions: (0, 0),
-            config,
-            log,
+            s_top_level,
+            popups: Default::default(),
+            c_top_level: c_surface,
+            log: self.log.clone(),
             dirty: true,
-            xdg_window: Default::default(),
-        }
+        };
+        self.surfaces.push(top_level);
     }
 
-    /// Handles any events that have occurred since the last call, redrawing if needed.
-    /// Returns true if the surface should be dropped.
-    pub fn handle_events(&mut self) -> bool {
-        match self.next_render_event.take() {
-            Some(RenderEvent::Closed) => true,
-            Some(RenderEvent::Configure { width, height }) => {
-                if self.dimensions != (width, height) {
-                    self.dimensions = (width, height);
-                    self.egl_surface.resize(width as i32, height as i32, 0, 0);
-                    //self.surface.commit();
-                }
-                false
-            }
-            None => false,
+    pub fn add_popup(
+        &mut self,
+        c_surface: c_wl_surface::WlSurface,
+        s_surface: PopupSurface,
+        s_top_level: Rc<RefCell<Window>>,
+    ) {
+        let (width, height) = PopupKind::Xdg(s_surface.clone()).geometry().size.into();
+        self.needs_update = true;
+        let client_egl_surface = ClientEglSurface {
+            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, width, height),
+            display: self.c_display.clone(),
+        };
+        let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
+            .expect("Failed to initialize EGL display");
+
+        let egl_context = EGLContext::new_with_config(
+            &egl_display,
+            GlAttributes {
+                version: (3, 0),
+                profile: None,
+                debug: cfg!(debug_assertions),
+                vsync: false,
+            },
+            Default::default(),
+            self.log.clone(),
+        )
+        .expect("Failed to initialize EGL context");
+
+        let mut min_interval_attr = 23239;
+        unsafe {
+            GetConfigAttrib(
+                egl_display.get_display_handle().handle,
+                egl_context.config_id(),
+                ffi::egl::MIN_SWAP_INTERVAL as c_int,
+                &mut min_interval_attr,
+            );
         }
-    }
 
-    pub fn render(&mut self, time: u32) {
-        let width = self.dimensions.0 as i32;
-        let height = self.dimensions.1 as i32;
-        let logger = self.log.clone();
-        let egl_surface = &self.egl_surface;
-        let popup_surfaces = self
-            .server_surface
-            .as_ref()
-            .map(|surface| Some(PopupManager::popups_for_surface(&surface)))
-            .unwrap_or(None);
-        let loc = &self
-            .xdg_window
-            .as_ref()
-            .map(|w| w.borrow().geometry().loc)
-            .unwrap_or_default();
-
-        self.renderer
-            .bind(egl_surface.clone())
-            .expect("Failed to bind surface to GL");
-        self.renderer
-            .render(
-                (width, height).into(),
-                smithay::utils::Transform::Flipped180,
-                |self_: &mut Gles2Renderer, frame| {
-                    let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                        loc: loc.clone(),
-                        size: (width, height).into(),
-                    };
-
-                    let loc = (-loc.x, -loc.y);
-                    frame
-                        .clear([1.0, 1.0, 1.0, 0.0], &[damage.to_physical(1)])
-                        .expect("Failed to clear frame.");
-                    if let Some(surface) = self.server_surface.as_ref() {
-                        draw_surface_tree(
-                            self_,
-                            frame,
-                            surface,
-                            1.0,
-                            loc.into(),
-                            &[damage],
-                            &logger,
-                        )
-                        .expect("Failed to draw surface tree");
-                    }
-                    if let Some(Ok(popup_surfaces)) = popup_surfaces {
-                        for (popup_kind, offset) in popup_surfaces {
-                            let geometry = popup_kind.geometry();
-                            let popup_surface = match popup_kind {
-                                PopupKind::Xdg(p) => p,
-                            };
-                            if popup_surface.alive() {
-                                if let Some(popup_surface) = popup_surface.get_surface() {
-                                    if let Err(e) = draw_surface_tree(
-                                        self_,
-                                        frame,
-                                        popup_surface,
-                                        1.0,
-                                        (geometry.loc.x + offset.x, geometry.loc.y + offset.y)
-                                            .into(),
-                                        &[geometry],
-                                        &logger,
-                                    ) {
-                                        error!(logger, "{}", e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
+        dbg!(min_interval_attr);
+        let egl_surface = Rc::new(
+            EGLSurface::new(
+                &egl_display,
+                egl_context
+                    .pixel_format()
+                    .expect("Failed to get pixel format from EGL context "),
+                egl_context.config_id(),
+                client_egl_surface,
+                self.log.clone(),
             )
-            .expect("Failed to render to layer shell surface.");
+            .expect("Failed to initialize EGL Surface"),
+        );
 
-        let mut damage = [smithay::utils::Rectangle {
-            loc: (0, 0).into(),
-            size: (width, height).into(),
-        }];
-
-        egl_surface
-            .swap_buffers(Some(&mut damage))
-            .expect("Failed to swap buffers.");
-
-        if let Some(surface) = self.server_surface.as_ref() {
-            send_frames_surface_tree(surface, time);
+        for s in &mut self.surfaces {
+            if *s.s_top_level.borrow() == *s_top_level.borrow() {
+                s.popups.push(Popup {
+                    c_surface,
+                    s_surface,
+                    egl_surface,
+                    egl_display,
+                });
+                break;
+            }
         }
-        self.dirty = false;
+    }
+
+    pub fn dirty(&mut self, other_top_level_surface: &s_WlSurface) {
+        for s in &mut self.surfaces {
+            if let Kind::Xdg(surface) = s.s_top_level.borrow().toplevel() {
+                if let Some(surface) = surface.get_surface() {
+                    if other_top_level_surface == surface {
+                        s.dirty = true;
+                    }
+                }
+            }
+        }
     }
 }
 
-impl Drop for Surface {
+impl Drop for WrapperSurface {
     fn drop(&mut self) {
         self.layer_surface.destroy();
-        self.surface.destroy();
+        self.c_top_level.destroy();
     }
 }

@@ -72,7 +72,7 @@ pub fn new_server(
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let DesktopClientState {
                 cursor_surface,
-                surface: desktop_client_surface,
+                renderer,
                 seats,
                 shm,
                 ..
@@ -85,9 +85,8 @@ pub fn new_server(
             trace!(log, "role: {:?} surface: {:?}", &role, &surface);
             if role == "xdg_toplevel".into() {
                 on_commit_buffer_handler(&surface);
-                if let Some((_, desktop_client_surface)) = desktop_client_surface.as_mut() {
-                    desktop_client_surface.server_surface = Some(surface);
-                    desktop_client_surface.dirty = true;
+                if let Some(renderer) = renderer.as_mut() {
+                    renderer.dirty(&surface);
                 }
             } else if role == "cursor_image".into() {
                 // pass cursor image to parent compositor
@@ -123,7 +122,14 @@ pub fn new_server(
                     }
                 }
             } else if role == "xdg_popup".into() {
-                desktop_client_surface.as_mut().map(|s| s.1.dirty = true);
+                let popup = popup_manager.find_popup(&surface);
+                let top_level_surface = match popup {
+                    Some(PopupKind::Xdg(s)) => s.get_parent_surface(),
+                    _ => return,
+                };
+                if let (Some(renderer), Some(top_level_surface)) = (renderer, top_level_surface) {
+                    renderer.dirty(&top_level_surface);
+                }
                 on_commit_buffer_handler(&surface);
                 popup_manager.commit(&surface);
             }
@@ -136,8 +142,14 @@ pub fn new_server(
         &mut display,
         move |request: XdgRequest, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();
-            let seats = &mut state.desktop_client_state.seats;
-            let kbd_focus = &state.desktop_client_state.kbd_focus;
+            let DesktopClientState {
+                seats,
+                kbd_focus,
+                env_handle,
+                renderer,
+                ..
+            } = &mut state.desktop_client_state;
+
             let EmbeddedServerState {
                 focused_surface,
                 popup_manager,
@@ -149,12 +161,10 @@ pub fn new_server(
             match request {
                 XdgRequest::NewToplevel { surface } => {
                     println!("new toplevel...");
-                    let layer_shell_surface = state.desktop_client_state.surface.as_mut();
                     let _ = surface.with_pending_state(move |top_level_state| {
-                        if let Some(layer_shell_surface) = layer_shell_surface.as_ref() {
-                            let w = layer_shell_surface.1.dimensions.0 as i32;
-                            let h = layer_shell_surface.1.dimensions.1 as i32;
-                            top_level_state.size = Some((w, h).into());
+                        if let Some(renderer) = renderer.as_ref() {
+                            let (w, h) = renderer.config.dimensions;
+                            top_level_state.size = Some((w as i32, h as i32).into());
                         }
                     });
                     surface.send_configure();
@@ -168,12 +178,13 @@ pub fn new_server(
                         }
                     }
 
-                    let mut layer_shell_surface = state.desktop_client_state.surface.as_mut();
                     let window = Rc::new(RefCell::new(smithay::desktop::Window::new(
                         smithay::desktop::Kind::Xdg(surface),
                     )));
-                    if let Some((_, surface)) = &mut layer_shell_surface {
-                        surface.xdg_window.replace(window.clone());
+
+                    let layer_shell_surface = env_handle.create_surface().detach();
+                    if let Some(renderer) = &mut state.desktop_client_state.renderer.as_mut() {
+                        renderer.add_top_level(layer_shell_surface, window.clone());
                     }
                     root_window.replace(window);
                 }
