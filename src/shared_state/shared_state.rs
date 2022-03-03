@@ -7,12 +7,15 @@ use std::sync::{Arc, Mutex};
 use sctk::{
     environment::Environment,
     output::OutputStatusListener,
-    reexports::client::{
-        self,
-        protocol::{
-            wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_shm, wl_surface,
+    reexports::{
+        client::{
+            self,
+            protocol::{
+                wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_shm, wl_surface,
+            },
+            Attached, GlobalManager, Main,
         },
-        Attached, GlobalManager,
+        protocols::xdg_shell::client::{xdg_surface::XdgSurface, xdg_wm_base::XdgWmBase},
     },
     seat::SeatListener,
 };
@@ -88,5 +91,7 @@ pub struct DesktopClientState {
     pub kbd_focus: bool,
     pub globals: GlobalManager,
     pub shm: Attached<wl_shm::WlShm>,
+    pub xdg_wm_base: Attached<XdgWmBase>,
+    pub xdg_surface: Main<XdgSurface>,
     pub env_handle: Environment<Env>,
 }

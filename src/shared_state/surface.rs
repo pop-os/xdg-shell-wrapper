@@ -38,8 +38,9 @@ use smithay::{
     desktop::{utils::send_frames_surface_tree, Kind, PopupKind, PopupManager, Window},
     egl_platform,
     reexports::{
-        wayland_protocols::wlr::unstable::layer_shell::v1::client::{
-            zwlr_layer_shell_v1, zwlr_layer_surface_v1,
+        wayland_protocols::{
+            wlr::unstable::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1},
+            xdg_shell::client::xdg_popup::XdgPopup,
         },
         wayland_server::{protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display},
     },
@@ -159,7 +160,7 @@ impl WrapperSurface {
             };
             let loc = s_top_level.geometry().loc;
 
-            self.renderer.unbind();
+            let _ = self.renderer.unbind();
             self.renderer
                 .bind(egl_surface.clone())
                 .expect("Failed to bind surface to GL");
@@ -219,7 +220,7 @@ impl WrapperSurface {
             };
 
             let logger = self.log.clone();
-            self.renderer.unbind();
+            let _ = self.renderer.unbind();
             self.renderer
                 .bind(egl_surface.clone())
                 .expect("Failed to bind surface to GL");
@@ -416,7 +417,6 @@ impl WrapperRenderer {
         dbg!(unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) });
 
         let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
-        let next_render_event_handle = Rc::clone(&next_render_event);
 
         //let egl_surface_clone = egl_surface.clone();
         let next_render_event_handle = next_render_event.clone();
@@ -470,8 +470,17 @@ impl WrapperRenderer {
         &mut self,
         c_surface: c_wl_surface::WlSurface,
         s_surface: PopupSurface,
-        s_top_level: Rc<RefCell<Window>>,
+        parent: s_WlSurface,
+        popup: Main<XdgPopup>,
     ) {
+        let layer_surface = self.layer_shell.get_layer_surface(
+            &c_surface,
+            Some(&self.output),
+            self.config.layer.into(),
+            "example".to_owned(),
+        );
+
+        layer_surface.get_popup(&popup);
         let (width, height) = PopupKind::Xdg(s_surface.clone()).geometry().size.into();
         self.needs_update = true;
         let client_egl_surface = ClientEglSurface {
@@ -519,7 +528,12 @@ impl WrapperRenderer {
         );
 
         for s in &mut self.surfaces {
-            if *s.s_top_level.borrow() == *s_top_level.borrow() {
+            let top_level = s.s_top_level.borrow();
+            let wl_s = match top_level.toplevel() {
+                Kind::Xdg(wl_s) => wl_s.get_surface(),
+                _ => None,
+            };
+            if wl_s == Some(&parent) {
                 s.popups.push(Popup {
                     c_surface,
                     s_surface,

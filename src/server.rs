@@ -16,12 +16,13 @@ use smithay::{
     desktop::{PopupKind, PopupManager},
     reexports::{
         nix::fcntl,
+        wayland_protocols::xdg_shell::client::xdg_positioner::{Anchor, Gravity},
         wayland_server::{self, protocol::wl_shm::Format},
     },
     wayland::{
         compositor::{compositor_init, BufferAssignment},
         data_device::{default_action_chooser, init_data_device},
-        shell::xdg::{xdg_shell_init, XdgRequest},
+        shell::xdg::{xdg_shell_init, PositionerState, XdgRequest},
         shm::init_shm_global,
         SERIAL_COUNTER,
     },
@@ -147,6 +148,8 @@ pub fn new_server(
                 kbd_focus,
                 env_handle,
                 renderer,
+                xdg_surface,
+                xdg_wm_base,
                 ..
             } = &mut state.desktop_client_state;
 
@@ -188,9 +191,59 @@ pub fn new_server(
                     }
                     root_window.replace(window);
                 }
-                XdgRequest::NewPopup { surface, .. } => {
+                XdgRequest::NewPopup {
+                    surface,
+                    positioner:
+                        PositionerState {
+                            rect_size,
+                            anchor_rect,
+                            anchor_edges,
+                            gravity,
+                            constraint_adjustment,
+                            offset,
+                            reactive,
+                            parent_size,
+                            parent_configure,
+                        },
+                } => {
                     // TODO fix positioning
+
                     let _ = surface.send_configure();
+                    let positioner = xdg_wm_base.create_positioner();
+                    positioner.set_size(rect_size.w, rect_size.h);
+                    positioner.set_anchor_rect(
+                        anchor_rect.loc.x,
+                        anchor_rect.loc.y,
+                        anchor_rect.size.w,
+                        anchor_rect.size.h,
+                    );
+                    positioner.set_anchor(
+                        Anchor::from_raw(anchor_edges.to_raw().into()).unwrap_or(Anchor::None),
+                    );
+                    positioner.set_gravity(
+                        Gravity::from_raw(gravity.to_raw().into()).unwrap_or(Gravity::None),
+                    );
+                    positioner.set_constraint_adjustment(constraint_adjustment.to_raw());
+                    positioner.set_offset(offset.x, offset.y);
+                    if reactive {
+                        positioner.set_reactive();
+                    }
+                    if let Some(parent_size) = parent_size {
+                        positioner.set_parent_size(parent_size.w, parent_size.h);
+                    }
+
+                    // TODO what to do with parent configure?
+                    let popup = xdg_surface.get_popup(None, &positioner);
+
+                    let layer_shell_surface = env_handle.create_surface().detach();
+                    if let (Some(parent), Some(renderer)) = (
+                        surface.get_parent_surface(),
+                        &mut state.desktop_client_state.renderer.as_mut(),
+                    ) {
+                        renderer.add_popup(layer_shell_surface, surface.clone(), parent, popup);
+                    }
+
+                    // let layer_shell_popup = xdg_surface.get_popup(None, )
                     if let Err(e) = popup_manager.track_popup(PopupKind::Xdg(surface)) {
                         error!(log, "{}", e);
                     }

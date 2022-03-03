@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use anyhow::Result;
 use sctk::{
     default_environment,
@@ -13,9 +10,11 @@ use sctk::{
 };
 use slog::{trace, Logger};
 use smithay::{
-    desktop::PopupManager,
     reexports::{
-        wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
+        wayland_protocols::{
+            wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
+            xdg_shell::client::{xdg_surface::XdgSurface, xdg_wm_base::XdgWmBase},
+        },
         wayland_server,
     },
     wayland::seat,
@@ -30,9 +29,11 @@ sctk::default_environment!(KbdInputExample, desktop);
 default_environment!(Env,
     fields = [
         layer_shell: SimpleGlobal<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
+        xdg_wm_base: SimpleGlobal<XdgWmBase>,
     ],
     singles = [
-        zwlr_layer_shell_v1::ZwlrLayerShellV1 => layer_shell
+        zwlr_layer_shell_v1::ZwlrLayerShellV1 => layer_shell,
+        XdgWmBase => xdg_wm_base,
     ],
 );
 
@@ -45,9 +46,14 @@ pub fn new_client(
     /*
      * Initial setup
      */
-    let (env, display, queue) =
-        sctk::new_default_environment!(Env, fields = [layer_shell: SimpleGlobal::new(),])
-            .expect("Unable to connect to a Wayland compositor");
+    let (env, display, queue) = sctk::new_default_environment!(
+        Env,
+        fields = [
+            layer_shell: SimpleGlobal::new(),
+            xdg_wm_base: SimpleGlobal::new(),
+        ]
+    )
+    .expect("Unable to connect to a Wayland compositor");
 
     let attached_display = (*display).clone().attach(queue.token());
     let globals = GlobalManager::new(&attached_display);
@@ -59,7 +65,6 @@ pub fn new_client(
         if let Some(info) = with_output_info(&output, Clone::clone) {
             let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
             let env_handle = env.clone();
-            let surface_handle = &renderer;
             let logger = log.clone();
             let display_ = display.clone();
             let config = config.clone();
@@ -167,7 +172,11 @@ pub fn new_client(
 
     let cursor_surface = env.create_surface().detach();
 
-    let shm = env.get_global::<wl_shm::WlShm>().unwrap();
+    let shm = env.require_global::<wl_shm::WlShm>();
+    let xdg_wm_base = env.require_global::<XdgWmBase>();
+
+    let dummy_xdg_surface = env.create_surface().detach();
+    let xdg_surface = xdg_wm_base.get_xdg_surface(&dummy_xdg_surface);
 
     trace!(log.clone(), "client setup complete");
     Ok((
@@ -182,6 +191,8 @@ pub fn new_client(
             cursor_surface: cursor_surface,
             globals,
             shm,
+            xdg_surface,
+            xdg_wm_base,
             env_handle: env,
         },
         s_outputs,
