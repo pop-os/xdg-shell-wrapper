@@ -175,9 +175,6 @@ pub fn new_client(
     let shm = env.require_global::<wl_shm::WlShm>();
     let xdg_wm_base = env.require_global::<XdgWmBase>();
 
-    let dummy_xdg_surface = env.create_surface().detach();
-    let xdg_surface = xdg_wm_base.get_xdg_surface(&dummy_xdg_surface);
-
     trace!(log.clone(), "client setup complete");
     Ok((
         DesktopClientState {
@@ -191,7 +188,6 @@ pub fn new_client(
             cursor_surface: cursor_surface,
             globals,
             shm,
-            xdg_surface,
             xdg_wm_base,
             env_handle: env,
         },

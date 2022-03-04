@@ -92,6 +92,5 @@ pub struct DesktopClientState {
     pub globals: GlobalManager,
     pub shm: Attached<wl_shm::WlShm>,
     pub xdg_wm_base: Attached<XdgWmBase>,
-    pub xdg_surface: Main<XdgSurface>,
     pub env_handle: Environment<Env>,
 }

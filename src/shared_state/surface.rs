@@ -40,7 +40,10 @@ use smithay::{
     reexports::{
         wayland_protocols::{
             wlr::unstable::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1},
-            xdg_shell::client::xdg_popup::XdgPopup,
+            xdg_shell::client::{
+                xdg_popup::XdgPopup,
+                xdg_surface::{self, XdgSurface},
+            },
         },
         wayland_server::{protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display},
     },
@@ -129,18 +132,38 @@ impl WrapperSurface {
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface should be dropped.
     pub fn handle_events(&mut self) -> bool {
+        let mut dirty = false;
+        let popups = self
+            .popups
+            .drain_filter(|_| match self.next_render_event.take() {
+                Some(RenderEvent::Closed) => {
+                    dirty = true;
+                    false
+                }
+                Some(RenderEvent::Configure { width, height }) => {
+                    self.egl_surface.resize(width as i32, height as i32, 0, 0);
+                    self.dirty = true;
+                    true
+                }
+                None => true,
+            })
+            .collect();
+        self.popups = popups;
+
         match self.next_render_event.take() {
-            Some(RenderEvent::Closed) => true,
+            Some(RenderEvent::Closed) => {
+                dirty = true;
+            }
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
                     self.dimensions = (width, height);
                     self.egl_surface.resize(width as i32, height as i32, 0, 0);
                     self.dirty = true;
                 }
-                false
             }
-            None => false,
+            None => (),
         }
+        dirty
     }
 
     pub fn render(&mut self, time: u32) {
@@ -469,64 +492,11 @@ impl WrapperRenderer {
     pub fn add_popup(
         &mut self,
         c_surface: c_wl_surface::WlSurface,
+        c_xdg_surface: Main<XdgSurface>,
+        c_popup: Main<XdgPopup>,
         s_surface: PopupSurface,
         parent: s_WlSurface,
-        popup: Main<XdgPopup>,
     ) {
-        let layer_surface = self.layer_shell.get_layer_surface(
-            &c_surface,
-            Some(&self.output),
-            self.config.layer.into(),
-            "example".to_owned(),
-        );
-
-        layer_surface.get_popup(&popup);
-        let (width, height) = PopupKind::Xdg(s_surface.clone()).geometry().size.into();
-        self.needs_update = true;
-        let client_egl_surface = ClientEglSurface {
-            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, width, height),
-            display: self.c_display.clone(),
-        };
-        let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
-            .expect("Failed to initialize EGL display");
-
-        let egl_context = EGLContext::new_with_config(
-            &egl_display,
-            GlAttributes {
-                version: (3, 0),
-                profile: None,
-                debug: cfg!(debug_assertions),
-                vsync: false,
-            },
-            Default::default(),
-            self.log.clone(),
-        )
-        .expect("Failed to initialize EGL context");
-
-        let mut min_interval_attr = 23239;
-        unsafe {
-            GetConfigAttrib(
-                egl_display.get_display_handle().handle,
-                egl_context.config_id(),
-                ffi::egl::MIN_SWAP_INTERVAL as c_int,
-                &mut min_interval_attr,
-            );
-        }
-
-        dbg!(min_interval_attr);
-        let egl_surface = Rc::new(
-            EGLSurface::new(
-                &egl_display,
-                egl_context
-                    .pixel_format()
-                    .expect("Failed to get pixel format from EGL context "),
-                egl_context.config_id(),
-                client_egl_surface,
-                self.log.clone(),
-            )
-            .expect("Failed to initialize EGL Surface"),
-        );
-
         for s in &mut self.surfaces {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
@@ -534,6 +504,63 @@ impl WrapperRenderer {
                 _ => None,
             };
             if wl_s == Some(&parent) {
+                s.layer_surface.get_popup(&c_popup);
+                c_surface.commit();
+                c_xdg_surface.quick_assign(|c_xdg_surface, e, _| {
+                    if let xdg_surface::Event::Configure { serial, .. } = e {
+                        c_xdg_surface.ack_configure(serial);
+                    } // TODO set render event
+                });
+
+                c_popup.quick_assign(|c_popup, e, _| {
+                    // TODO handle popup events and update render events
+                });
+                let (width, height) = PopupKind::Xdg(s_surface.clone()).geometry().size.into();
+                self.needs_update = true;
+                let client_egl_surface = ClientEglSurface {
+                    wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, width, height),
+                    display: self.c_display.clone(),
+                };
+                let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
+                    .expect("Failed to initialize EGL display");
+
+                let egl_context = EGLContext::new_with_config(
+                    &egl_display,
+                    GlAttributes {
+                        version: (3, 0),
+                        profile: None,
+                        debug: cfg!(debug_assertions),
+                        vsync: false,
+                    },
+                    Default::default(),
+                    self.log.clone(),
+                )
+                .expect("Failed to initialize EGL context");
+
+                let mut min_interval_attr = 23239;
+                unsafe {
+                    GetConfigAttrib(
+                        egl_display.get_display_handle().handle,
+                        egl_context.config_id(),
+                        ffi::egl::MIN_SWAP_INTERVAL as c_int,
+                        &mut min_interval_attr,
+                    );
+                }
+
+                dbg!(min_interval_attr);
+                let egl_surface = Rc::new(
+                    EGLSurface::new(
+                        &egl_display,
+                        egl_context
+                            .pixel_format()
+                            .expect("Failed to get pixel format from EGL context "),
+                        egl_context.config_id(),
+                        client_egl_surface,
+                        self.log.clone(),
+                    )
+                    .expect("Failed to initialize EGL Surface"),
+                );
+
                 s.popups.push(Popup {
                     c_surface,
                     s_surface,

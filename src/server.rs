@@ -148,7 +148,6 @@ pub fn new_server(
                 kbd_focus,
                 env_handle,
                 renderer,
-                xdg_surface,
                 xdg_wm_base,
                 ..
             } = &mut state.desktop_client_state;
@@ -203,10 +202,11 @@ pub fn new_server(
                             offset,
                             reactive,
                             parent_size,
-                            parent_configure,
+                            ..
                         },
                 } => {
                     // TODO fix positioning
+                    println!("new popup");
 
                     let _ = surface.send_configure();
                     let positioner = xdg_wm_base.create_positioner();
@@ -231,16 +231,23 @@ pub fn new_server(
                     if let Some(parent_size) = parent_size {
                         positioner.set_parent_size(parent_size.w, parent_size.h);
                     }
-
                     // TODO what to do with parent configure?
+
+                    let popup_surface = env_handle.create_surface().detach();
+                    let xdg_surface = xdg_wm_base.get_xdg_surface(&popup_surface);
                     let popup = xdg_surface.get_popup(None, &positioner);
 
-                    let layer_shell_surface = env_handle.create_surface().detach();
                     if let (Some(parent), Some(renderer)) = (
                         surface.get_parent_surface(),
                         &mut state.desktop_client_state.renderer.as_mut(),
                     ) {
-                        renderer.add_popup(layer_shell_surface, surface.clone(), parent, popup);
+                        renderer.add_popup(
+                            popup_surface,
+                            xdg_surface,
+                            popup,
+                            surface.clone(),
+                            parent,
+                        );
                     }
 
                     // let layer_shell_popup = xdg_surface.get_popup(None, )
