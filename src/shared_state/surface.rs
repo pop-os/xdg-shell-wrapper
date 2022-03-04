@@ -532,10 +532,9 @@ impl WrapperRenderer {
                     dbg!(e);
                     // TODO handle popup events and update render events
                 });
-                let (width, height) = PopupKind::Xdg(s_surface.clone()).geometry().size.into();
                 self.needs_update = true;
                 let client_egl_surface = ClientEglSurface {
-                    wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, width, height),
+                    wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, w, h),
                     display: self.c_display.clone(),
                 };
 
