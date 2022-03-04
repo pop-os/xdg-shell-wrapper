@@ -109,21 +109,20 @@ pub struct Popup {
     pub c_surface: c_wl_surface::WlSurface,
     pub s_surface: PopupSurface,
     pub egl_surface: Rc<EGLSurface>,
-    pub egl_display: EGLDisplay,
+    pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
+    pub dirty: bool,
 }
 
 #[derive(Debug)]
 pub struct WrapperSurface {
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
-    pub renderer: Gles2Renderer,
     pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
+    pub s_top_level: Rc<RefCell<smithay::desktop::Window>>,
+    pub egl_surface: Rc<EGLSurface>,
+    pub dirty: bool,
     pub dimensions: (u32, u32),
     pub c_top_level: c_wl_surface::WlSurface,
     pub popups: Vec<Popup>,
-    pub s_top_level: Rc<RefCell<smithay::desktop::Window>>,
-    pub egl_display: EGLDisplay,
-    pub egl_surface: Rc<EGLSurface>,
-    pub dirty: bool,
     pub is_root: bool,
     pub log: Logger,
 }
@@ -166,7 +165,7 @@ impl WrapperSurface {
         dirty
     }
 
-    pub fn render(&mut self, time: u32) {
+    pub fn render(&mut self, time: u32, renderer: &mut Gles2Renderer) {
         // render top level surface
         {
             let width = self.dimensions.0 as i32;
@@ -183,11 +182,11 @@ impl WrapperSurface {
             };
             let loc = s_top_level.geometry().loc;
 
-            let _ = self.renderer.unbind();
-            self.renderer
+            let _ = renderer.unbind();
+            renderer
                 .bind(egl_surface.clone())
                 .expect("Failed to bind surface to GL");
-            self.renderer
+            renderer
                 .render(
                     (width, height).into(),
                     smithay::utils::Transform::Flipped180,
@@ -243,11 +242,11 @@ impl WrapperSurface {
             };
 
             let logger = self.log.clone();
-            let _ = self.renderer.unbind();
-            self.renderer
+            let _ = renderer.unbind();
+            renderer
                 .bind(egl_surface.clone())
                 .expect("Failed to bind surface to GL");
-            self.renderer
+            renderer
                 .render(
                     (width, height).into(),
                     smithay::utils::Transform::Flipped180,
@@ -301,6 +300,8 @@ pub struct WrapperRenderer {
     pub config: XdgWrapperConfig,
     pub log: Logger,
     pub needs_update: bool,
+    pub egl_display: Option<EGLDisplay>,
+    pub renderer: Option<Gles2Renderer>,
 }
 
 impl WrapperRenderer {
@@ -314,6 +315,8 @@ impl WrapperRenderer {
         log: Logger,
     ) -> Self {
         Self {
+            egl_display: None,
+            renderer: None,
             surfaces: Default::default(),
             layer_shell,
             output,
@@ -339,9 +342,9 @@ impl WrapperRenderer {
                         std::process::exit(0);
                     }
                     return None;
-                } else if s.dirty {
+                } else if s.dirty && self.renderer.is_some() {
                     updated = true;
-                    s.render(time);
+                    s.render(time, self.renderer.as_mut().unwrap());
                 }
                 return Some(s);
             })
@@ -351,17 +354,15 @@ impl WrapperRenderer {
     }
 
     pub fn apply_display(&mut self, s_display: &s_Display) {
-        if !self.needs_update {
+        if !self.needs_update || self.renderer.is_none() {
             return;
         };
 
-        for s in &mut self.surfaces {
-            if let Err(_err) = s.renderer.bind_wl_display(s_display) {
-                warn!(
-                    self.log.clone(),
-                    "Failed to bind display to Egl renderer. Hardware acceleration will not be used."
-                );
-            }
+        if let Err(_err) = self.renderer.as_mut().unwrap().bind_wl_display(s_display) {
+            warn!(
+                self.log.clone(),
+                "Failed to bind display to Egl renderer. Hardware acceleration will not be used."
+            );
         }
         self.needs_update = false;
     }
@@ -390,54 +391,58 @@ impl WrapperRenderer {
             wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, x as i32, y as i32),
             display: self.c_display.clone(),
         };
-        let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
-            .expect("Failed to initialize EGL display");
 
-        let egl_context = EGLContext::new_with_config(
-            &egl_display,
-            GlAttributes {
-                version: (3, 0),
-                profile: None,
-                debug: cfg!(debug_assertions),
-                vsync: false,
-            },
-            Default::default(),
-            self.log.clone(),
-        )
-        .expect("Failed to initialize EGL context");
+        if self.renderer.is_none() {
+            let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
+                .expect("Failed to initialize EGL display");
 
-        let mut min_interval_attr = 23239;
-        unsafe {
-            GetConfigAttrib(
-                egl_display.get_display_handle().handle,
-                egl_context.config_id(),
-                ffi::egl::MIN_SWAP_INTERVAL as c_int,
-                &mut min_interval_attr,
-            );
+            let egl_context = EGLContext::new_with_config(
+                &egl_display,
+                GlAttributes {
+                    version: (3, 0),
+                    profile: None,
+                    debug: cfg!(debug_assertions),
+                    vsync: false,
+                },
+                Default::default(),
+                self.log.clone(),
+            )
+            .expect("Failed to initialize EGL context");
+
+            let mut min_interval_attr = 23239;
+            unsafe {
+                GetConfigAttrib(
+                    egl_display.get_display_handle().handle,
+                    egl_context.config_id(),
+                    ffi::egl::MIN_SWAP_INTERVAL as c_int,
+                    &mut min_interval_attr,
+                );
+            }
+
+            dbg!(min_interval_attr);
+            let renderer = unsafe {
+                Gles2Renderer::new(egl_context, self.log.clone())
+                    .expect("Failed to initialize EGL Surface")
+            };
+            dbg!(unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) });
+            self.egl_display = Some(egl_display);
+            self.renderer = Some(renderer);
         }
+        let renderer = self.renderer.as_ref().unwrap();
 
-        dbg!(min_interval_attr);
         let egl_surface = Rc::new(
             EGLSurface::new(
-                &egl_display,
-                egl_context
+                self.egl_display.as_ref().unwrap(),
+                renderer
+                    .egl_context()
                     .pixel_format()
                     .expect("Failed to get pixel format from EGL context "),
-                egl_context.config_id(),
+                renderer.egl_context().config_id(),
                 client_egl_surface,
                 self.log.clone(),
             )
             .expect("Failed to initialize EGL Surface"),
         );
-
-        let mut renderer = unsafe {
-            Gles2Renderer::new(egl_context, self.log.clone())
-                .expect("Failed to initialize EGL Surface")
-        };
-        renderer
-            .bind(egl_surface.clone())
-            .expect("Failed to bind surface to GL");
-        dbg!(unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) });
 
         let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
 
@@ -473,9 +478,7 @@ impl WrapperRenderer {
         });
         let is_root = self.surfaces.len() == 0;
         let top_level = WrapperSurface {
-            renderer,
             dimensions: self.config.dimensions,
-            egl_display,
             egl_surface,
             layer_surface,
             is_root,
@@ -507,12 +510,14 @@ impl WrapperRenderer {
                 s.layer_surface.get_popup(&c_popup);
                 c_surface.commit();
                 c_xdg_surface.quick_assign(|c_xdg_surface, e, _| {
+                    dbg!(&e);
                     if let xdg_surface::Event::Configure { serial, .. } = e {
                         c_xdg_surface.ack_configure(serial);
                     } // TODO set render event
                 });
 
                 c_popup.quick_assign(|c_popup, e, _| {
+                    dbg!(e);
                     // TODO handle popup events and update render events
                 });
                 let (width, height) = PopupKind::Xdg(s_surface.clone()).geometry().size.into();
@@ -521,40 +526,18 @@ impl WrapperRenderer {
                     wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, width, height),
                     display: self.c_display.clone(),
                 };
-                let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
-                    .expect("Failed to initialize EGL display");
 
-                let egl_context = EGLContext::new_with_config(
-                    &egl_display,
-                    GlAttributes {
-                        version: (3, 0),
-                        profile: None,
-                        debug: cfg!(debug_assertions),
-                        vsync: false,
-                    },
-                    Default::default(),
-                    self.log.clone(),
-                )
-                .expect("Failed to initialize EGL context");
+                let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
 
-                let mut min_interval_attr = 23239;
-                unsafe {
-                    GetConfigAttrib(
-                        egl_display.get_display_handle().handle,
-                        egl_context.config_id(),
-                        ffi::egl::MIN_SWAP_INTERVAL as c_int,
-                        &mut min_interval_attr,
-                    );
-                }
-
-                dbg!(min_interval_attr);
+                let renderer = self.renderer.as_ref().unwrap();
                 let egl_surface = Rc::new(
                     EGLSurface::new(
-                        &egl_display,
-                        egl_context
+                        self.egl_display.as_ref().unwrap(),
+                        renderer
+                            .egl_context()
                             .pixel_format()
                             .expect("Failed to get pixel format from EGL context "),
-                        egl_context.config_id(),
+                        renderer.egl_context().config_id(),
                         client_egl_surface,
                         self.log.clone(),
                     )
@@ -565,7 +548,8 @@ impl WrapperRenderer {
                     c_surface,
                     s_surface,
                     egl_surface,
-                    egl_display,
+                    dirty: false,
+                    next_render_event,
                 });
                 break;
             }
