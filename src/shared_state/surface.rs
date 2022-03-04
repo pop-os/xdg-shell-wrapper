@@ -41,7 +41,7 @@ use smithay::{
         wayland_protocols::{
             wlr::unstable::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1},
             xdg_shell::client::{
-                xdg_popup::XdgPopup,
+                xdg_popup::{self, XdgPopup},
                 xdg_surface::{self, XdgSurface},
             },
         },
@@ -55,6 +55,17 @@ use crate::XdgWrapperConfig;
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RenderEvent {
     Configure { width: u32, height: u32 },
+    Closed,
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum PopupRenderEvent {
+    Configure {
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    },
     Closed,
 }
 
@@ -113,7 +124,7 @@ pub struct Popup {
     pub c_surface: c_wl_surface::WlSurface,
     pub s_surface: PopupSurface,
     pub egl_surface: Rc<EGLSurface>,
-    pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
+    pub next_render_event: Rc<Cell<Option<PopupRenderEvent>>>,
     pub dirty: bool,
 }
 
@@ -138,14 +149,19 @@ impl WrapperSurface {
         let mut dirty = false;
         let popups = self
             .popups
-            .drain_filter(|_| match self.next_render_event.take() {
-                Some(RenderEvent::Closed) => {
+            .drain_filter(|p| match p.next_render_event.take() {
+                Some(PopupRenderEvent::Closed) => {
                     dirty = true;
                     false
                 }
-                Some(RenderEvent::Configure { width, height }) => {
-                    self.egl_surface.resize(width as i32, height as i32, 0, 0);
-                    self.dirty = true;
+                Some(PopupRenderEvent::Configure {
+                    x,
+                    y,
+                    width,
+                    height,
+                }) => {
+                    p.egl_surface.resize(width as i32, height as i32, 0, 0);
+                    p.dirty = true;
                     true
                 }
                 None => true,
@@ -234,9 +250,16 @@ impl WrapperSurface {
             c_surface,
             s_surface,
             egl_surface,
+            dirty,
             ..
-        } in &self.popups
+        } in &mut self.popups
         {
+            println!("rendering popup...");
+            if !*dirty {
+                continue;
+            }
+            *dirty = false;
+
             let geometry = PopupKind::Xdg(s_surface.clone()).geometry();
             let loc = geometry.loc;
             let (width, height) = geometry.size.into();
@@ -517,29 +540,48 @@ impl WrapperRenderer {
                 _ => None,
             };
             if wl_s == Some(&parent) {
+                self.needs_update = true;
                 s.layer_surface.get_popup(&c_popup);
                 //must be done after role is assigned as popup
                 c_xdg_surface.set_window_geometry(x, y, w, h);
                 c_surface.commit();
-                c_xdg_surface.quick_assign(|c_xdg_surface, e, _| {
+                let next_render_event = Rc::new(Cell::new(None::<PopupRenderEvent>));
+                c_xdg_surface.quick_assign(move |c_xdg_surface, e, _| {
                     dbg!(&e);
                     if let xdg_surface::Event::Configure { serial, .. } = e {
                         c_xdg_surface.ack_configure(serial);
                     } // TODO set render event
                 });
 
-                c_popup.quick_assign(|c_popup, e, _| {
-                    dbg!(e);
+                let next_render_event_handle = next_render_event.clone();
+                c_popup.quick_assign(move |c_popup, e, _| {
+                    match e {
+                        xdg_popup::Event::Configure {
+                            x,
+                            y,
+                            width,
+                            height,
+                        } => {
+                            next_render_event_handle.set(Some(PopupRenderEvent::Configure {
+                                x,
+                                y,
+                                width,
+                                height,
+                            }));
+                        }
+                        xdg_popup::Event::PopupDone => {
+                            next_render_event_handle.set(Some(PopupRenderEvent::Closed));
+                        }
+                        _ => {}
+                    };
                     // TODO handle popup events and update render events
                 });
-                self.needs_update = true;
                 let client_egl_surface = ClientEglSurface {
                     wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, w, h),
                     display: self.c_display.clone(),
                 };
 
                 dbg!(&client_egl_surface);
-                let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
 
                 let egl_context = self.renderer.as_mut().unwrap().egl_context();
                 unsafe {
