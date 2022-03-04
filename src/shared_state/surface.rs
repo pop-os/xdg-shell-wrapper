@@ -88,11 +88,15 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
         display: &Arc<EGLDisplayHandle>,
         config_id: ffi::egl::types::EGLConfig,
     ) -> Result<*const c_void, EGLError> {
+        let ptr = self.wl_egl_surface.ptr();
+        if ptr.is_null() {
+            panic!("recieved a null pointer for the wl_egl_surface.");
+        }
         wrap_egl_call(|| unsafe {
             ffi::egl::CreatePlatformWindowSurfaceEXT(
                 display.handle,
                 config_id,
-                self.wl_egl_surface.ptr() as *mut _,
+                ptr as *mut _,
                 SURFACE_ATTRIBUTES.as_ptr(),
             )
         })
@@ -499,7 +503,13 @@ impl WrapperRenderer {
         c_popup: Main<XdgPopup>,
         s_surface: PopupSurface,
         parent: s_WlSurface,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
     ) {
+        dbg!(w);
+        dbg!(h);
         for s in &mut self.surfaces {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
@@ -508,6 +518,8 @@ impl WrapperRenderer {
             };
             if wl_s == Some(&parent) {
                 s.layer_surface.get_popup(&c_popup);
+                //must be done after role is assigned as popup
+                c_xdg_surface.set_window_geometry(x, y, w, h);
                 c_surface.commit();
                 c_xdg_surface.quick_assign(|c_xdg_surface, e, _| {
                     dbg!(&e);

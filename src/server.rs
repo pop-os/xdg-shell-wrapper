@@ -191,7 +191,7 @@ pub fn new_server(
                     root_window.replace(window);
                 }
                 XdgRequest::NewPopup {
-                    surface,
+                    surface: s_popup_surface,
                     positioner:
                         PositionerState {
                             rect_size,
@@ -208,7 +208,7 @@ pub fn new_server(
                     // TODO fix positioning
                     println!("new popup");
 
-                    let _ = surface.send_configure();
+                    let _ = s_popup_surface.send_configure();
                     let positioner = xdg_wm_base.create_positioner();
                     positioner.set_size(rect_size.w, rect_size.h);
                     positioner.set_anchor_rect(
@@ -233,25 +233,29 @@ pub fn new_server(
                     }
                     // TODO what to do with parent configure?
 
-                    let popup_surface = env_handle.create_surface().detach();
-                    let xdg_surface = xdg_wm_base.get_xdg_surface(&popup_surface);
+                    let wl_surface = env_handle.create_surface().detach();
+                    let xdg_surface = xdg_wm_base.get_xdg_surface(&wl_surface);
                     let popup = xdg_surface.get_popup(None, &positioner);
 
                     if let (Some(parent), Some(renderer)) = (
-                        surface.get_parent_surface(),
+                        s_popup_surface.get_parent_surface(),
                         &mut state.desktop_client_state.renderer.as_mut(),
                     ) {
                         renderer.add_popup(
-                            popup_surface,
+                            wl_surface,
                             xdg_surface,
                             popup,
-                            surface.clone(),
+                            s_popup_surface.clone(),
                             parent,
+                            anchor_rect.loc.x,
+                            anchor_rect.loc.y,
+                            rect_size.w,
+                            rect_size.h,
                         );
                     }
 
                     // let layer_shell_popup = xdg_surface.get_popup(None, )
-                    if let Err(e) = popup_manager.track_popup(PopupKind::Xdg(surface)) {
+                    if let Err(e) = popup_manager.track_popup(PopupKind::Xdg(s_popup_surface)) {
                         error!(log, "{}", e);
                     }
                 }
