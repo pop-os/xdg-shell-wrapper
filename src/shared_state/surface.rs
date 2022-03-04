@@ -527,22 +527,26 @@ impl WrapperRenderer {
                     display: self.c_display.clone(),
                 };
 
+                dbg!(&client_egl_surface);
                 let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
 
-                let renderer = self.renderer.as_ref().unwrap();
+                let egl_context = self.renderer.as_mut().unwrap().egl_context();
+                unsafe {
+                    dbg!(egl_context.make_current());
+                }
                 let egl_surface = Rc::new(
                     EGLSurface::new(
                         self.egl_display.as_ref().unwrap(),
-                        renderer
-                            .egl_context()
+                        egl_context
                             .pixel_format()
                             .expect("Failed to get pixel format from EGL context "),
-                        renderer.egl_context().config_id(),
+                        egl_context.config_id(),
                         client_egl_surface,
                         self.log.clone(),
                     )
                     .expect("Failed to initialize EGL Surface"),
                 );
+                dbg!(&egl_surface);
 
                 s.popups.push(Popup {
                     c_surface,
