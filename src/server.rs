@@ -124,12 +124,12 @@ pub fn new_server(
                 }
             } else if role == "xdg_popup".into() {
                 let popup = popup_manager.find_popup(&surface);
-                let top_level_surface = match popup {
-                    Some(PopupKind::Xdg(s)) => s.get_parent_surface(),
+                let (top_level_surface, popup_surface) = match popup {
+                    Some(PopupKind::Xdg(s)) => (s.get_parent_surface(), s),
                     _ => return,
                 };
                 if let (Some(renderer), Some(top_level_surface)) = (renderer, top_level_surface) {
-                    renderer.dirty(&top_level_surface);
+                    renderer.dirty_popup(&top_level_surface, popup_surface);
                 }
                 on_commit_buffer_handler(&surface);
                 popup_manager.commit(&surface);
@@ -247,14 +247,11 @@ pub fn new_server(
                             popup,
                             s_popup_surface.clone(),
                             parent,
-                            anchor_rect.loc.x,
-                            anchor_rect.loc.y,
                             rect_size.w,
                             rect_size.h,
                         );
                     }
 
-                    // let layer_shell_popup = xdg_surface.get_popup(None, )
                     if let Err(e) = popup_manager.track_popup(PopupKind::Xdg(s_popup_surface)) {
                         error!(log, "{}", e);
                     }
@@ -269,12 +266,13 @@ pub fn new_server(
                             if s.server.0.owns(&seat) {
                                 println!("updating popup manager to do grab...");
                                 if let Err(e) = popup_manager.grab_popup(
-                                    PopupKind::Xdg(surface),
+                                    PopupKind::Xdg(surface.clone()),
                                     &s.server.0,
                                     serial,
                                 ) {
                                     error!(log.clone(), "{}", e);
                                 }
+                                // TODO forward grab on client?
                                 break;
                             }
                         }

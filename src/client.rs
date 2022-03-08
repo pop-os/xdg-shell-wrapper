@@ -13,7 +13,7 @@ use smithay::{
     reexports::{
         wayland_protocols::{
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
-            xdg_shell::client::{xdg_surface::XdgSurface, xdg_wm_base::XdgWmBase},
+            xdg_shell::client::xdg_wm_base::XdgWmBase,
         },
         wayland_server,
     },

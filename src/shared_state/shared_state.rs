@@ -13,9 +13,9 @@ use sctk::{
             protocol::{
                 wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_shm, wl_surface,
             },
-            Attached, GlobalManager, Main,
+            Attached, GlobalManager,
         },
-        protocols::xdg_shell::client::{xdg_surface::XdgSurface, xdg_wm_base::XdgWmBase},
+        protocols::xdg_shell::client::xdg_wm_base::XdgWmBase,
     },
     seat::SeatListener,
 };

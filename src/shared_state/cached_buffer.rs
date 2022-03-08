@@ -7,11 +7,11 @@ use sctk::{
             wl_shm_pool::WlShmPool,
             wl_surface::WlSurface,
         },
-        Attached, GlobalManager, Main,
+        Attached, Main,
     },
     shm,
 };
-use slog::{error, trace, warn, Logger};
+use slog::{trace, warn, Logger};
 use smithay::{
     backend::renderer::{buffer_type, BufferType},
     wayland::{

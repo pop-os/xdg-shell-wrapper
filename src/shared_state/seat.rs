@@ -270,6 +270,5 @@ pub fn seat_handler(
             ptr.release();
             server_seat.remove_pointer();
         }
-        //TODO when to destroy server_seat_global?
     }
 }

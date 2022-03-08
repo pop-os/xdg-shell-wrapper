@@ -22,7 +22,6 @@ mod config;
 mod server;
 mod shared_state;
 mod util;
-use smithay::{backend::renderer::ImportDma, wayland::dmabuf::init_dmabuf_global};
 
 fn main() -> Result<()> {
     // A logger facility, here we use the terminal

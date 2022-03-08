@@ -16,7 +16,7 @@ use sctk::{
     },
     shm::AutoMemPool,
 };
-use slog::{error, info, trace, warn, Logger};
+use slog::{info, trace, warn, Logger};
 use smithay::{
     backend::{
         egl::{
@@ -35,7 +35,7 @@ use smithay::{
             Unbind,
         },
     },
-    desktop::{utils::send_frames_surface_tree, Kind, PopupKind, PopupManager, Window},
+    desktop::{utils::send_frames_surface_tree, Kind, PopupKind, Window},
     egl_platform,
     reexports::{
         wayland_protocols::{
@@ -121,6 +121,8 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
 
 #[derive(Debug)]
 pub struct Popup {
+    pub c_popup: Main<XdgPopup>,
+    pub c_xdg_surface: Main<XdgSurface>,
     pub c_surface: c_wl_surface::WlSurface,
     pub s_surface: PopupSurface,
     pub egl_surface: Rc<EGLSurface>,
@@ -146,20 +148,17 @@ impl WrapperSurface {
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface should be dropped.
     pub fn handle_events(&mut self) -> bool {
-        let mut dirty = false;
+        let mut remove_surface = false;
         let popups = self
             .popups
             .drain_filter(|p| match p.next_render_event.take() {
                 Some(PopupRenderEvent::Closed) => {
-                    dirty = true;
+                    p.c_popup.destroy();
+                    p.c_xdg_surface.destroy();
+                    p.c_surface.destroy();
                     false
                 }
-                Some(PopupRenderEvent::Configure {
-                    x,
-                    y,
-                    width,
-                    height,
-                }) => {
+                Some(PopupRenderEvent::Configure { width, height, .. }) => {
                     p.egl_surface.resize(width as i32, height as i32, 0, 0);
                     p.dirty = true;
                     true
@@ -171,7 +170,7 @@ impl WrapperSurface {
 
         match self.next_render_event.take() {
             Some(RenderEvent::Closed) => {
-                dirty = true;
+                remove_surface = true;
             }
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
@@ -182,12 +181,13 @@ impl WrapperSurface {
             }
             None => (),
         }
-        dirty
+        remove_surface
     }
 
     pub fn render(&mut self, time: u32, renderer: &mut Gles2Renderer) {
         // render top level surface
         {
+            self.dirty = false;
             let width = self.dimensions.0 as i32;
             let height = self.dimensions.1 as i32;
             let logger = self.log.clone();
@@ -218,7 +218,7 @@ impl WrapperSurface {
 
                         let loc = (-loc.x, -loc.y);
                         frame
-                            .clear([1.0, 1.0, 1.0, 0.0], &[damage.to_physical(1)])
+                            .clear([1.0, 1.0, 1.0, 1.0], &[damage.to_physical(1)])
                             .expect("Failed to clear frame.");
                         draw_surface_tree(
                             self_,
@@ -246,32 +246,23 @@ impl WrapperSurface {
             send_frames_surface_tree(server_surface, time);
         }
         // render popups
-        for Popup {
-            c_surface,
-            s_surface,
-            egl_surface,
-            dirty,
-            ..
-        } in &mut self.popups
-        {
-            println!("rendering popup...");
-            if !*dirty {
+        for p in &mut self.popups {
+            if !p.dirty {
                 continue;
             }
-            *dirty = false;
-
-            let geometry = PopupKind::Xdg(s_surface.clone()).geometry();
-            let loc = geometry.loc;
-            let (width, height) = geometry.size.into();
-            let wl_surface = match s_surface.get_surface() {
+            p.dirty = false;
+            let wl_surface = match p.s_surface.get_surface() {
                 Some(s) => s,
                 _ => return,
             };
+            let geometry = PopupKind::Xdg(p.s_surface.clone()).geometry();
+            let loc = geometry.loc;
+            let (width, height) = geometry.size.into();
 
             let logger = self.log.clone();
             let _ = renderer.unbind();
             renderer
-                .bind(egl_surface.clone())
+                .bind(p.egl_surface.clone())
                 .expect("Failed to bind surface to GL");
             renderer
                 .render(
@@ -285,7 +276,7 @@ impl WrapperSurface {
 
                         let loc = (-loc.x, -loc.y);
                         frame
-                            .clear([1.0, 1.0, 1.0, 0.0], &[damage.to_physical(1)])
+                            .clear([1.0, 1.0, 1.0, 1.0], &[damage.to_physical(1)])
                             .expect("Failed to clear frame.");
                         draw_surface_tree(
                             self_,
@@ -306,13 +297,12 @@ impl WrapperSurface {
                 size: (width, height).into(),
             }];
 
-            egl_surface
+            p.egl_surface
                 .swap_buffers(Some(&mut damage))
                 .expect("Failed to swap buffers.");
 
             send_frames_surface_tree(wl_surface, time);
         }
-        self.dirty = false;
     }
 }
 
@@ -399,7 +389,6 @@ impl WrapperRenderer {
         c_surface: c_wl_surface::WlSurface,
         s_top_level: Rc<RefCell<Window>>,
     ) {
-        self.needs_update = true;
         let layer_surface = self.layer_shell.get_layer_surface(
             &c_surface,
             Some(&self.output),
@@ -420,6 +409,7 @@ impl WrapperRenderer {
         };
 
         if self.renderer.is_none() {
+            self.needs_update = true;
             let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
                 .expect("Failed to initialize EGL display");
 
@@ -526,13 +516,9 @@ impl WrapperRenderer {
         c_popup: Main<XdgPopup>,
         s_surface: PopupSurface,
         parent: s_WlSurface,
-        x: i32,
-        y: i32,
         w: i32,
         h: i32,
     ) {
-        dbg!(w);
-        dbg!(h);
         for s in &mut self.surfaces {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
@@ -540,21 +526,23 @@ impl WrapperRenderer {
                 _ => None,
             };
             if wl_s == Some(&parent) {
-                self.needs_update = true;
                 s.layer_surface.get_popup(&c_popup);
                 //must be done after role is assigned as popup
-                c_xdg_surface.set_window_geometry(x, y, w, h);
                 c_surface.commit();
                 let next_render_event = Rc::new(Cell::new(None::<PopupRenderEvent>));
                 c_xdg_surface.quick_assign(move |c_xdg_surface, e, _| {
-                    dbg!(&e);
                     if let xdg_surface::Event::Configure { serial, .. } = e {
                         c_xdg_surface.ack_configure(serial);
                     } // TODO set render event
                 });
 
                 let next_render_event_handle = next_render_event.clone();
-                c_popup.quick_assign(move |c_popup, e, _| {
+                c_popup.quick_assign(move |_c_popup, e, _| {
+                    if let Some(PopupRenderEvent::Closed) = next_render_event_handle.get().as_ref()
+                    {
+                        return;
+                    }
+
                     match e {
                         xdg_popup::Event::Configure {
                             x,
@@ -574,19 +562,13 @@ impl WrapperRenderer {
                         }
                         _ => {}
                     };
-                    // TODO handle popup events and update render events
                 });
                 let client_egl_surface = ClientEglSurface {
                     wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, w, h),
                     display: self.c_display.clone(),
                 };
 
-                dbg!(&client_egl_surface);
-
                 let egl_context = self.renderer.as_mut().unwrap().egl_context();
-                unsafe {
-                    dbg!(egl_context.make_current());
-                }
                 let egl_surface = Rc::new(
                     EGLSurface::new(
                         self.egl_display.as_ref().unwrap(),
@@ -599,9 +581,10 @@ impl WrapperRenderer {
                     )
                     .expect("Failed to initialize EGL Surface"),
                 );
-                dbg!(&egl_surface);
 
                 s.popups.push(Popup {
+                    c_popup,
+                    c_xdg_surface,
                     c_surface,
                     s_surface,
                     egl_surface,
@@ -624,10 +607,35 @@ impl WrapperRenderer {
             }
         }
     }
+
+    pub fn dirty_popup(
+        &mut self,
+        other_top_level_surface: &s_WlSurface,
+        other_popup: PopupSurface,
+    ) {
+        for s in &mut self.surfaces {
+            if let Kind::Xdg(surface) = s.s_top_level.borrow_mut().toplevel() {
+                if let Some(surface) = surface.get_surface() {
+                    if other_top_level_surface == surface {
+                        for popup in &mut s.popups {
+                            if popup.s_surface.get_surface() == other_popup.get_surface() {
+                                popup.dirty = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Drop for WrapperSurface {
     fn drop(&mut self) {
+        for p in &self.popups {
+            p.c_popup.destroy();
+            p.c_xdg_surface.destroy();
+            p.c_surface.destroy();
+        }
         self.layer_surface.destroy();
         self.c_top_level.destroy();
     }
