@@ -117,12 +117,15 @@ fn main() -> Result<()> {
 
         // dispatch desktop client events
         iter_since_render = i32::clamp(iter_since_render + 1, 0, 99999);
-        event_loop
-            .dispatch(None, &mut shared_data)
-            .expect("Failed to dispatch events...");
+        let dispatch_client_res = event_loop.dispatch(None, &mut shared_data);
+
+        if dispatch_client_res.is_err() {
+            panic!("Failed to dispatch events...")
+        }
+
+        let (shared_data, server_display) = &mut shared_data;
 
         // rendering
-        let (shared_data, server_display) = &mut shared_data;
         {
             let display = &mut shared_data.desktop_client_state.display;
             display.flush().unwrap();

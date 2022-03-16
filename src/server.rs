@@ -124,6 +124,7 @@ pub fn new_server(
                 }
             } else if role == "xdg_popup".into() {
                 let popup = popup_manager.find_popup(&surface);
+                dbg!(&popup);
                 let (top_level_surface, popup_surface) = match popup {
                     Some(PopupKind::Xdg(s)) => (s.get_parent_surface(), s),
                     _ => return,

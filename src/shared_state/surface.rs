@@ -60,6 +60,7 @@ pub enum RenderEvent {
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum PopupRenderEvent {
+    WaitConfigure,
     Configure {
         x: i32,
         y: i32,
@@ -130,6 +131,16 @@ pub struct Popup {
     pub dirty: bool,
 }
 
+impl Drop for Popup {
+    fn drop(&mut self) {
+        dbg!(Rc::strong_count(&self.egl_surface));
+        drop(&mut self.egl_surface);
+        self.c_popup.destroy();
+        self.c_xdg_surface.destroy();
+        self.c_surface.destroy();
+    }
+}
+
 #[derive(Debug)]
 pub struct WrapperSurface {
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
@@ -151,22 +162,29 @@ impl WrapperSurface {
         let mut remove_surface = false;
         let popups = self
             .popups
-            .drain_filter(|p| match p.next_render_event.take() {
-                Some(PopupRenderEvent::Closed) => {
-                    p.c_popup.destroy();
-                    p.c_xdg_surface.destroy();
-                    p.c_surface.destroy();
-                    false
+            .drain_filter(|p| {
+                dbg!(p.s_surface.alive());
+                if !p.s_surface.alive() {
+                    return false;
                 }
-                Some(PopupRenderEvent::Configure { width, height, .. }) => {
-                    p.egl_surface.resize(width as i32, height as i32, 0, 0);
-                    p.dirty = true;
-                    true
+                match p.next_render_event.take() {
+                    Some(PopupRenderEvent::Closed) => false,
+                    Some(PopupRenderEvent::Configure { width, height, .. }) => {
+                        p.egl_surface.resize(width as i32, height as i32, 0, 0);
+                        p.dirty = true;
+                        true
+                    }
+                    Some(PopupRenderEvent::WaitConfigure) => {
+                        p.next_render_event
+                            .replace(Some(PopupRenderEvent::WaitConfigure));
+                        true
+                    }
+                    None => true,
                 }
-                None => true,
             })
             .collect();
         self.popups = popups;
+        dbg!(&self.popups);
 
         match self.next_render_event.take() {
             Some(RenderEvent::Closed) => {
@@ -247,7 +265,7 @@ impl WrapperSurface {
         }
         // render popups
         for p in &mut self.popups {
-            if !p.dirty {
+            if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
                 continue;
             }
             p.dirty = false;
@@ -529,7 +547,7 @@ impl WrapperRenderer {
                 s.layer_surface.get_popup(&c_popup);
                 //must be done after role is assigned as popup
                 c_surface.commit();
-                let next_render_event = Rc::new(Cell::new(None::<PopupRenderEvent>));
+                let next_render_event = Rc::new(Cell::new(Some(PopupRenderEvent::WaitConfigure)));
                 c_xdg_surface.quick_assign(move |c_xdg_surface, e, _| {
                     if let xdg_surface::Event::Configure { serial, .. } = e {
                         c_xdg_surface.ack_configure(serial);
