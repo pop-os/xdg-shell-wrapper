@@ -93,4 +93,5 @@ pub struct DesktopClientState {
     pub shm: Attached<wl_shm::WlShm>,
     pub xdg_wm_base: Attached<XdgWmBase>,
     pub env_handle: Environment<Env>,
+    pub last_input_serial: Option<u32>,
 }

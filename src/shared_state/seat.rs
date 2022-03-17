@@ -17,6 +17,7 @@ use smithay::{
     },
 };
 
+use super::DesktopClientState;
 use crate::{ClientSeat, GlobalState, Seat};
 
 pub fn send_keyboard_event(
@@ -25,9 +26,14 @@ pub fn send_keyboard_event(
     mut dispatch_data: DispatchData,
 ) {
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
-    let seats = &state.desktop_client_state.seats;
+    let DesktopClientState {
+        seats,
+        kbd_focus,
+        last_input_serial,
+        ..
+    } = &mut state.desktop_client_state;
+
     let focused_surface = &state.embedded_server_state.focused_surface;
-    let kbd_focus = &mut state.desktop_client_state.kbd_focus;
 
     if let Some(Some(kbd)) = seats
         .iter()
@@ -37,11 +43,12 @@ pub fn send_keyboard_event(
     {
         match event {
             wl_keyboard::Event::Key {
-                serial: _serial,
+                serial,
                 time,
                 key,
                 state,
             } => {
+                last_input_serial.replace(serial);
                 let state = match state {
                     client::protocol::wl_keyboard::KeyState::Pressed => KeyState::Pressed,
                     client::protocol::wl_keyboard::KeyState::Released => KeyState::Released,
@@ -81,8 +88,12 @@ pub fn send_pointer_event(
     mut dispatch_data: DispatchData,
 ) {
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
-    let seats = &state.desktop_client_state.seats;
-    let axis_frame = &mut state.desktop_client_state.axis_frame;
+    let DesktopClientState {
+        seats,
+        axis_frame,
+        last_input_serial,
+        ..
+    } = &mut state.desktop_client_state;
 
     let root_window = &state.embedded_server_state.root_window;
     if let Some(Some(ptr)) = seats
@@ -125,8 +136,10 @@ pub fn send_pointer_event(
                 time,
                 button,
                 state,
+                serial,
                 ..
             } => {
+                last_input_serial.replace(serial);
                 if let Some(button_state) = wl_pointer::ButtonState::from_raw(state.to_raw()) {
                     ptr.button(button, button_state, SERIAL_COUNTER.next_serial(), time);
                 }
@@ -205,6 +218,7 @@ pub fn seat_handler(
 ) {
     let (state, server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let seats = &mut state.desktop_client_state.seats;
+
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown
     trace!(logger, "seat event: {:?} {:?}", seat, seat_data);

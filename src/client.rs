@@ -190,6 +190,7 @@ pub fn new_client(
             shm,
             xdg_wm_base,
             env_handle: env,
+            last_input_serial: None,
         },
         s_outputs,
     ))
