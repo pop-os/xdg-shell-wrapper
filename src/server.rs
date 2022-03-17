@@ -125,6 +125,14 @@ pub fn new_server(
             } else if role == "xdg_popup".into() {
                 let popup = popup_manager.find_popup(&surface);
                 dbg!(&popup);
+                let _ = with_states(&surface, |data| {
+                    let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
+                    let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
+                    if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
+                        dbg!(buffer);
+                    }
+                });
+
                 let (top_level_surface, popup_surface) = match popup {
                     Some(PopupKind::Xdg(s)) => (s.get_parent_surface(), s),
                     _ => return,
@@ -207,7 +215,15 @@ pub fn new_server(
                         },
                 } => {
                     // TODO fix positioning
-                    // println!("new popup");
+                    println!("new popup");
+                    let surface = s_popup_surface.get_surface().unwrap();
+                    let _ = with_states(&surface, |data| {
+                        let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
+                        let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
+                        if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
+                            dbg!(buffer);
+                        }
+                    });
 
                     let _ = s_popup_surface.send_configure();
                     let positioner = xdg_wm_base.create_positioner();

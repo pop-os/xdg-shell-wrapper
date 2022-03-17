@@ -54,6 +54,7 @@ use crate::XdgWrapperConfig;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RenderEvent {
+    WaitConfigure,
     Configure { width: u32, height: u32 },
     Closed,
 }
@@ -200,6 +201,10 @@ impl WrapperSurface {
                     self.dirty = true;
                 }
             }
+            Some(RenderEvent::WaitConfigure) => {
+                self.next_render_event
+                    .replace(Some(RenderEvent::WaitConfigure));
+            }
             None => (),
         }
         remove_surface
@@ -207,7 +212,10 @@ impl WrapperSurface {
 
     pub fn render(&mut self, time: u32, renderer: &mut Gles2Renderer) {
         // render top level surface
-        {
+        if self.next_render_event.get() == Some(RenderEvent::WaitConfigure) {
+            return;
+        }
+        if self.dirty {
             self.dirty = false;
             let width = self.dimensions.0 as i32;
             let height = self.dimensions.1 as i32;
@@ -267,8 +275,10 @@ impl WrapperSurface {
             send_frames_surface_tree(server_surface, time);
         }
         // render popups
+        dbg!(&self.popups);
         for p in &mut self.popups {
             if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
+                dbg!(p.next_render_event.get());
                 continue;
             }
             p.dirty = false;
@@ -380,9 +390,10 @@ impl WrapperRenderer {
                         std::process::exit(0);
                     }
                     return None;
-                } else if s.dirty && self.renderer.is_some() {
+                }
+                if let Some(renderer) = self.renderer.as_mut() {
                     updated = true;
-                    s.render(time, self.renderer.as_mut().unwrap());
+                    s.render(time, renderer);
                 }
                 return Some(s);
             })
@@ -482,7 +493,7 @@ impl WrapperRenderer {
             .expect("Failed to initialize EGL Surface"),
         );
 
-        let next_render_event = Rc::new(Cell::new(None::<RenderEvent>));
+        let next_render_event = Rc::new(Cell::new(Some(RenderEvent::WaitConfigure)));
 
         //let egl_surface_clone = egl_surface.clone();
         let next_render_event_handle = next_render_event.clone();
