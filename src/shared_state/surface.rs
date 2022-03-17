@@ -133,7 +133,7 @@ pub struct Popup {
 
 impl Drop for Popup {
     fn drop(&mut self) {
-        dbg!(Rc::strong_count(&self.egl_surface));
+        // dbg!(Rc::strong_count(&self.egl_surface));
         drop(&mut self.egl_surface);
         self.c_popup.destroy();
         self.c_xdg_surface.destroy();
@@ -159,11 +159,14 @@ impl WrapperSurface {
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface should be dropped.
     pub fn handle_events(&mut self) -> bool {
+        if self.s_top_level.borrow().toplevel().get_surface().is_none() {
+            return true;
+        }
         let mut remove_surface = false;
         let popups = self
             .popups
             .drain_filter(|p| {
-                dbg!(p.s_surface.alive());
+                // dbg!(p.s_surface.alive());
                 if !p.s_surface.alive() {
                     return false;
                 }
@@ -184,7 +187,7 @@ impl WrapperSurface {
             })
             .collect();
         self.popups = popups;
-        dbg!(&self.popups);
+        // dbg!(&self.popups);
 
         match self.next_render_event.take() {
             Some(RenderEvent::Closed) => {
@@ -454,7 +457,7 @@ impl WrapperRenderer {
                 );
             }
 
-            dbg!(min_interval_attr);
+            // dbg!(min_interval_attr);
             let renderer = unsafe {
                 Gles2Renderer::new(egl_context, self.log.clone())
                     .expect("Failed to initialize EGL Surface")

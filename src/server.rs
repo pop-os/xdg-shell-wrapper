@@ -163,7 +163,7 @@ pub fn new_server(
 
             match request {
                 XdgRequest::NewToplevel { surface } => {
-                    println!("new toplevel...");
+                    // println!("new toplevel...");
                     let _ = surface.with_pending_state(move |top_level_state| {
                         if let Some(renderer) = renderer.as_ref() {
                             let (w, h) = renderer.config.dimensions;
@@ -207,7 +207,7 @@ pub fn new_server(
                         },
                 } => {
                     // TODO fix positioning
-                    println!("new popup");
+                    // println!("new popup");
 
                     let _ = s_popup_surface.send_configure();
                     let positioner = xdg_wm_base.create_positioner();
@@ -265,7 +265,7 @@ pub fn new_server(
                     if *kbd_focus {
                         for s in seats {
                             if s.server.0.owns(&seat) {
-                                println!("updating popup manager to do grab...");
+                                // println!("updating popup manager to do grab...");
                                 if let Err(e) = popup_manager.grab_popup(
                                     PopupKind::Xdg(surface.clone()),
                                     &s.server.0,
