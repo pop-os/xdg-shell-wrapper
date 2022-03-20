@@ -232,6 +232,8 @@ impl WrapperSurface {
             let loc = s_top_level.geometry().loc;
             let width = s_top_level.geometry().size.w;
             let height = s_top_level.geometry().size.h;
+            dbg!((width, height));
+            dbg!(&loc);
 
             let _ = renderer.unbind();
             renderer
@@ -532,7 +534,7 @@ impl WrapperRenderer {
         });
         let is_root = self.surfaces.len() == 0;
         let top_level = WrapperSurface {
-            dimensions: dimensions,
+            dimensions: (0, 0),
             egl_surface,
             layer_surface,
             is_root,
@@ -641,8 +643,9 @@ impl WrapperRenderer {
                         if s.dimensions != (w, h) {
                             s.layer_surface.set_size(w, h);
                             s.c_top_level.commit();
+                        } else {
+                            s.dirty = true;
                         }
-                        s.dirty = true;
                     }
                 }
             }
@@ -670,7 +673,7 @@ impl WrapperRenderer {
     }
 
     fn constrain_dim(&self, (mut w, mut h): (u32, u32)) -> (u32, u32) {
-        let (min_w, min_h) = self.config.min_dimensions.unwrap_or((100, 100));
+        let (min_w, min_h) = self.config.min_dimensions.unwrap_or((1, 1));
         w = min_w.max(w);
         h = min_h.max(h);
         // TODO get monitor dimensions

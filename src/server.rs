@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
 };
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
 use slog::{error, trace, Logger};
 use smithay::{
@@ -182,8 +182,12 @@ pub fn new_server(
             match request {
                 XdgRequest::NewToplevel { surface } => {
                     // println!("new toplevel...");
-                    let dimensions = surface.with_pending_state(move |top_level_state| {
-                        top_level_state.size.map(|s| (s.w as u32, s.h as u32))
+                    let g = Window::new(Kind::Xdg(surface.clone())).geometry();
+                    let dimensions = (g.size.w as u32, g.size.h as u32);
+
+                    let _ = surface.with_pending_state(move |top_level_state| {
+                        top_level_state.size =
+                            Some((dimensions.0 as i32, dimensions.1 as i32).into());
                     });
                     dbg!(&dimensions);
 
@@ -204,15 +208,8 @@ pub fn new_server(
 
                     let layer_shell_surface = env_handle.create_surface().detach();
 
-                    if let (Some(renderer), Ok(dimensions)) = (
-                        &mut state.desktop_client_state.renderer.as_mut(),
-                        dimensions,
-                    ) {
-                        renderer.add_top_level(
-                            layer_shell_surface,
-                            window.clone(),
-                            dimensions.unwrap_or((1, 1)),
-                        );
+                    if let Some(renderer) = renderer.as_mut() {
+                        renderer.add_top_level(layer_shell_surface, window.clone(), dimensions);
                     }
                     root_window.replace(window);
                 }
@@ -271,10 +268,9 @@ pub fn new_server(
                     let xdg_surface = xdg_wm_base.get_xdg_surface(&wl_surface);
                     let popup = xdg_surface.get_popup(None, &positioner);
 
-                    if let (Some(parent), Some(renderer)) = (
-                        s_popup_surface.get_parent_surface(),
-                        &mut state.desktop_client_state.renderer.as_mut(),
-                    ) {
+                    if let (Some(parent), Some(renderer)) =
+                        (s_popup_surface.get_parent_surface(), renderer.as_mut())
+                    {
                         renderer.add_popup(
                             wl_surface,
                             xdg_surface,
