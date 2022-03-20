@@ -157,7 +157,8 @@ pub struct XdgWrapperConfig {
     pub anchor: Anchor,
     pub layer: Layer,
     pub keyboard_interactivity: KeyboardInteractivity,
-    pub dimensions: (u32, u32),
+    pub min_dimensions: Option<(u32, u32)>,
+    pub max_dimensions: Option<(u32, u32)>,
     pub exec: String,
 }
 
@@ -167,7 +168,8 @@ impl Default for XdgWrapperConfig {
             anchor: Anchor::Center,
             layer: Layer::Top,
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
-            dimensions: (1000, 600),
+            min_dimensions: None,
+            max_dimensions: None,
             exec: "".into(),
         }
     }

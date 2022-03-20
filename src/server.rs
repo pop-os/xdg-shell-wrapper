@@ -8,12 +8,12 @@ use std::{
     rc::Rc,
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
 use slog::{error, trace, Logger};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
-    desktop::{PopupKind, PopupManager},
+    desktop::{Kind, PopupKind, PopupManager, Window},
     reexports::{
         nix::fcntl,
         wayland_protocols::xdg_shell::client::xdg_positioner::{Anchor, Gravity},
@@ -78,7 +78,11 @@ pub fn new_server(
                 shm,
                 ..
             } = &mut state.desktop_client_state;
-            let popup_manager = &mut state.embedded_server_state.popup_manager;
+            let EmbeddedServerState {
+                popup_manager,
+                shell_state,
+                ..
+            } = &mut state.embedded_server_state;
             let cached_buffers = &mut state.cached_buffers;
             let log = &mut state.log;
 
@@ -87,7 +91,13 @@ pub fn new_server(
             if role == "xdg_toplevel".into() {
                 on_commit_buffer_handler(&surface);
                 if let Some(renderer) = renderer.as_mut() {
-                    renderer.dirty(&surface);
+                    if let Some(top_level) = shell_state.lock().unwrap().toplevel_surface(&surface)
+                    {
+                        let window = Window::new(Kind::Xdg(top_level.clone()));
+                        let w = window.geometry().size.w as u32;
+                        let h = window.geometry().size.h as u32;
+                        renderer.dirty(&surface, (w, h));
+                    }
                 }
             } else if role == "cursor_image".into() {
                 // pass cursor image to parent compositor
@@ -172,12 +182,11 @@ pub fn new_server(
             match request {
                 XdgRequest::NewToplevel { surface } => {
                     // println!("new toplevel...");
-                    let _ = surface.with_pending_state(move |top_level_state| {
-                        if let Some(renderer) = renderer.as_ref() {
-                            let (w, h) = renderer.config.dimensions;
-                            top_level_state.size = Some((w as i32, h as i32).into());
-                        }
+                    let dimensions = surface.with_pending_state(move |top_level_state| {
+                        top_level_state.size.map(|s| (s.w as u32, s.h as u32))
                     });
+                    dbg!(&dimensions);
+
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
                     *focused_surface = wl_surface.map(|s| s.clone());
@@ -194,8 +203,16 @@ pub fn new_server(
                     )));
 
                     let layer_shell_surface = env_handle.create_surface().detach();
-                    if let Some(renderer) = &mut state.desktop_client_state.renderer.as_mut() {
-                        renderer.add_top_level(layer_shell_surface, window.clone());
+
+                    if let (Some(renderer), Ok(dimensions)) = (
+                        &mut state.desktop_client_state.renderer.as_mut(),
+                        dimensions,
+                    ) {
+                        renderer.add_top_level(
+                            layer_shell_surface,
+                            window.clone(),
+                            dimensions.unwrap_or((1, 1)),
+                        );
                     }
                     root_window.replace(window);
                 }

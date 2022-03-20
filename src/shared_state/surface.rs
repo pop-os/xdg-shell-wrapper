@@ -196,6 +196,7 @@ impl WrapperSurface {
             }
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
+                    dbg!((width, height));
                     self.dimensions = (width, height);
                     self.egl_surface.resize(width as i32, height as i32, 0, 0);
                     self.dirty = true;
@@ -217,8 +218,7 @@ impl WrapperSurface {
         }
         if self.dirty {
             self.dirty = false;
-            let width = self.dimensions.0 as i32;
-            let height = self.dimensions.1 as i32;
+
             let logger = self.log.clone();
             let egl_surface = &self.egl_surface;
             let s_top_level = self.s_top_level.borrow();
@@ -230,6 +230,8 @@ impl WrapperSurface {
                 _ => return,
             };
             let loc = s_top_level.geometry().loc;
+            let width = s_top_level.geometry().size.w;
+            let height = s_top_level.geometry().size.h;
 
             let _ = renderer.unbind();
             renderer
@@ -275,10 +277,10 @@ impl WrapperSurface {
             send_frames_surface_tree(server_surface, time);
         }
         // render popups
-        dbg!(&self.popups);
+        // dbg!(&self.popups);
         for p in &mut self.popups {
             if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
-                dbg!(p.next_render_event.get());
+                // dbg!(p.next_render_event.get());
                 continue;
             }
             p.dirty = false;
@@ -420,16 +422,19 @@ impl WrapperRenderer {
         &mut self,
         c_surface: c_wl_surface::WlSurface,
         s_top_level: Rc<RefCell<Window>>,
+        mut dimensions: (u32, u32),
     ) {
+        dbg!(dimensions);
         let layer_surface = self.layer_shell.get_layer_surface(
             &c_surface,
             Some(&self.output),
             self.config.layer.into(),
             "example".to_owned(),
         );
+        dimensions = self.constrain_dim(dimensions);
         layer_surface.set_anchor(self.config.anchor.into());
         layer_surface.set_keyboard_interactivity(self.config.keyboard_interactivity.into());
-        let (x, y) = self.config.dimensions;
+        let (x, y) = dimensions;
         layer_surface.set_size(x, y);
 
         // Commit so that the server will send a configure event
@@ -527,7 +532,7 @@ impl WrapperRenderer {
         });
         let is_root = self.surfaces.len() == 0;
         let top_level = WrapperSurface {
-            dimensions: self.config.dimensions,
+            dimensions: dimensions,
             egl_surface,
             layer_surface,
             is_root,
@@ -628,11 +633,15 @@ impl WrapperRenderer {
         }
     }
 
-    pub fn dirty(&mut self, other_top_level_surface: &s_WlSurface) {
+    pub fn dirty(&mut self, other_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
         for s in &mut self.surfaces {
             if let Kind::Xdg(surface) = s.s_top_level.borrow().toplevel() {
                 if let Some(surface) = surface.get_surface() {
                     if other_top_level_surface == surface {
+                        if s.dimensions != (w, h) {
+                            s.layer_surface.set_size(w, h);
+                            s.c_top_level.commit();
+                        }
                         s.dirty = true;
                     }
                 }
@@ -658,6 +667,18 @@ impl WrapperRenderer {
                 }
             }
         }
+    }
+
+    fn constrain_dim(&self, (mut w, mut h): (u32, u32)) -> (u32, u32) {
+        let (min_w, min_h) = self.config.min_dimensions.unwrap_or((100, 100));
+        w = min_w.max(w);
+        h = min_h.max(h);
+        // TODO get monitor dimensions
+        if let Some((max_w, max_h)) = self.config.max_dimensions {
+            w = max_w.min(w);
+            h = max_h.min(h);
+        }
+        (w, h)
     }
 }
 
