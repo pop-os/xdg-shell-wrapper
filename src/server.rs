@@ -9,7 +9,11 @@ use std::{
 };
 
 use anyhow::Result;
-use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
+use sctk::reexports::{
+    calloop::{self, generic::Generic, Interest, Mode},
+    client::{Attached, Main, Proxy},
+    protocols::xdg_shell::client::xdg_positioner,
+};
 use slog::{error, trace, Logger};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
@@ -258,11 +262,13 @@ pub fn new_server(
                     );
                     positioner.set_constraint_adjustment(constraint_adjustment.to_raw());
                     positioner.set_offset(offset.x, offset.y);
-                    if reactive {
-                        positioner.set_reactive();
-                    }
-                    if let Some(parent_size) = parent_size {
-                        positioner.set_parent_size(parent_size.w, parent_size.h);
+                    if positioner.as_ref().version() >= 3 {
+                        if reactive {
+                            positioner.set_reactive();
+                        }
+                        if let Some(parent_size) = parent_size {
+                            positioner.set_parent_size(parent_size.w, parent_size.h);
+                        }
                     }
                     // TODO what to do with parent configure?
 
