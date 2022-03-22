@@ -574,97 +574,100 @@ impl WrapperRenderer {
         w: i32,
         h: i32,
     ) {
-        for s in &mut self.surfaces {
+        let s = match self.surfaces.iter_mut().find(|s| {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
                 Kind::Xdg(wl_s) => wl_s.get_surface(),
                 _ => None,
             };
-            if wl_s == Some(&parent) {
-                s.layer_surface.get_popup(&c_popup);
-                //must be done after role is assigned as popup
-                c_surface.commit();
-                let next_render_event = Rc::new(Cell::new(Some(PopupRenderEvent::WaitConfigure)));
-                c_xdg_surface.quick_assign(move |c_xdg_surface, e, _| {
-                    if let xdg_surface::Event::Configure { serial, .. } = e {
-                        c_xdg_surface.ack_configure(serial);
-                    } // TODO set render event
-                });
+            wl_s == Some(&parent)
+        }) {
+            Some(s) => s,
+            None => return,
+        };
 
-                let next_render_event_handle = next_render_event.clone();
-                c_popup.quick_assign(move |_c_popup, e, _| {
-                    if let Some(PopupRenderEvent::Closed) = next_render_event_handle.get().as_ref()
-                    {
-                        return;
-                    }
+        s.layer_surface.get_popup(&c_popup);
+        //must be done after role is assigned as popup
+        c_surface.commit();
+        let next_render_event = Rc::new(Cell::new(Some(PopupRenderEvent::WaitConfigure)));
+        c_xdg_surface.quick_assign(move |c_xdg_surface, e, _| {
+            if let xdg_surface::Event::Configure { serial, .. } = e {
+                c_xdg_surface.ack_configure(serial);
+            } // TODO set render event
+        });
 
-                    match e {
-                        xdg_popup::Event::Configure {
-                            x,
-                            y,
-                            width,
-                            height,
-                        } => {
-                            next_render_event_handle.set(Some(PopupRenderEvent::Configure {
-                                x,
-                                y,
-                                width,
-                                height,
-                            }));
-                        }
-                        xdg_popup::Event::PopupDone => {
-                            next_render_event_handle.set(Some(PopupRenderEvent::Closed));
-                        }
-                        _ => {}
-                    };
-                });
-                let client_egl_surface = ClientEglSurface {
-                    wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, w, h),
-                    display: self.c_display.clone(),
-                };
-
-                let egl_context = self.renderer.as_mut().unwrap().egl_context();
-                let egl_surface = Rc::new(
-                    EGLSurface::new(
-                        self.egl_display.as_ref().unwrap(),
-                        egl_context
-                            .pixel_format()
-                            .expect("Failed to get pixel format from EGL context "),
-                        egl_context.config_id(),
-                        client_egl_surface,
-                        self.log.clone(),
-                    )
-                    .expect("Failed to initialize EGL Surface"),
-                );
-
-                s.popups.push(Popup {
-                    c_popup,
-                    c_xdg_surface,
-                    c_surface,
-                    s_surface,
-                    egl_surface,
-                    dirty: false,
-                    next_render_event,
-                });
-                break;
+        let next_render_event_handle = next_render_event.clone();
+        c_popup.quick_assign(move |_c_popup, e, _| {
+            if let Some(PopupRenderEvent::Closed) = next_render_event_handle.get().as_ref() {
+                return;
             }
-        }
+
+            match e {
+                xdg_popup::Event::Configure {
+                    x,
+                    y,
+                    width,
+                    height,
+                } => {
+                    next_render_event_handle.set(Some(PopupRenderEvent::Configure {
+                        x,
+                        y,
+                        width,
+                        height,
+                    }));
+                }
+                xdg_popup::Event::PopupDone => {
+                    next_render_event_handle.set(Some(PopupRenderEvent::Closed));
+                }
+                _ => {}
+            };
+        });
+        let client_egl_surface = ClientEglSurface {
+            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, w, h),
+            display: self.c_display.clone(),
+        };
+
+        let egl_context = self.renderer.as_mut().unwrap().egl_context();
+        let egl_surface = Rc::new(
+            EGLSurface::new(
+                self.egl_display.as_ref().unwrap(),
+                egl_context
+                    .pixel_format()
+                    .expect("Failed to get pixel format from EGL context "),
+                egl_context.config_id(),
+                client_egl_surface,
+                self.log.clone(),
+            )
+            .expect("Failed to initialize EGL Surface"),
+        );
+
+        s.popups.push(Popup {
+            c_popup,
+            c_xdg_surface,
+            c_surface,
+            s_surface,
+            egl_surface,
+            dirty: false,
+            next_render_event,
+        });
     }
 
     pub fn dirty(&mut self, other_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
         self.last_dirty = Instant::now();
-        for s in &mut self.surfaces {
-            if let Kind::Xdg(surface) = s.s_top_level.borrow().toplevel() {
-                if let Some(surface) = surface.get_surface() {
-                    if other_top_level_surface == surface {
-                        if s.dimensions != (w, h) {
-                            s.layer_surface.set_size(w, h);
-                            s.c_top_level.commit();
-                        } else {
-                            s.dirty = true;
-                        }
-                    }
-                }
+
+        if let Some(s) = self.surfaces.iter_mut().find(|s| {
+            let top_level = s.s_top_level.borrow();
+            let wl_s = match top_level.toplevel() {
+                Kind::Xdg(wl_s) => wl_s.get_surface(),
+                _ => None,
+            };
+            wl_s == Some(other_top_level_surface)
+        }) {
+            if s.dimensions != (w, h) {
+                s.layer_surface.set_size(w, h);
+                s.c_top_level.commit();
+            } else {
+                s.dirty = true;
             }
         }
     }
@@ -675,16 +678,18 @@ impl WrapperRenderer {
         other_popup: PopupSurface,
     ) {
         self.last_dirty = Instant::now();
-        for s in &mut self.surfaces {
-            if let Kind::Xdg(surface) = s.s_top_level.borrow_mut().toplevel() {
-                if let Some(surface) = surface.get_surface() {
-                    if other_top_level_surface == surface {
-                        for popup in &mut s.popups {
-                            if popup.s_surface.get_surface() == other_popup.get_surface() {
-                                popup.dirty = true;
-                            }
-                        }
-                    }
+        if let Some(s) = self.surfaces.iter_mut().find(|s| {
+            let top_level = s.s_top_level.borrow();
+            let wl_s = match top_level.toplevel() {
+                Kind::Xdg(wl_s) => wl_s.get_surface(),
+                _ => None,
+            };
+            wl_s == Some(other_top_level_surface)
+        }) {
+            for popup in &mut s.popups {
+                if popup.s_surface.get_surface() == other_popup.get_surface() {
+                    popup.dirty = true;
+                    break;
                 }
             }
         }
