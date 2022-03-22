@@ -105,7 +105,7 @@ fn main() -> Result<()> {
         .expect("Failed to start child process");
 
     let mut shared_data = (global_state, display);
-    let mut iter_since_render = -1;
+    let mut last_dirty = Instant::now();
     let mut last_cleanup = Instant::now();
     let five_min = Duration::from_secs(300);
     loop {
@@ -116,12 +116,9 @@ fn main() -> Result<()> {
         }
 
         // dispatch desktop client events
-        iter_since_render = i32::clamp(iter_since_render + 1, 0, 99999);
-        let dispatch_client_res = event_loop.dispatch(None, &mut shared_data);
+        let dispatch_client_res = event_loop.dispatch(Duration::from_millis(16), &mut shared_data);
 
-        if dispatch_client_res.is_err() {
-            panic!("Failed to dispatch events...")
-        }
+        dispatch_client_res.expect("Failed to dispatch events");
 
         let (shared_data, server_display) = &mut shared_data;
 
@@ -133,28 +130,26 @@ fn main() -> Result<()> {
             let renderer = &mut shared_data.desktop_client_state.renderer.as_mut();
             if let Some(renderer) = renderer {
                 renderer.apply_display(&server_display);
-                let updated =
+                last_dirty =
                     renderer.handle_events(shared_data.start_time.elapsed().as_millis() as u32);
-                if updated {
-                    iter_since_render = 0;
-                }
             }
         }
 
         // dispatch server events
         {
             server_display
-                .dispatch(Duration::ZERO, shared_data)
+                .dispatch(Duration::from_millis(16), shared_data)
                 .unwrap();
             server_display.flush_clients(shared_data);
         }
 
         // sleep if not much is changing...
-        if iter_since_render > 0 && iter_since_render < 120 {
+        let milli_since_last_dirty = (Instant::now() - last_dirty).as_millis();
+        if milli_since_last_dirty < 120 {
             thread::sleep(Duration::from_millis(8));
-        } else if iter_since_render > 0 && iter_since_render < 600 {
+        } else if milli_since_last_dirty < 600 {
             thread::sleep(Duration::from_millis(32));
-        } else if iter_since_render > 0 && iter_since_render < 3000 {
+        } else if milli_since_last_dirty < 3000 {
             thread::sleep(Duration::from_millis(128));
         }
     }

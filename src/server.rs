@@ -20,7 +20,7 @@ use smithay::{
         wayland_server::{self, protocol::wl_shm::Format},
     },
     wayland::{
-        compositor::{compositor_init, BufferAssignment},
+        compositor::{add_commit_hook, compositor_init, BufferAssignment},
         data_device::{default_action_chooser, init_data_device},
         shell::xdg::{xdg_shell_init, PositionerState, XdgRequest},
         shm::init_shm_global,
@@ -67,7 +67,7 @@ pub fn new_server(
     );
 
     trace!(log.clone(), "init embedded compositor");
-    compositor_init(
+    let (compositor, subcompositor) = compositor_init(
         &mut display,
         move |surface, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();
@@ -134,12 +134,12 @@ pub fn new_server(
                 }
             } else if role == "xdg_popup".into() {
                 let popup = popup_manager.find_popup(&surface);
-                dbg!(&popup);
+                // dbg!(&popup);
                 let _ = with_states(&surface, |data| {
                     let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
                     let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
                     if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
-                        dbg!(buffer);
+                        // dbg!(buffer);
                     }
                 });
 
@@ -152,6 +152,8 @@ pub fn new_server(
                 }
                 on_commit_buffer_handler(&surface);
                 popup_manager.commit(&surface);
+            } else {
+                // dbg!(surface);
             }
         },
         log.clone(),
@@ -189,7 +191,7 @@ pub fn new_server(
                         top_level_state.size =
                             Some((dimensions.0 as i32, dimensions.1 as i32).into());
                     });
-                    dbg!(&dimensions);
+                    // dbg!(&dimensions);
 
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
@@ -206,7 +208,7 @@ pub fn new_server(
                         smithay::desktop::Kind::Xdg(surface),
                     )));
 
-                    let layer_shell_surface = env_handle.create_surface().detach();
+                    let layer_shell_surface = env_handle.create_surface();
 
                     if let Some(renderer) = renderer.as_mut() {
                         renderer.add_top_level(layer_shell_surface, window.clone(), dimensions);
@@ -235,7 +237,7 @@ pub fn new_server(
                         let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
                         let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
                         if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
-                            dbg!(buffer);
+                            // dbg!(buffer);
                         }
                     });
 

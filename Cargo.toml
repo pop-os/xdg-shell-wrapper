@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 smithay = { git = "https://github.com/Smithay/smithay.git", branch = "master", features = ["use_system_lib"] }
+#smithay = { path = "../smithay", features = ["use_system_lib"] }
 sctk = { package = "smithay-client-toolkit", git = "https://github.com/Smithay/client-toolkit.git" }
 calloop = "0.9.3"
 anyhow = "1.0.53"

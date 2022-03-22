@@ -2,13 +2,14 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Result;
 use libc::{c_int, c_void};
 use sctk::{
     reexports::{
         client::protocol::{
+            wl_callback as c_wl_callback,
             wl_output::{self as c_wl_output},
             wl_surface as c_wl_surface,
         },
@@ -150,7 +151,7 @@ pub struct WrapperSurface {
     pub egl_surface: Rc<EGLSurface>,
     pub dirty: bool,
     pub dimensions: (u32, u32),
-    pub c_top_level: c_wl_surface::WlSurface,
+    pub c_top_level: Attached<c_wl_surface::WlSurface>,
     pub popups: Vec<Popup>,
     pub is_root: bool,
     pub log: Logger,
@@ -232,8 +233,8 @@ impl WrapperSurface {
             let loc = s_top_level.geometry().loc;
             let width = s_top_level.geometry().size.w;
             let height = s_top_level.geometry().size.h;
-            dbg!((width, height));
-            dbg!(&loc);
+            // dbg!((width, height));
+            // dbg!(&loc);
 
             let _ = renderer.unbind();
             renderer
@@ -248,11 +249,20 @@ impl WrapperSurface {
                             loc: loc.clone(),
                             size: (width, height).into(),
                         };
+                        // dbg!(damage);
+
+                        frame
+                            .clear(
+                                [1.0, 1.0, 1.0, 1.0],
+                                &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
+                                    loc: (loc.x as f64, loc.y as f64).clone().into(),
+                                    size: (width as f64, height as f64).into(),
+                                }
+                                .to_physical(1.0)],
+                            )
+                            .expect("Failed to clear frame.");
 
                         let loc = (-loc.x, -loc.y);
-                        frame
-                            .clear([1.0, 1.0, 1.0, 1.0], &[damage.to_physical(1)])
-                            .expect("Failed to clear frame.");
                         draw_surface_tree(
                             self_,
                             frame,
@@ -309,10 +319,17 @@ impl WrapperSurface {
                             size: (width, height).into(),
                         };
 
-                        let loc = (-loc.x, -loc.y);
                         frame
-                            .clear([1.0, 1.0, 1.0, 1.0], &[damage.to_physical(1)])
+                            .clear(
+                                [1.0, 1.0, 1.0, 1.0],
+                                &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
+                                    loc: (loc.x as f64, loc.y as f64).clone().into(),
+                                    size: (width as f64, height as f64).into(),
+                                }
+                                .to_physical(1.0)],
+                            )
                             .expect("Failed to clear frame.");
+                        let loc = (-loc.x, -loc.y);
                         draw_surface_tree(
                             self_,
                             frame,
@@ -354,6 +371,7 @@ pub struct WrapperRenderer {
     pub needs_update: bool,
     pub egl_display: Option<EGLDisplay>,
     pub renderer: Option<Gles2Renderer>,
+    pub last_dirty: Instant,
 }
 
 impl WrapperRenderer {
@@ -378,11 +396,11 @@ impl WrapperRenderer {
             config,
             log,
             needs_update: false,
+            last_dirty: Instant::now(),
         }
     }
 
-    pub fn handle_events(&mut self, time: u32) -> bool {
-        let mut updated = false;
+    pub fn handle_events(&mut self, time: u32) -> Instant {
         let mut surfaces = self
             .surfaces
             .drain(..)
@@ -396,14 +414,13 @@ impl WrapperRenderer {
                     return None;
                 }
                 if let Some(renderer) = self.renderer.as_mut() {
-                    updated = true;
                     s.render(time, renderer);
                 }
                 return Some(s);
             })
             .collect();
         self.surfaces.append(&mut surfaces);
-        updated
+        self.last_dirty
     }
 
     pub fn apply_display(&mut self, s_display: &s_Display) {
@@ -422,13 +439,12 @@ impl WrapperRenderer {
 
     pub fn add_top_level(
         &mut self,
-        c_surface: c_wl_surface::WlSurface,
+        c_surface: Attached<c_wl_surface::WlSurface>,
         s_top_level: Rc<RefCell<Window>>,
         mut dimensions: (u32, u32),
     ) {
-        dbg!(dimensions);
         let layer_surface = self.layer_shell.get_layer_surface(
-            &c_surface,
+            &c_surface.clone(),
             Some(&self.output),
             self.config.layer.into(),
             "example".to_owned(),
@@ -636,6 +652,7 @@ impl WrapperRenderer {
     }
 
     pub fn dirty(&mut self, other_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
+        self.last_dirty = Instant::now();
         for s in &mut self.surfaces {
             if let Kind::Xdg(surface) = s.s_top_level.borrow().toplevel() {
                 if let Some(surface) = surface.get_surface() {
@@ -657,6 +674,7 @@ impl WrapperRenderer {
         other_top_level_surface: &s_WlSurface,
         other_popup: PopupSurface,
     ) {
+        self.last_dirty = Instant::now();
         for s in &mut self.surfaces {
             if let Kind::Xdg(surface) = s.s_top_level.borrow_mut().toplevel() {
                 if let Some(surface) = surface.get_surface() {
