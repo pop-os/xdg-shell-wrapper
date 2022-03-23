@@ -117,9 +117,11 @@ pub fn send_pointer_event(
                     .unwrap_or_default();
 
                 if let Some(Some((cur_surface, offset))) = root_window.as_ref().map(|w| {
+                    w.borrow().refresh();
                     w.borrow()
                         .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
                 }) {
+                    dbg!(&cur_surface);
                     ptr.motion(
                         (
                             root_surface_x - offset.x as f64,

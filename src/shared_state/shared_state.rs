@@ -77,7 +77,7 @@ pub struct EmbeddedServerState {
     pub shell_state: Arc<Mutex<ShellState>>,
     pub root_window: Option<Rc<RefCell<Window>>>,
     pub focused_surface: Option<WlSurface>,
-    pub popup_manager: PopupManager,
+    pub popup_manager: Rc<RefCell<PopupManager>>,
 }
 
 pub struct DesktopClientState {

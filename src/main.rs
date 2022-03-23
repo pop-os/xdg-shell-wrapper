@@ -111,7 +111,12 @@ fn main() -> Result<()> {
     loop {
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
-            shared_data.0.embedded_server_state.popup_manager.cleanup();
+            shared_data
+                .0
+                .embedded_server_state
+                .popup_manager
+                .borrow_mut()
+                .cleanup();
             last_cleanup = Instant::now();
         }
 

@@ -9,11 +9,7 @@ use std::{
 };
 
 use anyhow::Result;
-use sctk::reexports::{
-    calloop::{self, generic::Generic, Interest, Mode},
-    client::{Attached, Main, Proxy},
-    protocols::xdg_shell::client::xdg_positioner,
-};
+use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
 use slog::{error, trace, Logger};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
@@ -24,7 +20,7 @@ use smithay::{
         wayland_server::{self, protocol::wl_shm::Format},
     },
     wayland::{
-        compositor::{add_commit_hook, compositor_init, BufferAssignment},
+        compositor::{compositor_init, BufferAssignment},
         data_device::{default_action_chooser, init_data_device},
         shell::xdg::{xdg_shell_init, PositionerState, XdgRequest},
         shm::init_shm_global,
@@ -137,7 +133,7 @@ pub fn new_server(
                     }
                 }
             } else if role == "xdg_popup".into() {
-                let popup = popup_manager.find_popup(&surface);
+                let popup = popup_manager.borrow().find_popup(&surface);
                 // dbg!(&popup);
                 let _ = with_states(&surface, |data| {
                     let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
@@ -155,7 +151,7 @@ pub fn new_server(
                     renderer.dirty_popup(&top_level_surface, popup_surface);
                 }
                 on_commit_buffer_handler(&surface);
-                popup_manager.commit(&surface);
+                popup_manager.borrow_mut().commit(&surface);
             } else {
                 // dbg!(surface);
             }
@@ -236,16 +232,6 @@ pub fn new_server(
                 } => {
                     // TODO fix positioning
                     println!("new popup");
-                    let surface = s_popup_surface.get_surface().unwrap();
-                    let _ = with_states(&surface, |data| {
-                        let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
-                        let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
-                        if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
-                            // dbg!(buffer);
-                        }
-                    });
-
-                    let _ = s_popup_surface.send_configure();
                     let positioner = xdg_wm_base.create_positioner();
                     positioner.set_size(rect_size.w, rect_size.h);
                     positioner.set_anchor_rect(
@@ -276,6 +262,10 @@ pub fn new_server(
                     let xdg_surface = xdg_wm_base.get_xdg_surface(&wl_surface);
                     let popup = xdg_surface.get_popup(None, &positioner);
 
+                    dbg!(anchor_rect);
+                    dbg!(rect_size);
+                    dbg!(offset);
+                    dbg!(PopupKind::Xdg(s_popup_surface.clone()).geometry());
                     if let (Some(parent), Some(renderer)) =
                         (s_popup_surface.get_parent_surface(), renderer.as_mut())
                     {
@@ -287,11 +277,8 @@ pub fn new_server(
                             parent,
                             rect_size.w,
                             rect_size.h,
+                            popup_manager.clone(),
                         );
-                    }
-
-                    if let Err(e) = popup_manager.track_popup(PopupKind::Xdg(s_popup_surface)) {
-                        error!(log, "{}", e);
                     }
                 }
                 XdgRequest::Grab {
@@ -303,7 +290,7 @@ pub fn new_server(
                         for s in seats {
                             if s.server.0.owns(&seat) {
                                 // println!("updating popup manager to do grab...");
-                                if let Err(e) = popup_manager.grab_popup(
+                                if let Err(e) = popup_manager.borrow_mut().grab_popup(
                                     PopupKind::Xdg(surface.clone()),
                                     &s.server.0,
                                     serial,
@@ -328,7 +315,7 @@ pub fn new_server(
 
     trace!(log.clone(), "embedded server setup complete");
 
-    let popup_manager = PopupManager::new(log.clone());
+    let popup_manager = Rc::new(RefCell::new(PopupManager::new(log.clone())));
 
     Ok((
         EmbeddedServerState {

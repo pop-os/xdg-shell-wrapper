@@ -36,7 +36,7 @@ use smithay::{
             Unbind,
         },
     },
-    desktop::{utils::send_frames_surface_tree, Kind, PopupKind, Window},
+    desktop::{utils::send_frames_surface_tree, Kind, PopupKind, PopupManager, Window},
     egl_platform,
     reexports::{
         wayland_protocols::{
@@ -573,6 +573,7 @@ impl WrapperRenderer {
         parent: s_WlSurface,
         w: i32,
         h: i32,
+        popup_manager: Rc<RefCell<PopupManager>>,
     ) {
         let s = match self.surfaces.iter_mut().find(|s| {
             let top_level = s.s_top_level.borrow();
@@ -597,6 +598,8 @@ impl WrapperRenderer {
         });
 
         let next_render_event_handle = next_render_event.clone();
+        let s_popup_surface = s_surface.clone();
+        let s_clone = parent.clone();
         c_popup.quick_assign(move |_c_popup, e, _| {
             if let Some(PopupRenderEvent::Closed) = next_render_event_handle.get().as_ref() {
                 return;
@@ -609,6 +612,19 @@ impl WrapperRenderer {
                     width,
                     height,
                 } => {
+                    dbg!((x, y, width, height));
+                    dbg!(s_popup_surface.alive());
+                    let kind = PopupKind::Xdg(s_popup_surface.clone());
+                    dbg!(s_popup_surface.with_pending_state(|popup_state| {
+                        dbg!(popup_state.geometry);
+                        popup_state.geometry.loc = (x, y).into();
+                        popup_state.geometry.size = (width, height).into();
+                    }));
+                    dbg!(s_popup_surface.send_configure());
+                    dbg!(popup_manager.borrow_mut().track_popup(kind.clone()));
+                    dbg!(PopupManager::popups_for_surface(&s_clone).unwrap().next());
+                    dbg!(&s_popup_surface);
+                    dbg!(kind.geometry());
                     next_render_event_handle.set(Some(PopupRenderEvent::Configure {
                         x,
                         y,
