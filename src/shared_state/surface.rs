@@ -612,8 +612,6 @@ impl WrapperRenderer {
                     width,
                     height,
                 } => {
-                    dbg!((x, y, width, height));
-                    dbg!(s_popup_surface.alive());
                     let kind = PopupKind::Xdg(s_popup_surface.clone());
                     dbg!(s_popup_surface.with_pending_state(|popup_state| {
                         dbg!(popup_state.geometry);
@@ -622,9 +620,6 @@ impl WrapperRenderer {
                     }));
                     dbg!(s_popup_surface.send_configure());
                     dbg!(popup_manager.borrow_mut().track_popup(kind.clone()));
-                    dbg!(PopupManager::popups_for_surface(&s_clone).unwrap().next());
-                    dbg!(&s_popup_surface);
-                    dbg!(kind.geometry());
                     next_render_event_handle.set(Some(PopupRenderEvent::Configure {
                         x,
                         y,

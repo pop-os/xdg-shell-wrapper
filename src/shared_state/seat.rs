@@ -122,12 +122,10 @@ pub fn send_pointer_event(
                         .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
                 }) {
                     dbg!(&cur_surface);
+                    dbg!((root_surface_x, root_surface_y));
+                    dbg!(offset);
                     ptr.motion(
-                        (
-                            root_surface_x - offset.x as f64,
-                            root_surface_y - offset.y as f64,
-                        )
-                            .into(),
+                        (root_surface_x, root_surface_y).into(),
                         Some((cur_surface, smithay::utils::Point::from((0, 0)))),
                         SERIAL_COUNTER.next_serial(),
                         time,
