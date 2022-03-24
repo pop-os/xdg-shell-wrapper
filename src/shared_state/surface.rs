@@ -48,7 +48,11 @@ use smithay::{
         },
         wayland_server::{protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display},
     },
-    wayland::shell::xdg::PopupSurface,
+    utils::Rectangle,
+    wayland::{
+        compositor::with_states,
+        shell::xdg::{PopupSurface, SurfaceCachedState, XdgPopupSurfaceRoleAttributes},
+    },
 };
 
 use crate::XdgWrapperConfig;
@@ -122,7 +126,7 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Popup {
     pub c_popup: Main<XdgPopup>,
     pub c_xdg_surface: Main<XdgSurface>,
@@ -143,7 +147,7 @@ impl Drop for Popup {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WrapperSurface {
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
     pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
@@ -618,6 +622,18 @@ impl WrapperRenderer {
                         popup_state.geometry.loc = (x, y).into();
                         popup_state.geometry.size = (width, height).into();
                     }));
+                    // let wl_surface = match s_popup_surface.get_surface() {
+                    //     Some(s) => s,
+                    //     None => return,
+                    // };
+
+                    // with_states(wl_surface, |states| {
+                    //     states
+                    //         .cached_state
+                    //         .current::<SurfaceCachedState>()
+                    //         .geometry
+                    //         .replace(Rectangle::from_loc_and_size((x, y), (width, height)));
+                    // });
                     dbg!(s_popup_surface.send_configure());
                     dbg!(popup_manager.borrow_mut().track_popup(kind.clone()));
                     next_render_event_handle.set(Some(PopupRenderEvent::Configure {
@@ -706,6 +722,27 @@ impl WrapperRenderer {
         }
     }
 
+    pub fn find_server_surface(
+        &self,
+        other_c_surface: &c_wl_surface::WlSurface,
+    ) -> Option<ServerSurface> {
+        for s in &self.surfaces {
+            if *s.c_top_level == *other_c_surface {
+                return Some(ServerSurface::TopLevel(s.s_top_level.clone()));
+            } else {
+                for popup in &s.popups {
+                    if &popup.c_surface == other_c_surface {
+                        return Some(ServerSurface::Popup(
+                            s.s_top_level.clone(),
+                            popup.s_surface.clone(),
+                        ));
+                    }
+                }
+            }
+        }
+        None
+    }
+
     fn constrain_dim(&self, (mut w, mut h): (u32, u32)) -> (u32, u32) {
         let (min_w, min_h) = self.config.min_dimensions.unwrap_or((1, 1));
         w = min_w.max(w);
@@ -717,6 +754,11 @@ impl WrapperRenderer {
         }
         (w, h)
     }
+}
+
+pub enum ServerSurface {
+    TopLevel(Rc<RefCell<smithay::desktop::Window>>),
+    Popup(Rc<RefCell<smithay::desktop::Window>>, PopupSurface),
 }
 
 impl Drop for WrapperSurface {

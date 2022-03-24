@@ -9,7 +9,7 @@ use sctk::seat::SeatData;
 use slog::{trace, Logger};
 use smithay::{
     backend::input::KeyState,
-    desktop::WindowSurfaceType,
+    desktop::{PopupKind, WindowSurfaceType},
     reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display},
     wayland::{
         seat::{self, AxisFrame, FilterResult},
@@ -17,8 +17,8 @@ use smithay::{
     },
 };
 
-use super::DesktopClientState;
-use crate::{ClientSeat, GlobalState, Seat};
+use super::{DesktopClientState, EmbeddedServerState};
+use crate::{ClientSeat, GlobalState, Seat, ServerSurface};
 
 pub fn send_keyboard_event(
     event: wl_keyboard::Event,
@@ -92,10 +92,17 @@ pub fn send_pointer_event(
         seats,
         axis_frame,
         last_input_serial,
+        focused_surface,
+        renderer,
         ..
     } = &mut state.desktop_client_state;
 
-    let root_window = &state.embedded_server_state.root_window;
+    let EmbeddedServerState {
+        root_window,
+        popup_manager,
+        ..
+    } = &state.embedded_server_state;
+
     if let Some(Some(ptr)) = seats
         .iter()
         .position(|Seat { name, .. }| name == &seat_name)
@@ -108,29 +115,50 @@ pub fn send_pointer_event(
                 surface_x,
                 surface_y,
             } => {
-                let (root_surface_x, root_surface_y) = root_window
+                let focused_surface = match focused_surface {
+                    Some(s) => s,
+                    _ => return,
+                };
+                match renderer
                     .as_ref()
-                    .map(move |w| {
-                        let loc = w.borrow().geometry().loc;
-                        (surface_x + loc.x as f64, surface_y + loc.y as f64)
-                    })
-                    .unwrap_or_default();
-
-                if let Some(Some((cur_surface, offset))) = root_window.as_ref().map(|w| {
-                    w.borrow().refresh();
-                    w.borrow()
-                        .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
-                }) {
-                    dbg!(&cur_surface);
-                    dbg!((root_surface_x, root_surface_y));
-                    dbg!(offset);
-                    ptr.motion(
-                        (root_surface_x, root_surface_y).into(),
-                        Some((cur_surface, smithay::utils::Point::from((0, 0)))),
-                        SERIAL_COUNTER.next_serial(),
-                        time,
-                    );
-                }
+                    .map(|r| r.find_server_surface(focused_surface))
+                {
+                    Some(Some(ServerSurface::TopLevel(toplevel))) => {
+                        let toplevel = &*toplevel.borrow();
+                        if let Some((cur_surface, location)) =
+                            toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
+                        {
+                            let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface)
+                            {
+                                toplevel.geometry().loc
+                            } else {
+                                toplevel.geometry().loc + location
+                            };
+                            ptr.motion(
+                                (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
+                                Some((cur_surface, (0, 0).into())),
+                                SERIAL_COUNTER.next_serial(),
+                                time,
+                            );
+                        }
+                    }
+                    Some(Some(ServerSurface::Popup(toplevel, popup))) => {
+                        let toplevel = &*toplevel.borrow();
+                        let popup_surface = match popup.get_surface() {
+                            Some(s) => s,
+                            _ => return,
+                        };
+                        let offset =
+                            toplevel.geometry().loc + PopupKind::Xdg(popup.clone()).geometry().loc;
+                        ptr.motion(
+                            (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
+                            Some((popup_surface.clone(), (0, 0).into())),
+                            SERIAL_COUNTER.next_serial(),
+                            time,
+                        );
+                    }
+                    _ => return,
+                };
             }
             c_wl_pointer::Event::Button {
                 time,
@@ -203,8 +231,16 @@ pub fn send_pointer_event(
                 _ => return,
             },
             // TODO do these need to be handled?
-            c_wl_pointer::Event::Enter { .. } => {}
-            c_wl_pointer::Event::Leave { .. } => {}
+            c_wl_pointer::Event::Enter { surface, .. } => {
+                focused_surface.replace(surface);
+            }
+            c_wl_pointer::Event::Leave { surface, .. } => {
+                if let Some(s) = focused_surface {
+                    if s == &surface {
+                        focused_surface.take();
+                    }
+                }
+            }
             _ => (),
         };
     }

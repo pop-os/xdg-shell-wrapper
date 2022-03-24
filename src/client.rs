@@ -191,6 +191,7 @@ pub fn new_client(
             xdg_wm_base,
             env_handle: env,
             last_input_serial: None,
+            focused_surface: None,
         },
         s_outputs,
     ))

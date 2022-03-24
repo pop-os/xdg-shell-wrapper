@@ -11,7 +11,8 @@ use sctk::{
         client::{
             self,
             protocol::{
-                wl_keyboard, wl_output::WlOutput as c_WlOutput, wl_pointer, wl_shm, wl_surface,
+                wl_keyboard, wl_output as c_wl_output, wl_pointer, wl_shm,
+                wl_surface as c_wl_surface,
             },
             Attached, GlobalManager,
         },
@@ -27,13 +28,13 @@ use smithay::{
         wayland_server::{
             self,
             protocol::{
-                wl_output::WlOutput as s_WlOutput, wl_pointer::AxisSource, wl_seat::WlSeat,
+                wl_output as s_wl_output, wl_pointer::AxisSource, wl_seat::WlSeat,
                 wl_surface::WlSurface,
             },
             Global,
         },
     },
-    wayland::{output::Output as s_Output, seat, shell::xdg::ShellState},
+    wayland::{output::Output, seat, shell::xdg::ShellState},
 };
 
 use crate::{client::Env, CachedBuffers, WrapperRenderer};
@@ -51,7 +52,12 @@ pub struct ClientSeat {
     pub ptr: Option<wl_pointer::WlPointer>,
 }
 
-pub type OutputGroup = (s_Output, Global<s_WlOutput>, u32, c_WlOutput);
+pub type OutputGroup = (
+    Output,
+    Global<s_wl_output::WlOutput>,
+    u32,
+    c_wl_output::WlOutput,
+);
 
 #[derive(Debug, Default)]
 pub struct AxisFrameData {
@@ -86,7 +92,7 @@ pub struct DesktopClientState {
     pub seat_listener: SeatListener,
     pub output_listener: OutputStatusListener,
     pub renderer: Option<WrapperRenderer>,
-    pub cursor_surface: wl_surface::WlSurface,
+    pub cursor_surface: c_wl_surface::WlSurface,
     pub axis_frame: AxisFrameData,
     pub kbd_focus: bool,
     pub globals: GlobalManager,
@@ -94,4 +100,5 @@ pub struct DesktopClientState {
     pub xdg_wm_base: Attached<XdgWmBase>,
     pub env_handle: Environment<Env>,
     pub last_input_serial: Option<u32>,
+    pub focused_surface: Option<c_wl_surface::WlSurface>,
 }
