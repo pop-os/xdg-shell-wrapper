@@ -104,7 +104,7 @@ pub fn new_server(
                 trace!(log, "received surface with cursor image");
                 for Seat { client, .. } in seats {
                     if let Some(ptr) = client.ptr.as_ref() {
-                        trace!(log, "updating cursore for pointer {:?}", &ptr);
+                        trace!(log, "updating cursor for pointer {:?}", &ptr);
                         let _ = with_states(&surface, |data| {
                             let surface_attributes =
                                 data.cached_state.current::<SurfaceAttributes>();
