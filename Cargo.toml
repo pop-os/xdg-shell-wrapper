@@ -1,25 +1,17 @@
 [package]
-name = "xdg-shell-wrapper"
+name = "xdg-shell-wrapper-bin"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smithay = { git = "https://github.com/pop-os/smithay", branch = "main", features = ["use_system_lib"] }
-#smithay = { path = "../smithay", features = ["use_system_lib"] }
-sctk = { package = "smithay-client-toolkit", git = "https://github.com/Smithay/client-toolkit.git" }
-calloop = "0.9.3"
 anyhow = "1.0.53"
-ron = "0.7.0"
-serde = { version = "1.0.136", features = ["derive"] }
-xdg = "2.4.0"
+shlex = "1.1.0"
+slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }
 slog-term = "2.8.1"
 slog-async = "2.7.0"
 slog-stdlog = "4.1.0"
 slog-scope = "4.4.0"
-shlex = "1.1.0"
-slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }
-wayland-egl = "0.29.4"
-libc = "0.2.117"
-tempfile = "3.3"
+xdg-shell-wrapper = { path = "./xdg-shell-wrapper" }
+
