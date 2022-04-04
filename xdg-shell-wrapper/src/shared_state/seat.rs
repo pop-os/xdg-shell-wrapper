@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0-only
 
 use sctk::reexports::{
     client::protocol::{wl_pointer as c_wl_pointer, wl_seat::WlSeat},

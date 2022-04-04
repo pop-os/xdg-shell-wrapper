@@ -20,7 +20,7 @@ use smithay::{
     wayland::seat,
 };
 
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0-only
 use crate::shared_state::*;
 use crate::XdgWrapperConfig;
 

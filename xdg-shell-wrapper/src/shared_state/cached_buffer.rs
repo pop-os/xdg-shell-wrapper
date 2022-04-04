@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0-only
+
 use anyhow::{bail, Result};
 use sctk::{
     reexports::client::{
