@@ -624,24 +624,13 @@ impl WrapperRenderer {
                     height,
                 } => {
                     let kind = PopupKind::Xdg(s_popup_surface.clone());
-                    dbg!(s_popup_surface.with_pending_state(|popup_state| {
+                    let _ = s_popup_surface.with_pending_state(|popup_state| {
                         popup_state.geometry.loc = (x, y).into();
                         popup_state.geometry.size = (width, height).into();
-                    }));
-                    // let wl_surface = match s_popup_surface.get_surface() {
-                    //     Some(s) => s,
-                    //     None => return,
-                    // };
-
-                    // with_states(wl_surface, |states| {
-                    //     states
-                    //         .cached_state
-                    //         .current::<SurfaceCachedState>()
-                    //         .geometry
-                    //         .replace(Rectangle::from_loc_and_size((x, y), (width, height)));
-                    // });
-                    dbg!(s_popup_surface.send_configure());
-                    dbg!(popup_manager.borrow_mut().track_popup(kind.clone()));
+                    });
+                    
+                    let _ = s_popup_surface.send_configure();
+                    let _ = popup_manager.borrow_mut().track_popup(kind.clone());
                     next_render_event_handle.set(Some(PopupRenderEvent::Configure {
                         x,
                         y,

@@ -134,8 +134,9 @@ pub fn send_pointer_event(
                             {
                                 adjusted_loc
                             } else {
-                                adjusted_loc + location
+                                adjusted_loc - location
                             };
+                            
                             ptr.motion(
                                 (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
                                 Some((cur_surface, (0, 0).into())),
@@ -145,7 +146,6 @@ pub fn send_pointer_event(
                         }
                     }
                     Some(Some(ServerSurface::Popup(toplevel, popup))) => {
-                        let toplevel = &*toplevel.borrow();
                         let popup_surface = match popup.get_surface() {
                             Some(s) => s,
                             _ => return,
