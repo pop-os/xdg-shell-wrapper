@@ -130,9 +130,9 @@ pub fn send_pointer_event(
                         {
                             let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface)
                             {
-                                toplevel.geometry().loc
+                                (0,0).into()
                             } else {
-                                toplevel.geometry().loc + location
+                                location
                             };
                             ptr.motion(
                                 (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),

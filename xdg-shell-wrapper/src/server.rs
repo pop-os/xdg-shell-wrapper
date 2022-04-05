@@ -13,7 +13,7 @@ use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
 use slog::{error, trace, Logger};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
-    desktop::{Kind, PopupKind, PopupManager, Window},
+    desktop::{utils, Kind, PopupKind, PopupManager, Window},
     reexports::{
         nix::fcntl,
         wayland_protocols::xdg_shell::client::xdg_positioner::{Anchor, Gravity},
@@ -89,13 +89,14 @@ pub fn new_server(
             let role = get_role(&surface);
             trace!(log, "role: {:?} surface: {:?}", &role, &surface);
             if role == "xdg_toplevel".into() {
-                on_commit_buffer_handler(&surface);
                 if let Some(renderer) = renderer.as_mut() {
                     if let Some(top_level) = shell_state.lock().unwrap().toplevel_surface(&surface)
                     {
+                        on_commit_buffer_handler(&surface);
                         let window = Window::new(Kind::Xdg(top_level.clone()));
-                        let w = window.geometry().size.w as u32;
-                        let h = window.geometry().size.h as u32;
+                        window.refresh();
+                        let w = window.bbox().size.w as u32;
+                        let h = window.bbox().size.h as u32;
                         renderer.dirty(&surface, (w, h));
                     }
                 }
@@ -134,15 +135,8 @@ pub fn new_server(
                 }
             } else if role == "xdg_popup".into() {
                 let popup = popup_manager.borrow().find_popup(&surface);
-                // dbg!(&popup);
-                let _ = with_states(&surface, |data| {
-                    let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
-                    let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
-                    if let Some(BufferAssignment::NewBuffer { buffer, .. }) = buf.as_ref() {
-                        // dbg!(buffer);
-                    }
-                });
-
+                on_commit_buffer_handler(&surface);
+                popup_manager.borrow_mut().commit(&surface);
                 let (top_level_surface, popup_surface) = match popup {
                     Some(PopupKind::Xdg(s)) => (s.get_parent_surface(), s),
                     _ => return,
@@ -150,8 +144,6 @@ pub fn new_server(
                 if let (Some(renderer), Some(top_level_surface)) = (renderer, top_level_surface) {
                     renderer.dirty_popup(&top_level_surface, popup_surface);
                 }
-                on_commit_buffer_handler(&surface);
-                popup_manager.borrow_mut().commit(&surface);
             } else {
                 // dbg!(surface);
             }
@@ -184,14 +176,10 @@ pub fn new_server(
             match request {
                 XdgRequest::NewToplevel { surface } => {
                     // println!("new toplevel...");
-                    let g = Window::new(Kind::Xdg(surface.clone())).geometry();
+                    let window = Window::new(Kind::Xdg(surface.clone()));
+                    window.refresh();
+                    let g = window.geometry();
                     let dimensions = (g.size.w as u32, g.size.h as u32);
-
-                    let _ = surface.with_pending_state(move |top_level_state| {
-                        top_level_state.size =
-                            Some((dimensions.0 as i32, dimensions.1 as i32).into());
-                    });
-                    // dbg!(&dimensions);
 
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
@@ -262,10 +250,10 @@ pub fn new_server(
                     let xdg_surface = xdg_wm_base.get_xdg_surface(&wl_surface);
                     let popup = xdg_surface.get_popup(None, &positioner);
 
-                    dbg!(anchor_rect);
-                    dbg!(rect_size);
-                    dbg!(offset);
-                    dbg!(PopupKind::Xdg(s_popup_surface.clone()).geometry());
+                    // dbg!(anchor_rect);
+                    // dbg!(rect_size);
+                    // dbg!(offset);
+                    // dbg!(PopupKind::Xdg(s_popup_surface.clone()).geometry());
                     if let (Some(parent), Some(renderer)) =
                         (s_popup_surface.get_parent_surface(), renderer.as_mut())
                     {

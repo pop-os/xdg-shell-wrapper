@@ -201,7 +201,6 @@ impl WrapperSurface {
             }
             Some(RenderEvent::Configure { width, height }) => {
                 if self.dimensions != (width, height) {
-                    dbg!((width, height));
                     self.dimensions = (width, height);
                     self.egl_surface.resize(width as i32, height as i32, 0, 0);
                     self.dirty = true;
@@ -235,8 +234,8 @@ impl WrapperSurface {
                 _ => return,
             };
             let loc = s_top_level.geometry().loc;
-            let width = s_top_level.geometry().size.w;
-            let height = s_top_level.geometry().size.h;
+            let width = self.dimensions.0 as i32;
+            let height = self.dimensions.1 as i32;
             // dbg!((width, height));
             // dbg!(&loc);
 
@@ -250,7 +249,7 @@ impl WrapperSurface {
                     smithay::utils::Transform::Flipped180,
                     |self_: &mut Gles2Renderer, frame| {
                         let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                            loc: loc.clone(),
+                            loc: (0, 0).into(),
                             size: (width, height).into(),
                         };
                         // dbg!(damage);
@@ -259,7 +258,7 @@ impl WrapperSurface {
                             .clear(
                                 [1.0, 1.0, 1.0, 1.0],
                                 &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
-                                    loc: (loc.x as f64, loc.y as f64).clone().into(),
+                                    loc: (0.0, 0.0).into(),
                                     size: (width as f64, height as f64).into(),
                                 }
                                 .to_physical(1.0)],
@@ -272,7 +271,7 @@ impl WrapperSurface {
                             frame,
                             server_surface,
                             1.0,
-                            loc.into(),
+                            (0, 0).into(),
                             &[damage],
                             &logger,
                         )
@@ -598,12 +597,11 @@ impl WrapperRenderer {
         c_xdg_surface.quick_assign(move |c_xdg_surface, e, _| {
             if let xdg_surface::Event::Configure { serial, .. } = e {
                 c_xdg_surface.ack_configure(serial);
-            } // TODO set render event
+            }
         });
 
         let next_render_event_handle = next_render_event.clone();
         let s_popup_surface = s_surface.clone();
-        let s_clone = parent.clone();
         c_popup.quick_assign(move |_c_popup, e, _| {
             if let Some(PopupRenderEvent::Closed) = next_render_event_handle.get().as_ref() {
                 return;
@@ -618,7 +616,6 @@ impl WrapperRenderer {
                 } => {
                     let kind = PopupKind::Xdg(s_popup_surface.clone());
                     dbg!(s_popup_surface.with_pending_state(|popup_state| {
-                        dbg!(popup_state.geometry);
                         popup_state.geometry.loc = (x, y).into();
                         popup_state.geometry.size = (width, height).into();
                     }));
@@ -691,8 +688,11 @@ impl WrapperRenderer {
             wl_s == Some(other_top_level_surface)
         }) {
             if s.dimensions != (w, h) {
+                s.dimensions = (w, h);
+                s.egl_surface.resize(w as i32, h as i32, 0, 0);
                 s.layer_surface.set_size(w, h);
                 s.c_top_level.commit();
+                s.dirty = true;
             } else {
                 s.dirty = true;
             }
