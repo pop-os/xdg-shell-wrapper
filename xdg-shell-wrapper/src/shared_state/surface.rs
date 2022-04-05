@@ -235,9 +235,15 @@ impl WrapperSurface {
                 },
                 _ => return,
             };
-            let loc = s_top_level.geometry().loc;
+            let geo = s_top_level.geometry();
+            let (loc_x, loc_y) = geo.loc.into();
+            let (geo_width, geo_height) = geo.size.into();
             let width = self.dimensions.0 as i32;
             let height = self.dimensions.1 as i32;
+            let x_loc_offset = (width - geo_width) / 2;
+            let y_loc_offset = (height - geo_height) / 2;
+
+            let loc = (loc_x - x_loc_offset, loc_y - y_loc_offset);
             // dbg!((width, height));
             // dbg!(&loc);
 
@@ -251,7 +257,7 @@ impl WrapperSurface {
                     smithay::utils::Transform::Flipped180,
                     |self_: &mut Gles2Renderer, frame| {
                         let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                            loc: (0, 0).into(),
+                            loc: loc.clone().into(),
                             size: (width, height).into(),
                         };
                         // dbg!(damage);
@@ -260,20 +266,20 @@ impl WrapperSurface {
                             .clear(
                                 [1.0, 1.0, 1.0, 1.0],
                                 &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
-                                    loc: (0.0, 0.0).into(),
+                                    loc: (loc.0 as f64, loc.1 as f64).into(),
                                     size: (width as f64, height as f64).into(),
                                 }
                                 .to_physical(1.0)],
                             )
                             .expect("Failed to clear frame.");
 
-                        let loc = (-loc.x, -loc.y);
+                        let loc = (-loc.0, -loc.1);
                         draw_surface_tree(
                             self_,
                             frame,
                             server_surface,
                             1.0,
-                            (0, 0).into(),
+                            loc.into(),
                             &[damage],
                             &logger,
                         )
@@ -283,7 +289,7 @@ impl WrapperSurface {
                 .expect("Failed to render to layer shell surface.");
 
             let mut damage = [smithay::utils::Rectangle {
-                loc: (0, 0).into(),
+                loc: loc.into(),
                 size: (width, height).into(),
             }];
 
