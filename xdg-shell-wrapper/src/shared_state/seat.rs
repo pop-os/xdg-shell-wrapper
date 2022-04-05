@@ -9,7 +9,8 @@ use sctk::seat::SeatData;
 use slog::{trace, Logger};
 use smithay::{
     backend::input::KeyState,
-    desktop::{PopupKind, WindowSurfaceType},
+    desktop::{PopupKind, WindowSurfaceType,
+    utils::bbox_from_surface_tree,},
     reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display},
     wayland::{
         seat::{self, AxisFrame, FilterResult},
@@ -128,11 +129,12 @@ pub fn send_pointer_event(
                         if let Some((cur_surface, location)) =
                             toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
                         {
+                            let adjusted_loc = toplevel.bbox().loc;
                             let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface)
                             {
-                                (0,0).into()
+                                adjusted_loc
                             } else {
-                                location
+                                adjusted_loc + location
                             };
                             ptr.motion(
                                 (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
@@ -148,8 +150,9 @@ pub fn send_pointer_event(
                             Some(s) => s,
                             _ => return,
                         };
+                        let bbox = bbox_from_surface_tree(popup_surface, (0,0));
                         let offset =
-                            toplevel.geometry().loc + PopupKind::Xdg(popup.clone()).geometry().loc;
+                            bbox.loc + PopupKind::Xdg(popup.clone()).geometry().loc;
                         ptr.motion(
                             (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
                             Some((popup_surface.clone(), (0, 0).into())),

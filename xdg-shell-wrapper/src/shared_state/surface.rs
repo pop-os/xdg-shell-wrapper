@@ -135,7 +135,7 @@ pub struct Popup {
     pub egl_surface: Rc<EGLSurface>,
     pub next_render_event: Rc<Cell<Option<PopupRenderEvent>>>,
     pub dirty: bool,
-    pub dimensions: (i32, i32),
+    pub bbox: Rectangle<i32, Logical>,
 }
 
 impl Drop for Popup {
@@ -181,7 +181,7 @@ impl WrapperSurface {
                     Some(PopupRenderEvent::Closed) => false,
                     Some(PopupRenderEvent::Configure { width, height, .. }) => {
                         p.egl_surface.resize(width, height, 0, 0);
-                        p.dimensions = (width, height);
+                        p.bbox.size = (width, height).into();
                         p.dirty = true;
                         true
                     }
@@ -235,15 +235,16 @@ impl WrapperSurface {
                 },
                 _ => return,
             };
-            let geo = s_top_level.geometry();
-            let (loc_x, loc_y) = geo.loc.into();
-            let (geo_width, geo_height) = geo.size.into();
+            // let geo = s_top_level.geometry();
+            // let (loc_x, loc_y) = geo.loc.into();
+            // let (geo_width, geo_height) = geo.size.into();
             let width = self.dimensions.0 as i32;
             let height = self.dimensions.1 as i32;
-            let x_loc_offset = (width - geo_width) / 2;
-            let y_loc_offset = (height - geo_height) / 2;
+            // let x_loc_offset = (width - geo_width) / 2;
+            // let y_loc_offset = (height - geo_height) / 2;
 
-            let loc = (loc_x - x_loc_offset, loc_y - y_loc_offset);
+            // let loc = (loc_x - x_loc_offset, loc_y - y_loc_offset);
+            let loc = self.s_top_level.borrow().bbox().loc;
             // dbg!((width, height));
             // dbg!(&loc);
 
@@ -266,14 +267,14 @@ impl WrapperSurface {
                             .clear(
                                 [1.0, 1.0, 1.0, 1.0],
                                 &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
-                                    loc: (loc.0 as f64, loc.1 as f64).into(),
+                                    loc: (loc.x as f64, loc.y as f64).into(),
                                     size: (width as f64, height as f64).into(),
                                 }
                                 .to_physical(1.0)],
                             )
                             .expect("Failed to clear frame.");
 
-                        let loc = (-loc.0, -loc.1);
+                        let loc = (-loc.x, -loc.y);
                         draw_surface_tree(
                             self_,
                             frame,
@@ -289,7 +290,7 @@ impl WrapperSurface {
                 .expect("Failed to render to layer shell surface.");
 
             let mut damage = [smithay::utils::Rectangle {
-                loc: loc.into(),
+                loc: (0,0).into(),
                 size: (width, height).into(),
             }];
 
@@ -313,12 +314,8 @@ impl WrapperSurface {
             };
             let geometry = PopupKind::Xdg(p.s_surface.clone()).geometry();
             
-            let (geo_width, geo_height) = geometry.size.into();
-            let (width, height) = p.dimensions;
-            let x_loc_offset = (width - geo_width) / 2;
-            let y_loc_offset = (height - geo_height) / 2;
-            let loc = (geometry.loc.x - x_loc_offset, geometry.loc.y - y_loc_offset);
-
+            let (width, height) = p.bbox.size.into();
+            let loc = p.bbox.loc;
             let logger = self.log.clone();
             let _ = renderer.unbind();
             renderer
@@ -338,13 +335,13 @@ impl WrapperSurface {
                             .clear(
                                 [1.0, 1.0, 1.0, 1.0],
                                 &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
-                                    loc: (loc.0 as f64, loc.1 as f64).clone().into(),
+                                    loc: (loc.x as f64, loc.y as f64).clone().into(),
                                     size: (width as f64, height as f64).into(),
                                 }
                                 .to_physical(1.0)],
                             )
                             .expect("Failed to clear frame.");
-                        let loc = (-loc.0, -loc.1);
+                        let loc = (-loc.x, -loc.y);
                         draw_surface_tree(
                             self_,
                             frame,
@@ -685,7 +682,7 @@ impl WrapperRenderer {
             egl_surface,
             dirty: false,
             next_render_event,
-            dimensions: (0,0),
+            bbox: Rectangle::from_loc_and_size((0,0), (0,0)),
         });
     }
 
@@ -730,10 +727,9 @@ impl WrapperRenderer {
             for popup in &mut s.popups {
                 if popup.s_surface.get_surface() == other_popup.get_surface() {
                     // TODO use loc
-                    let dim = (dim.size.w, dim.size.h);
-                    if popup.dimensions != dim {
-                        popup.dimensions = dim;
-                        popup.egl_surface.resize(dim.0, dim.1, 0, 0);
+                    if popup.bbox != dim {
+                        popup.bbox = dim;
+                        popup.egl_surface.resize(dim.size.w, dim.size.h, 0, 0);
                     }
                     popup.dirty = true;
                     break;
