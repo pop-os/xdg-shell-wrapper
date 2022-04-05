@@ -48,7 +48,7 @@ use smithay::{
         },
         wayland_server::{protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display},
     },
-    utils::Rectangle,
+    utils::{Rectangle, Logical},
     wayland::{
         compositor::with_states,
         shell::xdg::{PopupSurface, SurfaceCachedState, XdgPopupSurfaceRoleAttributes},
@@ -135,6 +135,7 @@ pub struct Popup {
     pub egl_surface: Rc<EGLSurface>,
     pub next_render_event: Rc<Cell<Option<PopupRenderEvent>>>,
     pub dirty: bool,
+    pub dimensions: (i32, i32),
 }
 
 impl Drop for Popup {
@@ -179,7 +180,8 @@ impl WrapperSurface {
                 match p.next_render_event.take() {
                     Some(PopupRenderEvent::Closed) => false,
                     Some(PopupRenderEvent::Configure { width, height, .. }) => {
-                        p.egl_surface.resize(width as i32, height as i32, 0, 0);
+                        p.egl_surface.resize(width, height, 0, 0);
+                        p.dimensions = (width, height);
                         p.dirty = true;
                         true
                     }
@@ -304,8 +306,12 @@ impl WrapperSurface {
                 _ => return,
             };
             let geometry = PopupKind::Xdg(p.s_surface.clone()).geometry();
-            let loc = geometry.loc;
-            let (width, height) = geometry.size.into();
+            
+            let (geo_width, geo_height) = geometry.size.into();
+            let (width, height) = p.dimensions;
+            let x_loc_offset = (width - geo_width) / 2;
+            let y_loc_offset = (height - geo_height) / 2;
+            let loc = (geometry.loc.x - x_loc_offset, geometry.loc.y - y_loc_offset);
 
             let logger = self.log.clone();
             let _ = renderer.unbind();
@@ -318,7 +324,7 @@ impl WrapperSurface {
                     smithay::utils::Transform::Flipped180,
                     |self_: &mut Gles2Renderer, frame| {
                         let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                            loc: loc.clone(),
+                            loc: loc.clone().into(),
                             size: (width, height).into(),
                         };
 
@@ -326,13 +332,13 @@ impl WrapperSurface {
                             .clear(
                                 [1.0, 1.0, 1.0, 1.0],
                                 &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
-                                    loc: (loc.x as f64, loc.y as f64).clone().into(),
+                                    loc: (loc.0 as f64, loc.1 as f64).clone().into(),
                                     size: (width as f64, height as f64).into(),
                                 }
                                 .to_physical(1.0)],
                             )
                             .expect("Failed to clear frame.");
-                        let loc = (-loc.x, -loc.y);
+                        let loc = (-loc.0, -loc.1);
                         draw_surface_tree(
                             self_,
                             frame,
@@ -673,6 +679,7 @@ impl WrapperRenderer {
             egl_surface,
             dirty: false,
             next_render_event,
+            dimensions: (0,0),
         });
     }
 
@@ -703,6 +710,7 @@ impl WrapperRenderer {
         &mut self,
         other_top_level_surface: &s_WlSurface,
         other_popup: PopupSurface,
+        dim: Rectangle<i32, Logical>,
     ) {
         self.last_dirty = Instant::now();
         if let Some(s) = self.surfaces.iter_mut().find(|s| {
@@ -715,6 +723,12 @@ impl WrapperRenderer {
         }) {
             for popup in &mut s.popups {
                 if popup.s_surface.get_surface() == other_popup.get_surface() {
+                    // TODO use loc
+                    let dim = (dim.size.w, dim.size.h);
+                    if popup.dimensions != dim {
+                        popup.dimensions = dim;
+                        popup.egl_surface.resize(dim.0, dim.1, 0, 0);
+                    }
                     popup.dirty = true;
                     break;
                 }

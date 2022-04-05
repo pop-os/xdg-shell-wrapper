@@ -142,7 +142,7 @@ pub fn new_server(
                     _ => return,
                 };
                 if let (Some(renderer), Some(top_level_surface)) = (renderer, top_level_surface) {
-                    renderer.dirty_popup(&top_level_surface, popup_surface);
+                    renderer.dirty_popup(&top_level_surface, popup_surface, utils::bbox_from_surface_tree(&surface, (0,0)));
                 }
             } else {
                 // dbg!(surface);
