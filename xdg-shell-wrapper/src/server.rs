@@ -67,7 +67,7 @@ pub fn new_server(
     );
 
     trace!(log.clone(), "init embedded compositor");
-    let (compositor, subcompositor) = compositor_init(
+    let (_compositor, _subcompositor) = compositor_init(
         &mut display,
         move |surface, mut dispatch_data| {
             let state = dispatch_data.get::<GlobalState>().unwrap();

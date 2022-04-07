@@ -197,7 +197,7 @@ impl WrapperSurface {
             };
 
             if !should_keep {
-                let val = self.popups.remove(i);
+                let _ = self.popups.remove(i);
                 // your code here
             } else {
                 i += 1;
@@ -320,7 +320,6 @@ impl WrapperSurface {
                 Some(s) => s,
                 _ => return,
             };
-            let geometry = PopupKind::Xdg(p.s_surface.clone()).geometry();
             
             let (width, height) = p.bbox.size.into();
             let loc = p.bbox.loc;

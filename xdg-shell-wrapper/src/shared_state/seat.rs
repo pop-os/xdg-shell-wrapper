@@ -18,7 +18,7 @@ use smithay::{
     },
 };
 
-use super::{DesktopClientState, EmbeddedServerState};
+use super::{DesktopClientState};
 use crate::{ClientSeat, GlobalState, Seat, ServerSurface};
 
 pub fn send_keyboard_event(
@@ -98,12 +98,6 @@ pub fn send_pointer_event(
         ..
     } = &mut state.desktop_client_state;
 
-    let EmbeddedServerState {
-        root_window,
-        popup_manager,
-        ..
-    } = &state.embedded_server_state;
-
     if let Some(Some(ptr)) = seats
         .iter()
         .position(|Seat { name, .. }| name == &seat_name)
@@ -145,7 +139,7 @@ pub fn send_pointer_event(
                             );
                         }
                     }
-                    Some(Some(ServerSurface::Popup(toplevel, popup))) => {
+                    Some(Some(ServerSurface::Popup(_toplevel, popup))) => {
                         let popup_surface = match popup.get_surface() {
                             Some(s) => s,
                             _ => return,
