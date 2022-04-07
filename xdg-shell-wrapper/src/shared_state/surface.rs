@@ -170,31 +170,41 @@ impl WrapperSurface {
             return true;
         }
         let mut remove_surface = false;
-        let popups = self
-            .popups
-            .drain_filter(|p| {
-                // dbg!(p.s_surface.alive());
+        // TODO replace with drain_filter when stable
+
+        let mut i = 0;
+        while i < self.popups.len() {
+            let p = &mut self.popups[i];
+            let should_keep = {
                 if !p.s_surface.alive() {
-                    return false;
+                    false
                 }
-                match p.next_render_event.take() {
-                    Some(PopupRenderEvent::Closed) => false,
-                    Some(PopupRenderEvent::Configure { width, height, .. }) => {
-                        p.egl_surface.resize(width, height, 0, 0);
-                        p.bbox.size = (width, height).into();
-                        p.dirty = true;
-                        true
+                else {
+                    match p.next_render_event.take() {
+                        Some(PopupRenderEvent::Closed) => false,
+                        Some(PopupRenderEvent::Configure { width, height, .. }) => {
+                            p.egl_surface.resize(width, height, 0, 0);
+                            p.bbox.size = (width, height).into();
+                            p.dirty = true;
+                            true
+                        }
+                        Some(PopupRenderEvent::WaitConfigure) => {
+                            p.next_render_event
+                                .replace(Some(PopupRenderEvent::WaitConfigure));
+                            true
+                        }
+                        None => true,
                     }
-                    Some(PopupRenderEvent::WaitConfigure) => {
-                        p.next_render_event
-                            .replace(Some(PopupRenderEvent::WaitConfigure));
-                        true
-                    }
-                    None => true,
                 }
-            })
-            .collect();
-        self.popups = popups;
+            };
+
+            if !should_keep {
+                let val = self.popups.remove(i);
+                // your code here
+            } else {
+                i += 1;
+            }
+        }
         // dbg!(&self.popups);
 
         match self.next_render_event.take() {
