@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-#![feature(drain_filter)]
-
 use anyhow::Result;
 use config::XdgWrapperConfig;
 use shared_state::*;
