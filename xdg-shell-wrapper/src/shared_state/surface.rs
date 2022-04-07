@@ -9,7 +9,6 @@ use libc::{c_int, c_void};
 use sctk::{
     reexports::{
         client::protocol::{
-            wl_callback as c_wl_callback,
             wl_output::{self as c_wl_output},
             wl_surface as c_wl_surface,
         },
@@ -50,8 +49,7 @@ use smithay::{
     },
     utils::{Rectangle, Logical},
     wayland::{
-        compositor::with_states,
-        shell::xdg::{PopupSurface, SurfaceCachedState, XdgPopupSurfaceRoleAttributes},
+        shell::xdg::{PopupSurface},
     },
 };
 

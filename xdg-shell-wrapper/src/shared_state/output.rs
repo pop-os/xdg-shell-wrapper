@@ -43,9 +43,16 @@ pub fn handle_output(
             *renderer_handle = None;
         }
 
-        // remove outputs from embedded server when they are removed from the client
-        for (_, global_output, _, _) in s_outputs.drain_filter(|(_, _, i, _)| *i != info.id) {
-            global_output.destroy();
+        // TODO replace with drain_filter
+        let mut i = 0;
+        while i < s_outputs.len() {
+            let id = s_outputs[i].2;
+            if ! info.id == id {
+                let removed = s_outputs.remove(i);
+                removed.1.destroy();
+            } else {
+                i += 1;
+            }
         }
 
         output.release();
