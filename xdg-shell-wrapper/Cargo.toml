@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smithay = { git = "https://github.com/pop-os/smithay", branch = "main", features = ["use_system_lib"] }
+smithay = { git = "https://github.com/pop-os/smithay", branch = "main", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
 #smithay = { path = "../smithay", features = ["use_system_lib"] }
-sctk = { package = "smithay-client-toolkit", git = "https://github.com/Smithay/client-toolkit.git" }
+sctk = { package = "smithay-client-toolkit", git = "https://github.com/Smithay/client-toolkit.git", default-features = false, features = ["calloop"] }
 calloop = "0.9.3"
 anyhow = "1.0.53"
 ron = "0.7.0"

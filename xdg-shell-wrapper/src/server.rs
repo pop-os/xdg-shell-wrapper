@@ -219,7 +219,6 @@ pub fn new_server(
                         },
                 } => {
                     // TODO fix positioning
-                    println!("new popup");
                     let positioner = xdg_wm_base.create_positioner();
                     positioner.set_size(rect_size.w, rect_size.h);
                     positioner.set_anchor_rect(
