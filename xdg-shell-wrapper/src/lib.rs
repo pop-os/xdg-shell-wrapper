@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-#![feature(drain_filter)]
-
 use anyhow::Result;
 use config::XdgWrapperConfig;
 use shared_state::*;
@@ -50,7 +48,7 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
         fcntl::FcntlArg::F_SETFD(fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC)),
     )?;
 
-    child
+    let mut child = child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
         .env_remove("WAYLAND_DEBUG")
         .spawn()
@@ -98,6 +96,10 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
                 .dispatch(Duration::from_millis(16), shared_data)
                 .unwrap();
             server_display.flush_clients(shared_data);
+        }
+
+        if let Ok(Some(_)) = child.try_wait() {
+            return Ok(());
         }
 
         // sleep if not much is changing...
