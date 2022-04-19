@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use config::XdgWrapperConfig;
+use render::CachedBuffers;
 use shared_state::*;
 use slog::Logger;
 use smithay::reexports::{nix::fcntl, wayland_server::Display};
@@ -15,8 +16,11 @@ use std::{
 mod client;
 pub mod config;
 mod server;
-mod shared_state;
+mod render;
 mod util;
+mod output;
+mod seat;
+mod shared_state;
 
 pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConfig) -> Result<()> {
     let mut event_loop = calloop::EventLoop::<(GlobalState, Display)>::try_new().unwrap();

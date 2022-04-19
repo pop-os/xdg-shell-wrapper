@@ -19,7 +19,7 @@ use smithay::{
 };
 
 use super::{DesktopClientState};
-use crate::{ClientSeat, GlobalState, Seat, ServerSurface};
+use crate::{ClientSeat, GlobalState, Seat, render::ServerSurface};
 
 pub fn send_keyboard_event(
     event: wl_keyboard::Event,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use crate::{client::Env, OutputGroup, WrapperRenderer, XdgWrapperConfig};
+use crate::{client::Env, OutputGroup, XdgWrapperConfig, render::WrapperRenderer};
 use sctk::{
     environment::Environment,
     output::{Mode as c_Mode, OutputInfo},

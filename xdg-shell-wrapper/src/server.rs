@@ -145,7 +145,7 @@ pub fn new_server(
                     renderer.dirty_popup(&top_level_surface, popup_surface, utils::bbox_from_surface_tree(&surface, (0,0)));
                 }
             } else {
-                // dbg!(surface);
+                trace!(log, "{:?}", surface);
             }
         },
         log.clone(),
@@ -175,7 +175,6 @@ pub fn new_server(
 
             match request {
                 XdgRequest::NewToplevel { surface } => {
-                    // println!("new toplevel...");
                     let window = Window::new(Kind::Xdg(surface.clone()));
                     window.refresh();
                     let g = window.geometry();
@@ -249,10 +248,6 @@ pub fn new_server(
                     let xdg_surface = xdg_wm_base.get_xdg_surface(&wl_surface);
                     let popup = xdg_surface.get_popup(None, &positioner);
 
-                    // dbg!(anchor_rect);
-                    // dbg!(rect_size);
-                    // dbg!(offset);
-                    // dbg!(PopupKind::Xdg(s_popup_surface.clone()).geometry());
                     if let (Some(parent), Some(renderer)) =
                         (s_popup_surface.get_parent_surface(), renderer.as_mut())
                     {
@@ -276,7 +271,6 @@ pub fn new_server(
                     if *kbd_focus {
                         for s in seats {
                             if s.server.0.owns(&seat) {
-                                // println!("updating popup manager to do grab...");
                                 if let Err(e) = popup_manager.borrow_mut().grab_popup(
                                     PopupKind::Xdg(surface.clone()),
                                     &s.server.0,

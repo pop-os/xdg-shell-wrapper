@@ -37,7 +37,8 @@ use smithay::{
     wayland::{output::Output, seat, shell::xdg::ShellState},
 };
 
-use crate::{client::Env, CachedBuffers, WrapperRenderer};
+use crate::render::WrapperRenderer;
+use crate::{client::Env, CachedBuffers};
 
 #[derive(Debug)]
 pub struct Seat {

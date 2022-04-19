@@ -21,7 +21,7 @@ use smithay::{
 };
 
 // SPDX-License-Identifier: MPL-2.0-only
-use crate::shared_state::*;
+use crate::{shared_state::*, output::handle_output, seat::{send_keyboard_event, send_pointer_event, seat_handler}};
 use crate::XdgWrapperConfig;
 
 sctk::default_environment!(KbdInputExample, desktop);
