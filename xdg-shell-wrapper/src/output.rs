@@ -58,7 +58,8 @@ pub fn handle_output(
         output.release();
     } else {
         // Create the Output for the server with given name and physical properties
-        let s_output = s_Output::new(
+        let (s_output, s_output_global) = s_Output::new(
+            server_display,    // the display
             info.name.clone(), // the name of this output,
             PhysicalProperties {
                 size: info.physical_size.into(), // dimensions (width, height) in mm
@@ -75,7 +76,6 @@ pub fn handle_output(
             },
             logger.clone(), // insert a logger here
         );
-        let s_output_global =  s_output.create_global(server_display);
         for c_Mode {
             dimensions,
             refresh_rate,
