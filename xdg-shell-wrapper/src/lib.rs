@@ -111,9 +111,9 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
         if milli_since_last_dirty < 120 {
             thread::sleep(Duration::from_millis(8));
         } else if milli_since_last_dirty < 600 {
-            thread::sleep(Duration::from_millis(32));
+            thread::sleep(Duration::from_millis(16));
         } else if milli_since_last_dirty < 3000 {
-            thread::sleep(Duration::from_millis(128));
+            thread::sleep(Duration::from_millis(32));
         }
     }
 }
