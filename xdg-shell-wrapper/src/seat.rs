@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use sctk::reexports::{
+use sctk::{reexports::{
     client::protocol::{wl_pointer as c_wl_pointer, wl_seat::WlSeat},
     client::Attached,
     client::{self, protocol::wl_keyboard},
-};
+}, data_device};
 use sctk::seat::SeatData;
 use slog::{trace, error, Logger};
 use smithay::{
@@ -14,12 +14,12 @@ use smithay::{
     reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display},
     wayland::{
         seat::{self, AxisFrame, FilterResult},
-        SERIAL_COUNTER,
+        SERIAL_COUNTER, data_device::{set_data_device_focus, set_data_device_selection},
     },
 };
 
 use super::{DesktopClientState};
-use crate::{ClientSeat, GlobalState, Seat, render::ServerSurface};
+use crate::{ClientSeat, GlobalState, Seat, render::ServerSurface, shared_state::EmbeddedServerState};
 
 pub fn send_keyboard_event(
     event: wl_keyboard::Event,
@@ -28,13 +28,19 @@ pub fn send_keyboard_event(
 ) {
     let (state, _server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let DesktopClientState {
+        env_handle,
         seats,
         kbd_focus,
         last_input_serial,
         ..
     } = &mut state.desktop_client_state;
 
-    let focused_surface = &state.embedded_server_state.focused_surface;
+    let EmbeddedServerState {
+        client,
+        focused_surface,
+        selected_data_provider_seat,
+        ..
+    } = &mut state.embedded_server_state;
 
     if let Some(seat) = seats
         .iter()
@@ -74,8 +80,22 @@ pub fn send_keyboard_event(
                 kbd.change_repeat_info(rate, delay);
             }
             wl_keyboard::Event::Enter { .. } => {
-                // TODO set data source here
-                // let mime_types = seat.client.seat;
+                let res = env_handle.with_data_device(&seat.client.seat, |data_device| {
+                    data_device.with_selection(|offer| {
+                        if let Some(offer) = offer {
+                            offer.with_mime_types(|types| {
+                                println!("setting server data device selection");
+                                // set_data_device_selection(&seat.server.0, types.into());
+                            })
+                        }
+                    })
+                });
+                selected_data_provider_seat.replace(Some(seat.client.seat.clone()));
+
+                if let Err(err) = res {
+                    dbg!(err);
+                }
+                set_data_device_focus(&seat.server.0, Some(client.clone()));
                 *kbd_focus = true;
                 kbd.set_focus(focused_surface.as_ref(), SERIAL_COUNTER.next_serial());
             }
@@ -256,7 +276,12 @@ pub fn seat_handle_callback(
     mut dispatch_data: DispatchData,
 ) {
     let (state, server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
-    let seats = &mut state.desktop_client_state.seats;
+    let DesktopClientState {
+        seats,
+        env_handle,
+        ..
+    } = &mut state.desktop_client_state;
+    let EmbeddedServerState { selected_data_provider_seat, .. } = &mut state.embedded_server_state;
 
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown
@@ -314,6 +339,21 @@ pub fn seat_handle_callback(
             });
             server_seat.add_pointer(move |_new_status| {});
             *opt_ptr = Some(pointer.detach());
+        }
+        let res = env_handle.with_data_device(&seat, |data_device| {
+            data_device.with_selection(|offer| {
+                if let Some(offer) = offer {
+                    offer.with_mime_types(|types| {
+                        println!("setting server data device selection");
+                        // set_data_device_selection(server_seat, types.into());
+                    })
+                }
+            })
+        });
+        selected_data_provider_seat.replace(Some(seat.clone()));
+    
+        if let Err(err) = res {
+            dbg!(err);
         }
     } else {
         //cleanup

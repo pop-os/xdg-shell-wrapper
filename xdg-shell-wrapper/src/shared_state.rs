@@ -88,19 +88,17 @@ pub struct EmbeddedServerState {
     pub root_window: Option<Rc<RefCell<Window>>>,
     pub focused_surface: Option<WlSurface>,
     pub popup_manager: Rc<RefCell<PopupManager>>,
+    pub(crate) selected_data_provider_seat: RefCell<Option<Attached<c_wl_seat::WlSeat>>>
 }
 
 pub struct DesktopClientState {
     pub display: client::Display,
     pub seats: Vec<Seat>,
-    pub seat_handler: SeatHandler,
-    pub data_device_handler: DataDeviceHandler,
     pub output_listener: OutputStatusListener,
     pub renderer: Option<WrapperRenderer>,
     pub cursor_surface: c_wl_surface::WlSurface,
     pub axis_frame: AxisFrameData,
     pub kbd_focus: bool,
-    pub globals: GlobalManager,
     pub shm: Attached<c_wl_shm::WlShm>,
     pub xdg_wm_base: Attached<XdgWmBase>,
     pub env_handle: Environment<Env>,

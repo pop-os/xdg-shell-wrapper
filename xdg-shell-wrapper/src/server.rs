@@ -2,6 +2,7 @@
 
 use smithay::wayland::compositor::SurfaceAttributes;
 use smithay::wayland::compositor::{get_role, with_states};
+use smithay::wayland::data_device::DataDeviceEvent;
 use std::{
     cell::{RefCell, RefMut},
     os::unix::{io::AsRawFd, net::UnixStream},
@@ -9,7 +10,8 @@ use std::{
 };
 
 use anyhow::Result;
-use sctk::reexports::calloop::{self, generic::Generic, Interest, Mode};
+use sctk::reexports::{calloop::{self, generic::Generic, Interest, Mode},         client::{protocol::wl_seat as c_wl_seat, Attached},
+};
 use slog::{error, trace, Logger};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
@@ -58,10 +60,22 @@ pub fn new_server(
         Ok(calloop::PostAction::Continue)
     })?;
 
+    let selected_seat: RefCell<Option<Attached<c_wl_seat::WlSeat>>> = RefCell::new(None);
+    let selected_data_provider_seat = selected_seat.clone();
     trace!(log.clone(), "init embedded server data device");
     init_data_device(
         &mut display,
-        |_dnd_event| { /* a callback to react to client DnD/selection actions */ },
+        move |event| { 
+            /* a callback to react to client DnD/selection actions */
+            match event {
+                DataDeviceEvent::SendSelection { mime_type, fd } => {
+                    dbg!(mime_type);
+                    dbg!(fd);
+                    dbg!(&selected_data_provider_seat);
+                }
+                _ => {},
+            };
+         },
         default_action_chooser,
         log.clone(),
     );
@@ -217,7 +231,6 @@ pub fn new_server(
                             ..
                         },
                 } => {
-                    // TODO fix positioning
                     let positioner = xdg_wm_base.create_positioner();
                     positioner.set_size(rect_size.w, rect_size.h);
                     positioner.set_anchor_rect(
@@ -305,6 +318,7 @@ pub fn new_server(
             popup_manager,
             root_window: Default::default(),
             focused_surface: Default::default(),
+            selected_data_provider_seat: selected_seat,
         },
         display,
         (display_sock, client_sock),

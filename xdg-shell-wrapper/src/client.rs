@@ -1,12 +1,12 @@
 use anyhow::Result;
 use sctk::{
     default_environment,
-    environment::SimpleGlobal,
+    environment::{SimpleGlobal, GlobalHandler},
     output::with_output_info,
     reexports::{
         calloop,
-        client::{protocol::wl_shm, GlobalManager},
-    }, seat::{SeatHandler, SeatHandling}, data_device::DataDeviceHandler,
+        client::{protocol::wl_shm, GlobalManager, Attached},
+    }, seat::{SeatHandler, SeatHandling}, data_device::{DataDeviceHandler, DataDevice},
 };
 use slog::{trace, Logger};
 use smithay::{
@@ -23,8 +23,6 @@ use smithay::{
 // SPDX-License-Identifier: MPL-2.0-only
 use crate::{shared_state::*, output::handle_output, seat::{send_keyboard_event, send_pointer_event, seat_handle_callback}};
 use crate::XdgWrapperConfig;
-
-sctk::default_environment!(KbdInputExample, desktop);
 
 default_environment!(Env,
     fields = [
@@ -163,11 +161,10 @@ pub fn new_client(
     // then setup a listener for changes
 
     let logger = log.clone();
-    let mut seat_handler = SeatHandler::new();
-    seat_handler.listen(move |seat, seat_data, dispatch_data| {
+    env.with_inner(|env_inner| {
+        env_inner.listen(move |seat, seat_data, dispatch_data| {
         seat_handle_callback(logger.clone(), seat, seat_data, dispatch_data)
-    });
-    let data_device_handler = DataDeviceHandler::init(&mut seat_handler);
+    })});
 
     sctk::WaylandSource::new(queue)
         .quick_insert(loop_handle)
@@ -184,13 +181,10 @@ pub fn new_client(
             renderer,
             display,
             output_listener,
-            seat_handler,
-            data_device_handler,
             seats: seats,
             kbd_focus: false,
             axis_frame: Default::default(),
             cursor_surface: cursor_surface,
-            globals,
             shm,
             xdg_wm_base,
             env_handle: env,
