@@ -6,7 +6,7 @@ use sctk::reexports::{
     client::{self, protocol::wl_keyboard},
 };
 use sctk::seat::SeatData;
-use slog::{trace, Logger};
+use slog::{trace, error, Logger};
 use smithay::{
     backend::input::KeyState,
     desktop::{PopupKind, WindowSurfaceType,
@@ -36,12 +36,17 @@ pub fn send_keyboard_event(
 
     let focused_surface = &state.embedded_server_state.focused_surface;
 
-    if let Some(Some(kbd)) = seats
+    if let Some(seat) = seats
         .iter()
-        .position(|Seat { name, .. }| name == &seat_name)
-        .map(|idx| &seats[idx])
-        .map(|seat| seat.server.0.get_keyboard())
+        .find(|Seat { name, .. }| name == &seat_name)
     {
+        let kbd = match seat.server.0.get_keyboard() {
+            Some(kbd) => kbd,
+            None => {
+                error!(state.log, "Received keyboard event on {} without keyboard.", &seat_name);
+                return;
+            }
+        };
         match event {
             wl_keyboard::Event::Key {
                 serial,
@@ -69,6 +74,8 @@ pub fn send_keyboard_event(
                 kbd.change_repeat_info(rate, delay);
             }
             wl_keyboard::Event::Enter { .. } => {
+                // TODO set data source here
+                // let mime_types = seat.client.seat;
                 *kbd_focus = true;
                 kbd.set_focus(focused_surface.as_ref(), SERIAL_COUNTER.next_serial());
             }
@@ -227,7 +234,6 @@ pub fn send_pointer_event(
                 }
                 _ => return,
             },
-            // TODO do these need to be handled?
             c_wl_pointer::Event::Enter { surface, .. } => {
                 focused_surface.replace(surface);
             }
@@ -243,7 +249,7 @@ pub fn send_pointer_event(
     }
 }
 
-pub fn seat_handler(
+pub fn seat_handle_callback(
     log: Logger,
     seat: Attached<WlSeat>,
     seat_data: &SeatData,
@@ -267,6 +273,7 @@ pub fn seat_handler(
             client: ClientSeat {
                 kbd: None,
                 ptr: None,
+                seat: seat.clone()
             },
         });
         seats.len()
@@ -277,6 +284,7 @@ pub fn seat_handler(
             ClientSeat {
                 kbd: ref mut opt_kbd,
                 ptr: ref mut opt_ptr,
+                ..
             },
         server: (ref mut server_seat, ref mut _server_seat_global),
         ..

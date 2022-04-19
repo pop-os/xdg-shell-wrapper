@@ -4,6 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use sctk::data_device::DataDeviceHandler;
+use sctk::seat::SeatHandler;
 use sctk::{
     environment::Environment,
     output::OutputStatusListener,
@@ -11,8 +13,8 @@ use sctk::{
         client::{
             self,
             protocol::{
-                wl_keyboard, wl_output as c_wl_output, wl_pointer, wl_shm,
-                wl_surface as c_wl_surface,
+                wl_keyboard as c_wl_keyboard, wl_output as c_wl_output, wl_pointer as c_wl_pointer, wl_shm as c_wl_shm,
+                wl_surface as c_wl_surface, wl_seat as c_wl_seat
             },
             Attached, GlobalManager,
         },
@@ -28,7 +30,7 @@ use smithay::{
         wayland_server::{
             self,
             protocol::{
-                wl_output as s_wl_output, wl_pointer::AxisSource, wl_seat::WlSeat,
+                wl_output, wl_pointer::AxisSource, wl_seat::WlSeat,
                 wl_surface::WlSurface,
             },
             Global,
@@ -42,20 +44,21 @@ use crate::{client::Env, CachedBuffers};
 
 #[derive(Debug)]
 pub struct Seat {
-    pub name: String,
-    pub client: ClientSeat,
-    pub server: (seat::Seat, Global<WlSeat>),
+    pub(crate) name: String,
+    pub(crate) client: ClientSeat,
+    pub(crate) server: (seat::Seat, Global<WlSeat>),
 }
 
 #[derive(Debug)]
 pub struct ClientSeat {
-    pub kbd: Option<wl_keyboard::WlKeyboard>,
-    pub ptr: Option<wl_pointer::WlPointer>,
+    pub(crate) seat: Attached<c_wl_seat::WlSeat>,
+    pub(crate) kbd: Option<c_wl_keyboard::WlKeyboard>,
+    pub(crate) ptr: Option<c_wl_pointer::WlPointer>,
 }
 
 pub type OutputGroup = (
     Output,
-    Global<s_wl_output::WlOutput>,
+    Global<wl_output::WlOutput>,
     u32,
     c_wl_output::WlOutput,
 );
@@ -90,14 +93,15 @@ pub struct EmbeddedServerState {
 pub struct DesktopClientState {
     pub display: client::Display,
     pub seats: Vec<Seat>,
-    pub seat_listener: SeatListener,
+    pub seat_handler: SeatHandler,
+    pub data_device_handler: DataDeviceHandler,
     pub output_listener: OutputStatusListener,
     pub renderer: Option<WrapperRenderer>,
     pub cursor_surface: c_wl_surface::WlSurface,
     pub axis_frame: AxisFrameData,
     pub kbd_focus: bool,
     pub globals: GlobalManager,
-    pub shm: Attached<wl_shm::WlShm>,
+    pub shm: Attached<c_wl_shm::WlShm>,
     pub xdg_wm_base: Attached<XdgWmBase>,
     pub env_handle: Environment<Env>,
     pub last_input_serial: Option<u32>,
