@@ -42,7 +42,7 @@ pub fn send_keyboard_event(
     let EmbeddedServerState {
         client,
         focused_surface,
-        selected_data_provider_seat,
+        selected_data_provider,
         ..
     } = &mut state.embedded_server_state;
 
@@ -84,8 +84,8 @@ pub fn send_keyboard_event(
                 kbd.change_repeat_info(rate, delay);
             }
             wl_keyboard::Event::Enter { .. } => {
-                let _ = set_server_device_selection(env_handle, &seat.client.seat, &seat.server.0, selected_data_provider_seat);
-
+                let _ = set_server_device_selection(env_handle, &seat.client.seat, &seat.server.0, &selected_data_provider.seat);
+                set_data_device_focus(&seat.server.0, Some(client.clone()));
                 *kbd_focus = true;
                 kbd.set_focus(focused_surface.as_ref(), SERIAL_COUNTER.next_serial());
             }
@@ -271,7 +271,7 @@ pub fn seat_handle_callback(
         env_handle,
         ..
     } = &mut state.desktop_client_state;
-    let EmbeddedServerState { selected_data_provider_seat, .. } = &mut state.embedded_server_state;
+    let EmbeddedServerState { selected_data_provider, .. } = &mut state.embedded_server_state;
 
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown
@@ -330,7 +330,7 @@ pub fn seat_handle_callback(
             server_seat.add_pointer(move |_new_status| {});
             *opt_ptr = Some(pointer.detach());
         }
-        let _ = set_server_device_selection(env_handle, &seat, server_seat, selected_data_provider_seat);
+        let _ = set_server_device_selection(env_handle, &seat, server_seat, &selected_data_provider.seat);
     } else {
         //cleanup
         if let Some(kbd) = opt_kbd.take() {
@@ -348,20 +348,19 @@ pub(crate) fn set_server_device_selection(
     env_handle: &Environment<Env>, 
     seat: &Attached<c_wl_seat::WlSeat>, 
     server_seat: &seat::Seat, 
-    selected_data_provider_seat: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>
-) -> Result<()>{
+    selected_data_provider: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>
+) -> Result<()> {
     env_handle.with_data_device(&seat, |data_device| {
+        dbg!(data_device);
         data_device.with_selection(|offer| {
             dbg!(offer);
             if let Some(offer) = offer {
                 offer.with_mime_types(|types| {
-                    println!("setting server data device selection");
-                    dbg!(&types);
                     set_data_device_selection(server_seat, types.into());
                 })
             }
         })
     })?;
-    selected_data_provider_seat.replace(Some(seat.clone()));
+    selected_data_provider.replace(Some(seat.clone()));
     Ok(())
 }

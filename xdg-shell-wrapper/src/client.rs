@@ -53,7 +53,8 @@ pub fn new_client(
         ]
     )
     .expect("Unable to connect to a Wayland compositor");
-
+    let _ = embedded_server_state.selected_data_provider.env_handle.set(env.clone());
+    dbg!(embedded_server_state.selected_data_provider.env_handle.get().is_some());
     let _attached_display = (*display).clone().attach(queue.token());
 
     let mut renderer = None;
@@ -113,6 +114,7 @@ pub fn new_client(
 
     // first process already existing seats
     let env_handle = env.clone();
+    let event_loop = loop_handle.clone();
     for seat in env.get_all_seats() {
         if let Some((has_kbd, has_ptr, name)) = sctk::seat::with_seat_data(&seat, |seat_data| {
             (
@@ -155,13 +157,19 @@ pub fn new_client(
                     new_seat.client.ptr = Some(pointer.detach());
                     new_seat.server.0.add_pointer(move |_new_status| {});
                 }
-                let _ = set_server_device_selection(&env_handle, &new_seat.client.seat, &new_seat.server.0, &embedded_server_state.selected_data_provider_seat);
             }
             seats.push(new_seat);
         }
     }
-    // then setup a listener for changes
+    // set server device selection when offer should be available
+    event_loop.insert_idle(move |(state, _)| {
+        let seats = &mut state.desktop_client_state.seats;
+        for s in seats {
+            let _ = set_server_device_selection(&env_handle, &s.client.seat, &s.server.0, &state.embedded_server_state.selected_data_provider.seat);
+        }
+    });
 
+    // then setup a listener for changes
     let logger = log.clone();
     env.with_inner(|env_inner| {
         env_inner.listen(move |seat, seat_data, dispatch_data| {

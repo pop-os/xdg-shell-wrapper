@@ -65,7 +65,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf2eec61efe56aa1e813f5126959296933cf0700030e4314786c48779a66ab82"
 dependencies = [
  "log",
- "nix",
+ "nix 0.22.3",
 ]
 
 [[package]]
@@ -175,7 +175,7 @@ dependencies = [
  "bitflags",
  "drm-ffi",
  "drm-fourcc",
- "nix",
+ "nix 0.22.3",
 ]
 
 [[package]]
@@ -185,7 +185,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "198d1b7fdb33b75e9bd08ba6842ddb730760f7eeea25552acc88c5403c4f0652"
 dependencies = [
  "drm-sys",
- "nix",
+ "nix 0.22.3",
 ]
 
 [[package]]
@@ -356,6 +356,19 @@ name = "nix"
 version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
+name = "nix"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
 dependencies = [
  "bitflags",
  "cc",
@@ -635,7 +648,7 @@ checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
 [[package]]
 name = "smithay"
 version = "0.3.0"
-source = "git+https://github.com/smithay/smithay?branch=master#8cb8cd74d7d3e8f6c450691cbb9d0ad287bd5106"
+source = "git+https://github.com/smithay/smithay?branch=master#c058530cef83ef971d2242fadf9f19683d060fd1"
 dependencies = [
  "appendlist",
  "bitflags",
@@ -650,7 +663,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "libloading",
- "nix",
+ "nix 0.22.3",
  "once_cell",
  "rand",
  "scan_fmt",
@@ -668,7 +681,7 @@ dependencies = [
 [[package]]
 name = "smithay-client-toolkit"
 version = "0.15.4"
-source = "git+https://github.com/Smithay/client-toolkit.git#6893ea65090a5a7d27fd917c22fca8f1ed4c75d7"
+source = "git+https://github.com/wash2/client-toolkit.git#b1560f414be2ff90efecd12c306b65016251856a"
 dependencies = [
  "bitflags",
  "calloop",
@@ -676,7 +689,7 @@ dependencies = [
  "lazy_static",
  "log",
  "memmap2",
- "nix",
+ "nix 0.22.3",
  "pkg-config",
  "wayland-client",
  "wayland-cursor",
@@ -793,7 +806,7 @@ dependencies = [
  "bitflags",
  "downcast-rs",
  "libc",
- "nix",
+ "nix 0.22.3",
  "scoped-tls",
  "wayland-commons",
  "wayland-scanner",
@@ -806,7 +819,7 @@ version = "0.29.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94f6e5e340d7c13490eca867898c4cec5af56c27a5ffe5c80c6fc4708e22d33e"
 dependencies = [
- "nix",
+ "nix 0.22.3",
  "once_cell",
  "smallvec",
  "wayland-sys",
@@ -818,7 +831,7 @@ version = "0.29.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c52758f13d5e7861fc83d942d3d99bf270c83269575e52ac29e5b73cb956a6bd"
 dependencies = [
- "nix",
+ "nix 0.22.3",
  "wayland-client",
  "xcursor",
 ]
@@ -867,7 +880,7 @@ dependencies = [
  "downcast-rs",
  "lazy_static",
  "libc",
- "nix",
+ "nix 0.22.3",
  "parking_lot",
  "scoped-tls",
  "wayland-commons",
@@ -934,6 +947,8 @@ dependencies = [
  "anyhow",
  "calloop",
  "libc",
+ "nix 0.23.1",
+ "once_cell",
  "ron",
  "serde",
  "slog",

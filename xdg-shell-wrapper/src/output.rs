@@ -58,8 +58,7 @@ pub fn handle_output(
         output.release();
     } else {
         // Create the Output for the server with given name and physical properties
-        let (s_output, s_output_global) = s_Output::new(
-            server_display,    // the display
+        let s_output = s_Output::new(
             info.name.clone(), // the name of this output,
             PhysicalProperties {
                 size: info.physical_size.into(), // dimensions (width, height) in mm
@@ -93,6 +92,7 @@ pub fn handle_output(
                 s_output.add_mode(s_mode);
             }
         }
+        let s_output_global = s_output.create_global(server_display);
         s_outputs.push((s_output, s_output_global, info.id, output));
     }
     if renderer_handle.is_none() {

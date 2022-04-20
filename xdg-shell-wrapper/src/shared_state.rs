@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use once_cell::sync::OnceCell;
 
 use sctk::{
     environment::Environment,
@@ -78,15 +79,18 @@ pub struct GlobalState {
     pub(crate) start_time: std::time::Instant,
     pub(crate) cached_buffers: CachedBuffers,
 }
+pub struct SelectedDataProvider {
+    pub(crate) seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>>,
+    pub(crate) env_handle: Rc<OnceCell<Environment<Env>>>,
+}
 
-#[derive(Debug)]
 pub struct EmbeddedServerState {
     pub(crate) client: wayland_server::Client,
     pub(crate) shell_state: Arc<Mutex<ShellState>>,
     pub(crate) root_window: Option<Rc<RefCell<Window>>>,
     pub(crate) focused_surface: Option<WlSurface>,
     pub(crate) popup_manager: Rc<RefCell<PopupManager>>,
-    pub(crate) selected_data_provider_seat: RefCell<Option<Attached<c_wl_seat::WlSeat>>>
+    pub(crate) selected_data_provider: SelectedDataProvider,
 }
 
 pub struct DesktopClientState {

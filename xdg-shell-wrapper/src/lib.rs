@@ -5,12 +5,12 @@ use config::XdgWrapperConfig;
 use render::CachedBuffers;
 use shared_state::*;
 use slog::Logger;
-use smithay::reexports::{nix::fcntl, wayland_server::Display};
+use smithay::{reexports::{nix::fcntl, wayland_server::Display}, wayland::data_device::set_data_device_selection};
 use std::{
     os::unix::io::AsRawFd,
     process::Command,
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, rc::Rc, cell::Cell,
 };
 
 mod client;
@@ -63,6 +63,10 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
     let mut last_dirty = Instant::now();
     let mut last_cleanup = Instant::now();
     let five_min = Duration::from_secs(300);
+
+    // TODO find better place for this
+    let set_clipboard_once = Rc::new(Cell::new(false));
+
     loop {
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
@@ -101,6 +105,27 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
                 .dispatch(Duration::from_millis(16), shared_data)
                 .unwrap();
             server_display.flush_clients(shared_data);
+        }
+
+        // TODO find better place for this
+        // the idea is to forward clipbard as soon as possible just once
+        // this method is not ideal...
+        if !set_clipboard_once.get() {
+            let desktop_client_state = &shared_data.desktop_client_state;
+            for s in &desktop_client_state.seats {
+
+                let server_seat = &s.server.0;
+                let _ = desktop_client_state.env_handle.with_data_device(&s.client.seat, |data_device| {
+                    data_device.with_selection(|offer| {
+                        if let Some(offer) = offer {
+                            offer.with_mime_types(|types| {
+                                set_data_device_selection(server_seat, types.into());
+                                set_clipboard_once.replace(true);
+                            })
+                        }
+                    })
+                });
+            }
         }
 
         if let Ok(Some(_)) = child.try_wait() {

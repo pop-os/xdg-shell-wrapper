@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
+use once_cell::sync::OnceCell;
 use smithay::wayland::compositor::SurfaceAttributes;
 use smithay::wayland::compositor::{get_role, with_states};
 use smithay::wayland::data_device::DataDeviceEvent;
@@ -8,7 +9,6 @@ use std::{
     os::unix::{io::AsRawFd, net::UnixStream},
     rc::Rc,
 };
-
 use anyhow::Result;
 use sctk::reexports::{calloop::{self, generic::Generic, Interest, Mode},         client::{protocol::wl_seat as c_wl_seat, Attached},
 };
@@ -56,23 +56,40 @@ pub fn new_server(
 
     let display_event_source = Generic::new(display.get_poll_fd(), Interest::READ, Mode::Edge);
     loop_handle.insert_source(display_event_source, move |_e, _metadata, _shared_data| {
-        // let display = &mut shared_data.embedded_server_state.display;
         Ok(calloop::PostAction::Continue)
     })?;
 
-    let selected_seat: RefCell<Option<Attached<c_wl_seat::WlSeat>>> = RefCell::new(None);
-    let selected_data_provider_seat = selected_seat.clone();
+    let selected_seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>> = Rc::new(RefCell::new(None));
+    let env: Rc<OnceCell<sctk::environment::Environment<crate::client::Env>>> = Rc::new(OnceCell::new());
+    let selected_data_provider = selected_seat.clone();
+    let env_handle = env.clone();
     trace!(log.clone(), "init embedded server data device");
     init_data_device(
         &mut display,
         move |event| { 
             /* a callback to react to client DnD/selection actions */
             dbg!(&event);
+            
             match event {
                 DataDeviceEvent::SendSelection { mime_type, fd } => {
-                    dbg!(mime_type);
-                    dbg!(fd);
-                    dbg!(&selected_data_provider_seat);
+                    if let (Some(seat), Some(env_handle)) = (selected_data_provider.borrow().as_ref(), env_handle.get()) {
+                        let res = env_handle.with_data_device(&seat, |data_device| {
+                            data_device.with_selection(|offer| {
+                                if let Some(offer) = offer {
+                                    dbg!(offer);
+                                    offer.with_mime_types(|types| {
+                                        if types.contains(&mime_type) {
+                                            let _ = unsafe { offer.receive_to_fd(mime_type, fd) };
+                                        }
+                                    })
+                                }
+                            })
+                        });
+
+                        if let Err(err) = res {
+                            dbg!(err);
+                        }
+                    }
                 }
                 _ => {},
             };
@@ -319,7 +336,7 @@ pub fn new_server(
             popup_manager,
             root_window: Default::default(),
             focused_surface: Default::default(),
-            selected_data_provider_seat: selected_seat,
+            selected_data_provider: SelectedDataProvider {seat: selected_seat, env_handle: env },
         },
         display,
         (display_sock, client_sock),
