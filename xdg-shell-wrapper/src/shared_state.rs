@@ -4,8 +4,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use sctk::data_device::DataDeviceHandler;
-use sctk::seat::SeatHandler;
 use sctk::{
     environment::Environment,
     output::OutputStatusListener,
@@ -16,12 +14,12 @@ use sctk::{
                 wl_keyboard as c_wl_keyboard, wl_output as c_wl_output, wl_pointer as c_wl_pointer, wl_shm as c_wl_shm,
                 wl_surface as c_wl_surface, wl_seat as c_wl_seat
             },
-            Attached, GlobalManager,
+            Attached,
         },
         protocols::xdg_shell::client::xdg_wm_base::XdgWmBase,
     },
-    seat::SeatListener,
 };
+
 use slog::Logger;
 use smithay::{
     desktop::{PopupManager, Window},
@@ -65,43 +63,43 @@ pub type OutputGroup = (
 
 #[derive(Debug, Default)]
 pub struct AxisFrameData {
-    pub frame: Option<seat::AxisFrame>,
-    pub source: Option<AxisSource>,
-    pub h_discrete: Option<i32>,
-    pub v_discrete: Option<i32>,
+    pub(crate) frame: Option<seat::AxisFrame>,
+    pub(crate) source: Option<AxisSource>,
+    pub(crate) h_discrete: Option<i32>,
+    pub(crate) v_discrete: Option<i32>,
 }
 
 pub struct GlobalState {
-    pub desktop_client_state: DesktopClientState,
-    pub embedded_server_state: EmbeddedServerState,
-    pub loop_signal: calloop::LoopSignal,
-    pub outputs: Vec<OutputGroup>,
-    pub log: Logger,
-    pub start_time: std::time::Instant,
-    pub cached_buffers: CachedBuffers,
+    pub(crate) desktop_client_state: DesktopClientState,
+    pub(crate) embedded_server_state: EmbeddedServerState,
+    pub(crate) loop_signal: calloop::LoopSignal,
+    pub(crate) outputs: Vec<OutputGroup>,
+    pub(crate) log: Logger,
+    pub(crate) start_time: std::time::Instant,
+    pub(crate) cached_buffers: CachedBuffers,
 }
 
 #[derive(Debug)]
 pub struct EmbeddedServerState {
-    pub client: wayland_server::Client,
-    pub shell_state: Arc<Mutex<ShellState>>,
-    pub root_window: Option<Rc<RefCell<Window>>>,
-    pub focused_surface: Option<WlSurface>,
-    pub popup_manager: Rc<RefCell<PopupManager>>,
+    pub(crate) client: wayland_server::Client,
+    pub(crate) shell_state: Arc<Mutex<ShellState>>,
+    pub(crate) root_window: Option<Rc<RefCell<Window>>>,
+    pub(crate) focused_surface: Option<WlSurface>,
+    pub(crate) popup_manager: Rc<RefCell<PopupManager>>,
     pub(crate) selected_data_provider_seat: RefCell<Option<Attached<c_wl_seat::WlSeat>>>
 }
 
 pub struct DesktopClientState {
-    pub display: client::Display,
-    pub seats: Vec<Seat>,
-    pub output_listener: OutputStatusListener,
-    pub renderer: Option<WrapperRenderer>,
-    pub cursor_surface: c_wl_surface::WlSurface,
-    pub axis_frame: AxisFrameData,
-    pub kbd_focus: bool,
-    pub shm: Attached<c_wl_shm::WlShm>,
-    pub xdg_wm_base: Attached<XdgWmBase>,
-    pub env_handle: Environment<Env>,
-    pub last_input_serial: Option<u32>,
-    pub focused_surface: Option<c_wl_surface::WlSurface>,
+    pub(crate) display: client::Display,
+    pub(crate) seats: Vec<Seat>,
+    pub(crate) output_listener: OutputStatusListener,
+    pub(crate) renderer: Option<WrapperRenderer>,
+    pub(crate) cursor_surface: c_wl_surface::WlSurface,
+    pub(crate) axis_frame: AxisFrameData,
+    pub(crate) kbd_focus: bool,
+    pub(crate) shm: Attached<c_wl_shm::WlShm>,
+    pub(crate) xdg_wm_base: Attached<XdgWmBase>,
+    pub(crate) env_handle: Environment<Env>,
+    pub(crate) last_input_serial: Option<u32>,
+    pub(crate) focused_surface: Option<c_wl_surface::WlSurface>,
 }

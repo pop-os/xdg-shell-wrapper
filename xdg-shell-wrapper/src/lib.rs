@@ -32,6 +32,7 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
         config.clone(),
         log.clone(),
         &mut display,
+        &embedded_server_state
     )?;
 
     let global_state = GlobalState {

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use sctk::{reexports::{
-    client::protocol::{wl_pointer as c_wl_pointer, wl_seat::WlSeat},
+use std::cell::RefCell;
+use anyhow::Result;
+use sctk::{
+    reexports::{
+    client::protocol::{wl_pointer as c_wl_pointer, wl_seat as c_wl_seat},
     client::Attached,
     client::{self, protocol::wl_keyboard},
-}, data_device};
-use sctk::seat::SeatData;
+}, environment::Environment,
+seat::SeatData
+};
 use slog::{trace, error, Logger};
 use smithay::{
     backend::input::KeyState,
@@ -19,7 +23,7 @@ use smithay::{
 };
 
 use super::{DesktopClientState};
-use crate::{ClientSeat, GlobalState, Seat, render::ServerSurface, shared_state::EmbeddedServerState};
+use crate::{ClientSeat, GlobalState, Seat, render::ServerSurface, shared_state::EmbeddedServerState, client::Env};
 
 pub fn send_keyboard_event(
     event: wl_keyboard::Event,
@@ -80,22 +84,8 @@ pub fn send_keyboard_event(
                 kbd.change_repeat_info(rate, delay);
             }
             wl_keyboard::Event::Enter { .. } => {
-                let res = env_handle.with_data_device(&seat.client.seat, |data_device| {
-                    data_device.with_selection(|offer| {
-                        if let Some(offer) = offer {
-                            offer.with_mime_types(|types| {
-                                println!("setting server data device selection");
-                                // set_data_device_selection(&seat.server.0, types.into());
-                            })
-                        }
-                    })
-                });
-                selected_data_provider_seat.replace(Some(seat.client.seat.clone()));
+                let _ = set_server_device_selection(env_handle, &seat.client.seat, &seat.server.0, selected_data_provider_seat);
 
-                if let Err(err) = res {
-                    dbg!(err);
-                }
-                set_data_device_focus(&seat.server.0, Some(client.clone()));
                 *kbd_focus = true;
                 kbd.set_focus(focused_surface.as_ref(), SERIAL_COUNTER.next_serial());
             }
@@ -271,7 +261,7 @@ pub fn send_pointer_event(
 
 pub fn seat_handle_callback(
     log: Logger,
-    seat: Attached<WlSeat>,
+    seat: Attached<c_wl_seat::WlSeat>,
     seat_data: &SeatData,
     mut dispatch_data: DispatchData,
 ) {
@@ -340,21 +330,7 @@ pub fn seat_handle_callback(
             server_seat.add_pointer(move |_new_status| {});
             *opt_ptr = Some(pointer.detach());
         }
-        let res = env_handle.with_data_device(&seat, |data_device| {
-            data_device.with_selection(|offer| {
-                if let Some(offer) = offer {
-                    offer.with_mime_types(|types| {
-                        println!("setting server data device selection");
-                        // set_data_device_selection(server_seat, types.into());
-                    })
-                }
-            })
-        });
-        selected_data_provider_seat.replace(Some(seat.clone()));
-    
-        if let Err(err) = res {
-            dbg!(err);
-        }
+        let _ = set_server_device_selection(env_handle, &seat, server_seat, selected_data_provider_seat);
     } else {
         //cleanup
         if let Some(kbd) = opt_kbd.take() {
@@ -366,4 +342,26 @@ pub fn seat_handle_callback(
             server_seat.remove_pointer();
         }
     }
+}
+
+pub(crate) fn set_server_device_selection(
+    env_handle: &Environment<Env>, 
+    seat: &Attached<c_wl_seat::WlSeat>, 
+    server_seat: &seat::Seat, 
+    selected_data_provider_seat: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>
+) -> Result<()>{
+    env_handle.with_data_device(&seat, |data_device| {
+        data_device.with_selection(|offer| {
+            dbg!(offer);
+            if let Some(offer) = offer {
+                offer.with_mime_types(|types| {
+                    println!("setting server data device selection");
+                    dbg!(&types);
+                    set_data_device_selection(server_seat, types.into());
+                })
+            }
+        })
+    })?;
+    selected_data_provider_seat.replace(Some(seat.clone()));
+    Ok(())
 }

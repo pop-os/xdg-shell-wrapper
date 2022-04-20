@@ -1,12 +1,12 @@
 use anyhow::Result;
 use sctk::{
     default_environment,
-    environment::{SimpleGlobal, GlobalHandler},
+    environment::{SimpleGlobal},
     output::with_output_info,
     reexports::{
         calloop,
-        client::{protocol::wl_shm, GlobalManager, Attached},
-    }, seat::{SeatHandler, SeatHandling}, data_device::{DataDeviceHandler, DataDevice},
+        client::protocol::wl_shm,
+    }, seat::SeatHandling
 };
 use slog::{trace, Logger};
 use smithay::{
@@ -21,7 +21,7 @@ use smithay::{
 };
 
 // SPDX-License-Identifier: MPL-2.0-only
-use crate::{shared_state::*, output::handle_output, seat::{send_keyboard_event, send_pointer_event, seat_handle_callback}};
+use crate::{shared_state::*, output::handle_output, seat::{send_keyboard_event, send_pointer_event, seat_handle_callback, set_server_device_selection}};
 use crate::XdgWrapperConfig;
 
 default_environment!(Env,
@@ -40,6 +40,7 @@ pub fn new_client(
     config: XdgWrapperConfig,
     log: Logger,
     server_display: &mut wayland_server::Display,
+    embedded_server_state: &EmbeddedServerState,
 ) -> Result<(DesktopClientState, Vec<OutputGroup>)> {
     /*
      * Initial setup
@@ -53,8 +54,7 @@ pub fn new_client(
     )
     .expect("Unable to connect to a Wayland compositor");
 
-    let attached_display = (*display).clone().attach(queue.token());
-    let globals = GlobalManager::new(&attached_display);
+    let _attached_display = (*display).clone().attach(queue.token());
 
     let mut renderer = None;
 
@@ -112,6 +112,7 @@ pub fn new_client(
     let mut seats = Vec::<Seat>::new();
 
     // first process already existing seats
+    let env_handle = env.clone();
     for seat in env.get_all_seats() {
         if let Some((has_kbd, has_ptr, name)) = sctk::seat::with_seat_data(&seat, |seat_data| {
             (
@@ -154,6 +155,7 @@ pub fn new_client(
                     new_seat.client.ptr = Some(pointer.detach());
                     new_seat.server.0.add_pointer(move |_new_status| {});
                 }
+                let _ = set_server_device_selection(&env_handle, &new_seat.client.seat, &new_seat.server.0, &embedded_server_state.selected_data_provider_seat);
             }
             seats.push(new_seat);
         }

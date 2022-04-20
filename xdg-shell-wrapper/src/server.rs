@@ -67,6 +67,7 @@ pub fn new_server(
         &mut display,
         move |event| { 
             /* a callback to react to client DnD/selection actions */
+            dbg!(&event);
             match event {
                 DataDeviceEvent::SendSelection { mime_type, fd } => {
                     dbg!(mime_type);
