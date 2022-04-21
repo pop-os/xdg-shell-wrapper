@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::cell::{Cell, RefCell};
+use std::process::Child;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -93,7 +94,7 @@ impl WrapperRenderer {
         }
     }
 
-    pub fn handle_events(&mut self, time: u32) -> Instant {
+    pub fn handle_events(&mut self, time: u32, child: &mut Child) -> Instant {
         let mut surfaces = self
             .surfaces
             .drain(..)
@@ -102,7 +103,7 @@ impl WrapperRenderer {
                 if remove {
                     if s.is_root {
                         trace!(self.log, "root window removed, exiting...");
-                        std::process::exit(0);
+                        let _ = child.kill();
                     }
                     return None;
                 }

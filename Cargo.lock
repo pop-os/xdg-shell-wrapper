@@ -648,7 +648,7 @@ checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
 [[package]]
 name = "smithay"
 version = "0.3.0"
-source = "git+https://github.com/smithay/smithay?branch=master#c058530cef83ef971d2242fadf9f19683d060fd1"
+source = "git+https://github.com/smithay/smithay?branch=fix/clear_blending#9fb52334d1c41665462ef40c43bd338b3e1e81be"
 dependencies = [
  "appendlist",
  "bitflags",
@@ -681,7 +681,7 @@ dependencies = [
 [[package]]
 name = "smithay-client-toolkit"
 version = "0.15.4"
-source = "git+https://github.com/wash2/client-toolkit.git#b1560f414be2ff90efecd12c306b65016251856a"
+source = "git+https://github.com/wash2/client-toolkit.git#0d6df73087dee636fe7735d60f3d5b6e103cb69e"
 dependencies = [
  "bitflags",
  "calloop",

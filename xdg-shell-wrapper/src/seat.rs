@@ -351,9 +351,7 @@ pub(crate) fn set_server_device_selection(
     selected_data_provider: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>
 ) -> Result<()> {
     env_handle.with_data_device(&seat, |data_device| {
-        dbg!(data_device);
         data_device.with_selection(|offer| {
-            dbg!(offer);
             if let Some(offer) = offer {
                 offer.with_mime_types(|types| {
                     set_data_device_selection(server_seat, types.into());

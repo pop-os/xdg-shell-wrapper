@@ -54,7 +54,6 @@ pub fn new_client(
     )
     .expect("Unable to connect to a Wayland compositor");
     let _ = embedded_server_state.selected_data_provider.env_handle.set(env.clone());
-    dbg!(embedded_server_state.selected_data_provider.env_handle.get().is_some());
     let _attached_display = (*display).clone().attach(queue.token());
 
     let mut renderer = None;

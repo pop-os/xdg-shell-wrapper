@@ -8,6 +8,7 @@ use sctk::reexports::{
         client::{Attached, Main},
     };
 use slog::Logger;
+use smithay::desktop::utils::damage_from_surface_tree;
 use smithay::{
     backend::{
         egl::surface::EGLSurface,
@@ -109,6 +110,8 @@ impl TopLevelSurface {
     }
 
     pub fn render(&mut self, time: u32, renderer: &mut Gles2Renderer) {
+        let clear_color = [0.0, 0.0, 0.0, 0.0];
+
         // render top level surface
         if self.next_render_event.get() == Some(RenderEvent::WaitConfigure) {
             return;
@@ -128,9 +131,14 @@ impl TopLevelSurface {
 
             let width = self.dimensions.0 as i32;
             let height = self.dimensions.1 as i32;
-
             let loc = self.s_top_level.borrow().bbox().loc;
-
+            let l_damage = damage_from_surface_tree(server_surface, (0,0), None);
+            let (mut p_damage, p_damage_f64) = 
+                (
+                    l_damage.iter().map(|d| d.to_physical(1)).collect::<Vec<_>>(),
+                    l_damage.iter().map(|d| d.to_physical(1).to_f64()).collect::<Vec<_>>(),
+                );
+            
             let _ = renderer.unbind();
             renderer
                 .bind(egl_surface.clone())
@@ -140,19 +148,11 @@ impl TopLevelSurface {
                     (width, height).into(),
                     smithay::utils::Transform::Flipped180,
                     |self_: &mut Gles2Renderer, frame| {
-                        let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                            loc: loc.clone().into(),
-                            size: (width, height).into(),
-                        };
 
                         frame
                             .clear(
-                                [1.0, 1.0, 1.0, 1.0],
-                                &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
-                                    loc: (loc.x as f64, loc.y as f64).into(),
-                                    size: (width as f64, height as f64).into(),
-                                }
-                                .to_physical(1.0)],
+                                clear_color,
+                                &p_damage_f64[..],
                             )
                             .expect("Failed to clear frame.");
 
@@ -163,7 +163,7 @@ impl TopLevelSurface {
                             server_surface,
                             1.0,
                             loc.into(),
-                            &[damage],
+                            &l_damage,
                             &logger,
                         )
                         .expect("Failed to draw surface tree");
@@ -171,13 +171,8 @@ impl TopLevelSurface {
                 )
                 .expect("Failed to render to layer shell surface.");
 
-            let mut damage = [smithay::utils::Rectangle {
-                loc: (0,0).into(),
-                size: (width, height).into(),
-            }];
-
             egl_surface
-                .swap_buffers(Some(&mut damage))
+                .swap_buffers(Some(&mut p_damage[..]))
                 .expect("Failed to swap buffers.");
 
             send_frames_surface_tree(server_surface, time);
@@ -212,7 +207,7 @@ impl TopLevelSurface {
 
                         frame
                             .clear(
-                                [1.0, 1.0, 1.0, 1.0],
+                                clear_color,
                                 &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
                                     loc: (loc.x as f64, loc.y as f64).clone().into(),
                                     size: (width as f64, height as f64).into(),

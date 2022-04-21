@@ -64,19 +64,17 @@ pub fn new_server(
     let selected_data_provider = selected_seat.clone();
     let env_handle = env.clone();
     trace!(log.clone(), "init embedded server data device");
+    let logger = log.clone();
     init_data_device(
         &mut display,
         move |event| { 
-            /* a callback to react to client DnD/selection actions */
-            dbg!(&event);
-            
+            /* a callback to react to client DnD/selection actions */            
             match event {
                 DataDeviceEvent::SendSelection { mime_type, fd } => {
                     if let (Some(seat), Some(env_handle)) = (selected_data_provider.borrow().as_ref(), env_handle.get()) {
                         let res = env_handle.with_data_device(&seat, |data_device| {
                             data_device.with_selection(|offer| {
                                 if let Some(offer) = offer {
-                                    dbg!(offer);
                                     offer.with_mime_types(|types| {
                                         if types.contains(&mime_type) {
                                             let _ = unsafe { offer.receive_to_fd(mime_type, fd) };
@@ -87,7 +85,7 @@ pub fn new_server(
                         });
 
                         if let Err(err) = res {
-                            dbg!(err);
+                            error!(logger, "{:?}", err);
                         }
                     }
                 }

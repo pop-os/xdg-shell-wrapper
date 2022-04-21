@@ -95,7 +95,7 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
             if let Some(renderer) = renderer {
                 renderer.apply_display(&server_display);
                 last_dirty =
-                    renderer.handle_events(shared_data.start_time.elapsed().as_millis() as u32);
+                    renderer.handle_events(shared_data.start_time.elapsed().as_millis() as u32, &mut child);
             }
         }
 
