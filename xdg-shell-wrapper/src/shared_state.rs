@@ -22,7 +22,6 @@ use sctk::{
 };
 
 use slog::Logger;
-use smithay::wayland::Serial;
 use smithay::{
     desktop::{PopupManager, Window},
     reexports::{

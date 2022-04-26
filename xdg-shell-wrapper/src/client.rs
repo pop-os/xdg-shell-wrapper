@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::{io::{Read, self}, cell::RefCell, rc::Rc, fs::File, os::unix::prelude::FromRawFd};
+use std::{cell::RefCell, rc::Rc};
 use anyhow::Result;
 use sctk::{
     default_environment,
@@ -22,10 +22,10 @@ use smithay::{
             self, protocol::{wl_data_device_manager::DndAction, wl_pointer::ButtonState}
         },
     },
-    wayland::{seat, data_device::{start_dnd, SourceMetadata}, SERIAL_COUNTER}, desktop::utils::bbox_from_surface_tree,
+    wayland::{seat, data_device::{start_dnd, SourceMetadata}, SERIAL_COUNTER},
 };
 
-use crate::{shared_state::*, output::handle_output, seat::{send_keyboard_event, send_pointer_event, seat_handle_callback, set_server_device_selection, handle_motion}, render::ServerSurface};
+use crate::{shared_state::*, output::handle_output, seat::{send_keyboard_event, send_pointer_event, seat_handle_callback, set_server_device_selection, handle_motion}};
 use crate::XdgWrapperConfig;
 
 default_environment!(Env,
@@ -110,7 +110,6 @@ pub fn new_client(
     });
 
 
-    // TODO better method of forwarding DnD data?
     // TODO logging
     // dnd listener
     let dnd_surface = Rc::new(RefCell::new(None));
@@ -138,9 +137,8 @@ pub fn new_client(
                     };
                     // dbg!(offer);
                     let mime_types = offer.with_mime_types(|mime_types| Vec::from(mime_types));
-                    let mut read_pipes: Vec<_> = mime_types.iter().map(|mime_type| {
-                        (mime_type.clone(), offer.receive(mime_type.clone()).unwrap())
-                    }).collect();
+
+                    offer.accept(mime_types.iter().next().map(|s| s.clone()));
                     let seat_clone = seat.client.seat.clone();
                     let env_clone = env_handle.clone();
                     start_dnd(&seat.server.0, SERIAL_COUNTER.next_serial(), seat::PointerGrabStartData { focus: focused_surface.as_ref().map(|s| (s.clone(), (0,0).into())), button: *last_button, location: (x, y).into() }, SourceMetadata {
@@ -159,58 +157,49 @@ pub fn new_client(
                                 });
                             },
                             smithay::wayland::data_device::ServerDndEvent::Dropped => {},
-                            smithay::wayland::data_device::ServerDndEvent::Cancelled => {},
+                            smithay::wayland::data_device::ServerDndEvent::Cancelled => {
+                                let _ = env_clone.with_data_device(&seat_clone, |device| {
+                                    device.with_dnd(|offer| {
+                                        if let Some(offer) = offer {
+                                            offer.finish();
+                                        }
+                                    });
+                                });
+                            },
                             smithay::wayland::data_device::ServerDndEvent::Send { mime_type, fd } => {
                                 if mime_types.contains(&mime_type) {
-                                    if let Some((_, mut read_pipe)) = read_pipes.drain(..).find(move |(mt, _)| &mime_type == mt) {
-                                        std::thread::spawn(move || {
-                                            let _ = io::copy(&mut read_pipe, unsafe { &mut File::from_raw_fd(fd) } );
+                                    let _ = env_clone.with_data_device(&seat_clone, |device| {
+                                        device.with_dnd(|offer| {
+                                            if let Some(offer) = offer {
+                                                unsafe { offer.receive_to_fd(mime_type, fd) };
+                                            }
                                         });
-                                    }
+                                    });
                                 }
                             },
-                            smithay::wayland::data_device::ServerDndEvent::Finished => {},
+                            smithay::wayland::data_device::ServerDndEvent::Finished => {
+                                let _ = env_clone.with_data_device(&seat_clone, |device| {
+                                    device.with_dnd(|offer| {
+                                        if let Some(offer) = offer {
+                                            offer.finish();
+                                        }
+                                    });
+                                });
+                            },
                         }
                     })
                 },
                 sctk::data_device::DndEvent::Motion { offer: _, time, x, y  } => {
-                    if let Some(((x_p, y_p), _, _)) = last_motion.take() {
-                        last_motion.replace(Some(((x, y), (x - x_p, y - y_p), time, )));
-                    } else {
-                        last_motion.replace(Some(((x, y), (0.0, 0.0), time, )));
-                    }
+                    last_motion.replace(Some(((x, y), time, )));
+
                     handle_motion(renderer, dnd_surface.borrow().clone().unwrap(), x, y, seat.server.0.get_pointer().unwrap(), time);
                 },
-                sctk::data_device::DndEvent::Leave => {
-                    // Hacky but I'm not sure how else to determine somewhat reliably what is actually leaving the surface and what is dropping
-                    if let Some(((x, y), (dx, dy), time)) = last_motion.take() {
-
-                        let focused_surface = match dnd_surface.borrow().clone() {
-                            Some(Some(s)) => s,
-                            _ => return,
-                        };
-                        let size = match renderer
-                        .as_ref()
-                        .map(|r| r.find_server_surface(&focused_surface)) {
-                            Some(Some(ServerSurface::TopLevel(toplevel))) => {
-                                toplevel.borrow().geometry().size
-                            }
-                            Some(Some(ServerSurface::Popup(_toplevel, popup))) => {
-                                bbox_from_surface_tree(popup.get_surface().unwrap(), (0,0)).size
-                            }
-                            _ => return,
-                        };
-
-                        // if space between last location and edge is bigger than last delta, then it was most likely dropped
-                        // needs more testing
-                        if !(x < dx || size.w as f64 - x < dx || y < dy || size.h as f64 - y < dy) {
-                            seat.server.0.get_pointer().unwrap().button(*last_button, ButtonState::Released, SERIAL_COUNTER.next_serial(), time + 1);
-                        } else {
-                            // println!("Left");
-                        }
+                sctk::data_device::DndEvent::Leave => {},
+                sctk::data_device::DndEvent::Drop { .. } => {
+                    if let Some(((_, _), time)) = last_motion.take() {
+                        seat.server.0.get_pointer().unwrap().button(*last_button, ButtonState::Released, SERIAL_COUNTER.next_serial(), time + 1);
                     }
                 },
-                sctk::data_device::DndEvent::Drop { offer } => {},
             }
         }
     });

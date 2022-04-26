@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use once_cell::sync::OnceCell;
-use sctk::data_device::DataDevice;
 use smithay::wayland::compositor::SurfaceAttributes;
 use smithay::wayland::compositor::{get_role, with_states};
 use smithay::wayland::data_device::DataDeviceEvent;
