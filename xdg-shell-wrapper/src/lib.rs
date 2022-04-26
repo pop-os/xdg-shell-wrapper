@@ -5,22 +5,27 @@ use config::XdgWrapperConfig;
 use render::CachedBuffers;
 use shared_state::*;
 use slog::Logger;
-use smithay::{reexports::{nix::fcntl, wayland_server::Display}, wayland::data_device::set_data_device_selection};
+use smithay::{
+    reexports::{nix::fcntl, wayland_server::Display},
+    wayland::data_device::set_data_device_selection,
+};
 use std::{
+    cell::Cell,
     os::unix::io::AsRawFd,
     process::Command,
+    rc::Rc,
     thread,
-    time::{Duration, Instant}, rc::Rc, cell::Cell,
+    time::{Duration, Instant},
 };
 
 mod client;
 pub mod config;
-mod server;
-mod render;
-mod util;
 mod output;
+mod render;
 mod seat;
+mod server;
 mod shared_state;
+mod util;
 
 pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConfig) -> Result<()> {
     let mut event_loop = calloop::EventLoop::<(GlobalState, Display)>::try_new().unwrap();
@@ -32,7 +37,7 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
         config.clone(),
         log.clone(),
         &mut display,
-        &embedded_server_state
+        &embedded_server_state,
     )?;
 
     let global_state = GlobalState {
@@ -94,8 +99,10 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
             let renderer = &mut shared_data.desktop_client_state.renderer.as_mut();
             if let Some(renderer) = renderer {
                 renderer.apply_display(&server_display);
-                last_dirty =
-                    renderer.handle_events(shared_data.start_time.elapsed().as_millis() as u32, &mut child);
+                last_dirty = renderer.handle_events(
+                    shared_data.start_time.elapsed().as_millis() as u32,
+                    &mut child,
+                );
             }
         }
 
@@ -113,18 +120,20 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
         if !set_clipboard_once.get() {
             let desktop_client_state = &shared_data.desktop_client_state;
             for s in &desktop_client_state.seats {
-
                 let server_seat = &s.server.0;
-                let _ = desktop_client_state.env_handle.with_data_device(&s.client.seat, |data_device| {
-                    data_device.with_selection(|offer| {
-                        if let Some(offer) = offer {
-                            offer.with_mime_types(|types| {
-                                set_data_device_selection(server_seat, types.into());
-                                set_clipboard_once.replace(true);
-                            })
-                        }
-                    })
-                });
+                let _ = desktop_client_state.env_handle.with_data_device(
+                    &s.client.seat,
+                    |data_device| {
+                        data_device.with_selection(|offer| {
+                            if let Some(offer) = offer {
+                                offer.with_mime_types(|types| {
+                                    set_data_device_selection(server_seat, types.into());
+                                    set_clipboard_once.replace(true);
+                                })
+                            }
+                        })
+                    },
+                );
             }
         }
 

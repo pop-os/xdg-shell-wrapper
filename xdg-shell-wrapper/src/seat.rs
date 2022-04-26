@@ -1,29 +1,37 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::cell::RefCell;
 use anyhow::Result;
 use sctk::{
+    environment::Environment,
     reexports::{
-    client::protocol::{wl_pointer as c_wl_pointer, wl_seat as c_wl_seat, wl_surface::WlSurface},
-    client::Attached,
-    client::{self, protocol::wl_keyboard},
-}, environment::Environment,
-seat::SeatData
+        client::protocol::{
+            wl_pointer as c_wl_pointer, wl_seat as c_wl_seat, wl_surface::WlSurface,
+        },
+        client::Attached,
+        client::{self, protocol::wl_keyboard},
+    },
+    seat::SeatData,
 };
-use slog::{trace, error, Logger};
+use slog::{error, trace, Logger};
 use smithay::{
     backend::input::KeyState,
-    desktop::{PopupKind, WindowSurfaceType,
-    utils::bbox_from_surface_tree,},
+    desktop::{utils::bbox_from_surface_tree, PopupKind, WindowSurfaceType},
     reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display},
     wayland::{
+        data_device::{set_data_device_focus, set_data_device_selection},
         seat::{self, AxisFrame, FilterResult, PointerHandle},
-        SERIAL_COUNTER, data_device::{set_data_device_focus, set_data_device_selection},
+        SERIAL_COUNTER,
     },
 };
+use std::cell::RefCell;
 
-use super::{DesktopClientState};
-use crate::{ClientSeat, GlobalState, Seat, render::{ServerSurface, WrapperRenderer}, shared_state::EmbeddedServerState, client::Env};
+use super::DesktopClientState;
+use crate::{
+    client::Env,
+    render::{ServerSurface, WrapperRenderer},
+    shared_state::EmbeddedServerState,
+    ClientSeat, GlobalState, Seat,
+};
 
 pub fn send_keyboard_event(
     event: wl_keyboard::Event,
@@ -46,14 +54,14 @@ pub fn send_keyboard_event(
         ..
     } = &mut state.embedded_server_state;
 
-    if let Some(seat) = seats
-        .iter()
-        .find(|Seat { name, .. }| name == &seat_name)
-    {
+    if let Some(seat) = seats.iter().find(|Seat { name, .. }| name == &seat_name) {
         let kbd = match seat.server.0.get_keyboard() {
             Some(kbd) => kbd,
             None => {
-                error!(state.log, "Received keyboard event on {} without keyboard.", &seat_name);
+                error!(
+                    state.log,
+                    "Received keyboard event on {} without keyboard.", &seat_name
+                );
                 return;
             }
         };
@@ -84,7 +92,12 @@ pub fn send_keyboard_event(
                 kbd.change_repeat_info(rate, delay);
             }
             wl_keyboard::Event::Enter { .. } => {
-                let _ = set_server_device_selection(env_handle, &seat.client.seat, &seat.server.0, &selected_data_provider.seat);
+                let _ = set_server_device_selection(
+                    env_handle,
+                    &seat.client.seat,
+                    &seat.server.0,
+                    &selected_data_provider.seat,
+                );
                 set_data_device_focus(&seat.server.0, Some(client.clone()));
                 *kbd_focus = true;
                 kbd.set_focus(focused_surface.as_ref(), SERIAL_COUNTER.next_serial());
@@ -128,7 +141,14 @@ pub fn send_pointer_event(
                 surface_x,
                 surface_y,
             } => {
-                handle_motion(renderer, focused_surface.clone(), surface_x, surface_y, ptr, time);
+                handle_motion(
+                    renderer,
+                    focused_surface.clone(),
+                    surface_x,
+                    surface_y,
+                    ptr,
+                    time,
+                );
             }
             c_wl_pointer::Event::Button {
                 time,
@@ -224,11 +244,12 @@ pub fn seat_handle_callback(
 ) {
     let (state, server_display) = dispatch_data.get::<(GlobalState, Display)>().unwrap();
     let DesktopClientState {
-        seats,
-        env_handle,
-        ..
+        seats, env_handle, ..
     } = &mut state.desktop_client_state;
-    let EmbeddedServerState { selected_data_provider, .. } = &mut state.embedded_server_state;
+    let EmbeddedServerState {
+        selected_data_provider,
+        ..
+    } = &mut state.embedded_server_state;
 
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown
@@ -245,7 +266,7 @@ pub fn seat_handle_callback(
             client: ClientSeat {
                 kbd: None,
                 ptr: None,
-                seat: seat.clone()
+                seat: seat.clone(),
             },
         });
         seats.len()
@@ -287,7 +308,12 @@ pub fn seat_handle_callback(
             server_seat.add_pointer(move |_new_status| {});
             *opt_ptr = Some(pointer.detach());
         }
-        let _ = set_server_device_selection(env_handle, &seat, server_seat, &selected_data_provider.seat);
+        let _ = set_server_device_selection(
+            env_handle,
+            &seat,
+            server_seat,
+            &selected_data_provider.seat,
+        );
     } else {
         //cleanup
         if let Some(kbd) = opt_kbd.take() {
@@ -302,10 +328,10 @@ pub fn seat_handle_callback(
 }
 
 pub(crate) fn set_server_device_selection(
-    env_handle: &Environment<Env>, 
-    seat: &Attached<c_wl_seat::WlSeat>, 
-    server_seat: &seat::Seat, 
-    selected_data_provider: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>
+    env_handle: &Environment<Env>,
+    seat: &Attached<c_wl_seat::WlSeat>,
+    server_seat: &seat::Seat,
+    selected_data_provider: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>,
 ) -> Result<()> {
     env_handle.with_data_device(&seat, |data_device| {
         data_device.with_selection(|offer| {
@@ -320,51 +346,56 @@ pub(crate) fn set_server_device_selection(
     Ok(())
 }
 
-pub(crate) fn handle_motion(renderer: &mut Option<WrapperRenderer>, focused_surface: Option<WlSurface>, surface_x: f64, surface_y: f64, ptr: PointerHandle, time: u32) {
+pub(crate) fn handle_motion(
+    renderer: &mut Option<WrapperRenderer>,
+    focused_surface: Option<WlSurface>,
+    surface_x: f64,
+    surface_y: f64,
+    ptr: PointerHandle,
+    time: u32,
+) {
     let focused_surface = match focused_surface {
         Some(s) => s,
         _ => return,
     };
     match renderer
-    .as_ref()
-    .map(|r| r.find_server_surface(&focused_surface))
-{
-    Some(Some(ServerSurface::TopLevel(toplevel))) => {
-        let toplevel = &*toplevel.borrow();
-        if let Some((cur_surface, location)) =
-            toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
-        {
-            let adjusted_loc = toplevel.bbox().loc;
-            let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface)
+        .as_ref()
+        .map(|r| r.find_server_surface(&focused_surface))
+    {
+        Some(Some(ServerSurface::TopLevel(toplevel))) => {
+            let toplevel = &*toplevel.borrow();
+            if let Some((cur_surface, location)) =
+                toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
             {
-                adjusted_loc
-            } else {
-                adjusted_loc - location
+                let adjusted_loc = toplevel.bbox().loc;
+                let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface) {
+                    adjusted_loc
+                } else {
+                    adjusted_loc - location
+                };
+
+                ptr.motion(
+                    (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
+                    Some((cur_surface, (0, 0).into())),
+                    SERIAL_COUNTER.next_serial(),
+                    time,
+                );
+            }
+        }
+        Some(Some(ServerSurface::Popup(_toplevel, popup))) => {
+            let popup_surface = match popup.get_surface() {
+                Some(s) => s,
+                _ => return,
             };
-            
+            let bbox = bbox_from_surface_tree(popup_surface, (0, 0));
+            let offset = bbox.loc + PopupKind::Xdg(popup.clone()).geometry().loc;
             ptr.motion(
                 (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
-                Some((cur_surface, (0, 0).into())),
+                Some((popup_surface.clone(), (0, 0).into())),
                 SERIAL_COUNTER.next_serial(),
                 time,
             );
         }
-    }
-    Some(Some(ServerSurface::Popup(_toplevel, popup))) => {
-        let popup_surface = match popup.get_surface() {
-            Some(s) => s,
-            _ => return,
-        };
-        let bbox = bbox_from_surface_tree(popup_surface, (0,0));
-        let offset =
-            bbox.loc + PopupKind::Xdg(popup.clone()).geometry().loc;
-        ptr.motion(
-            (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
-            Some((popup_surface.clone(), (0, 0).into())),
-            SERIAL_COUNTER.next_serial(),
-            time,
-        );
-    }
-    _ => return,
-};
+        _ => return,
+    };
 }

@@ -3,17 +3,13 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use sctk::reexports::{    
-        client::protocol::wl_surface as c_wl_surface,
-        client::Main,
-    };
+use sctk::reexports::{client::protocol::wl_surface as c_wl_surface, client::Main};
 use smithay::{
     backend::egl::surface::EGLSurface,
     reexports::wayland_protocols::xdg_shell::client::{
-                xdg_popup::XdgPopup,
-                xdg_surface::XdgSurface,
-            },
-    utils::{Rectangle, Logical},
+        xdg_popup::XdgPopup, xdg_surface::XdgSurface,
+    },
+    utils::{Logical, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
 

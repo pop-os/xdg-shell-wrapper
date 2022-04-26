@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
+use anyhow::Result;
 use once_cell::sync::OnceCell;
+use sctk::reexports::{
+    calloop::{self, generic::Generic, Interest, Mode},
+    client::{protocol::wl_seat as c_wl_seat, Attached},
+};
+use slog::{error, trace, Logger};
 use smithay::wayland::compositor::SurfaceAttributes;
 use smithay::wayland::compositor::{get_role, with_states};
 use smithay::wayland::data_device::DataDeviceEvent;
-use std::{
-    cell::{RefCell, RefMut},
-    os::unix::{io::AsRawFd, net::UnixStream},
-    rc::Rc,
-};
-use anyhow::Result;
-use sctk::reexports::{calloop::{self, generic::Generic, Interest, Mode},         client::{protocol::wl_seat as c_wl_seat, Attached},
-};
-use slog::{error, trace, Logger};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
     desktop::{utils, Kind, PopupKind, PopupManager, Window},
@@ -28,6 +25,11 @@ use smithay::{
         shm::init_shm_global,
         SERIAL_COUNTER,
     },
+};
+use std::{
+    cell::{RefCell, RefMut},
+    os::unix::{io::AsRawFd, net::UnixStream},
+    rc::Rc,
 };
 
 use crate::config::XdgWrapperConfig;
@@ -59,19 +61,23 @@ pub fn new_server(
         Ok(calloop::PostAction::Continue)
     })?;
 
-    let selected_seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>> = Rc::new(RefCell::new(None));
-    let env: Rc<OnceCell<sctk::environment::Environment<crate::client::Env>>> = Rc::new(OnceCell::new());
+    let selected_seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>> =
+        Rc::new(RefCell::new(None));
+    let env: Rc<OnceCell<sctk::environment::Environment<crate::client::Env>>> =
+        Rc::new(OnceCell::new());
     let selected_data_provider = selected_seat.clone();
     let env_handle = env.clone();
     trace!(log.clone(), "init embedded server data device");
     let logger = log.clone();
     init_data_device(
         &mut display,
-        move |event| { 
-            /* a callback to react to client DnD/selection actions */            
+        move |event| {
+            /* a callback to react to client DnD/selection actions */
             match event {
                 DataDeviceEvent::SendSelection { mime_type, fd } => {
-                    if let (Some(seat), Some(env_handle)) = (selected_data_provider.borrow().as_ref(), env_handle.get()) {
+                    if let (Some(seat), Some(env_handle)) =
+                        (selected_data_provider.borrow().as_ref(), env_handle.get())
+                    {
                         let res = env_handle.with_data_device(&seat, |data_device| {
                             data_device.with_selection(|offer| {
                                 if let Some(offer) = offer {
@@ -93,14 +99,14 @@ pub fn new_server(
                     // dbg!(source);
                     // dbg!(icon);
                     // dbg!(seat);
-                },
+                }
 
                 DataDeviceEvent::DnDDropped { seat } => {
                     // dbg!(seat);
-                },
+                }
                 DataDeviceEvent::NewSelection(_) => todo!(),
             };
-         },
+        },
         default_action_chooser,
         log.clone(),
     );
@@ -181,7 +187,11 @@ pub fn new_server(
                     _ => return,
                 };
                 if let (Some(renderer), Some(top_level_surface)) = (renderer, top_level_surface) {
-                    renderer.dirty_popup(&top_level_surface, popup_surface, utils::bbox_from_surface_tree(&surface, (0,0)));
+                    renderer.dirty_popup(
+                        &top_level_surface,
+                        popup_surface,
+                        utils::bbox_from_surface_tree(&surface, (0, 0)),
+                    );
                 }
             } else {
                 trace!(log, "{:?}", surface);
@@ -343,7 +353,10 @@ pub fn new_server(
             popup_manager,
             root_window: Default::default(),
             focused_surface: Default::default(),
-            selected_data_provider: SelectedDataProvider {seat: selected_seat, env_handle: env },
+            selected_data_provider: SelectedDataProvider {
+                seat: selected_seat,
+                env_handle: env,
+            },
             last_button: None,
         },
         display,

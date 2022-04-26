@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
+use once_cell::sync::OnceCell;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use once_cell::sync::OnceCell;
 
 use sctk::{
     environment::Environment,
@@ -12,8 +12,8 @@ use sctk::{
         client::{
             self,
             protocol::{
-                wl_keyboard as c_wl_keyboard, wl_output as c_wl_output, wl_pointer as c_wl_pointer, wl_shm as c_wl_shm,
-                wl_surface as c_wl_surface, wl_seat as c_wl_seat
+                wl_keyboard as c_wl_keyboard, wl_output as c_wl_output, wl_pointer as c_wl_pointer,
+                wl_seat as c_wl_seat, wl_shm as c_wl_shm, wl_surface as c_wl_surface,
             },
             Attached,
         },
@@ -28,10 +28,7 @@ use smithay::{
         calloop,
         wayland_server::{
             self,
-            protocol::{
-                wl_output, wl_pointer::AxisSource, wl_seat::WlSeat,
-                wl_surface::WlSurface,
-            },
+            protocol::{wl_output, wl_pointer::AxisSource, wl_seat::WlSeat, wl_surface::WlSurface},
             Global,
         },
     },

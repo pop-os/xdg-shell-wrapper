@@ -8,10 +8,7 @@ use std::time::Instant;
 use libc::c_int;
 use sctk::{
     reexports::{
-        client::protocol::{
-            wl_output as c_wl_output,
-            wl_surface as c_wl_surface,
-        },
+        client::protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
         client::{self, Attached, Main},
     },
     shm::AutoMemPool,
@@ -28,11 +25,9 @@ use smithay::{
             },
             surface::EGLSurface,
         },
-        renderer::{
-            gles2::Gles2Renderer, ImportEgl,
-        },
+        renderer::{gles2::Gles2Renderer, ImportEgl},
     },
-    desktop::{ Kind, PopupKind, PopupManager, Window},
+    desktop::{Kind, PopupKind, PopupManager, Window},
     reexports::{
         wayland_protocols::{
             wlr::unstable::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1},
@@ -43,14 +38,14 @@ use smithay::{
         },
         wayland_server::{protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display},
     },
-    utils::{Rectangle, Logical},
+    utils::{Logical, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
 
 use crate::config::XdgWrapperConfig;
 use crate::render::RenderEvent;
 
-use super::{TopLevelSurface, ClientEglSurface, PopupRenderEvent, Popup, ServerSurface};
+use super::{ClientEglSurface, Popup, PopupRenderEvent, ServerSurface, TopLevelSurface};
 
 #[derive(Debug)]
 pub struct WrapperRenderer {
@@ -189,7 +184,9 @@ impl WrapperRenderer {
                 Gles2Renderer::new(egl_context, self.log.clone())
                     .expect("Failed to initialize EGL Surface")
             };
-            trace!(self.log, "{:?}", unsafe { SwapInterval(egl_display.get_display_handle().handle, 0) });
+            trace!(self.log, "{:?}", unsafe {
+                SwapInterval(egl_display.get_display_handle().handle, 0)
+            });
             self.egl_display = Some(egl_display);
             self.renderer = Some(renderer);
         }
@@ -308,7 +305,7 @@ impl WrapperRenderer {
                         popup_state.geometry.loc = (x, y).into();
                         popup_state.geometry.size = (width, height).into();
                     });
-                    
+
                     let _ = s_popup_surface.send_configure();
                     let _ = popup_manager.borrow_mut().track_popup(kind.clone());
                     next_render_event_handle.set(Some(PopupRenderEvent::Configure {
@@ -351,7 +348,7 @@ impl WrapperRenderer {
             egl_surface,
             dirty: false,
             next_render_event,
-            bbox: Rectangle::from_loc_and_size((0,0), (0,0)),
+            bbox: Rectangle::from_loc_and_size((0, 0), (0, 0)),
         });
     }
 

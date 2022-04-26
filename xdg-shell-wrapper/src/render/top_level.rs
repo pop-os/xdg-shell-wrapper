@@ -4,23 +4,19 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use sctk::reexports::{
-        client::protocol::wl_surface as c_wl_surface,
-        client::{Attached, Main},
-    };
+    client::protocol::wl_surface as c_wl_surface,
+    client::{Attached, Main},
+};
 use slog::Logger;
 use smithay::desktop::utils::damage_from_surface_tree;
 use smithay::utils::Rectangle;
 use smithay::{
     backend::{
         egl::surface::EGLSurface,
-        renderer::{
-            gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, Renderer,
-            Unbind,
-        },
+        renderer::{gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, Renderer, Unbind},
     },
     desktop::{utils::send_frames_surface_tree, Kind},
     reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_surface_v1,
-
 };
 
 use super::{Popup, PopupRenderEvent};
@@ -62,8 +58,7 @@ impl TopLevelSurface {
             let should_keep = {
                 if !p.s_surface.alive() {
                     false
-                }
-                else {
+                } else {
                     match p.next_render_event.take() {
                         Some(PopupRenderEvent::Closed) => false,
                         Some(PopupRenderEvent::Configure { width, height, .. }) => {
@@ -133,16 +128,21 @@ impl TopLevelSurface {
             let width = self.dimensions.0 as i32;
             let height = self.dimensions.1 as i32;
             let loc = self.s_top_level.borrow().bbox().loc;
-            let mut l_damage = damage_from_surface_tree(server_surface, (0,0), None);
+            let mut l_damage = damage_from_surface_tree(server_surface, (0, 0), None);
             if l_damage.len() == 0 {
                 l_damage = vec![Rectangle::from_loc_and_size(loc, (width, height))]
             }
-            let (mut p_damage, p_damage_f64) = 
-                (
-                    l_damage.iter().map(|d| d.to_physical(1)).collect::<Vec<_>>(),
-                    l_damage.iter().map(|d| d.to_physical(1).to_f64()).collect::<Vec<_>>(),
-                );
-            
+            let (mut p_damage, p_damage_f64) = (
+                l_damage
+                    .iter()
+                    .map(|d| d.to_physical(1))
+                    .collect::<Vec<_>>(),
+                l_damage
+                    .iter()
+                    .map(|d| d.to_physical(1).to_f64())
+                    .collect::<Vec<_>>(),
+            );
+
             let _ = renderer.unbind();
             renderer
                 .bind(egl_surface.clone())
@@ -152,12 +152,8 @@ impl TopLevelSurface {
                     (width, height).into(),
                     smithay::utils::Transform::Flipped180,
                     |self_: &mut Gles2Renderer, frame| {
-
                         frame
-                            .clear(
-                                clear_color,
-                                &p_damage_f64[..],
-                            )
+                            .clear(clear_color, &p_damage_f64[..])
                             .expect("Failed to clear frame.");
 
                         let loc = (-loc.x, -loc.y);
@@ -191,7 +187,7 @@ impl TopLevelSurface {
                 Some(s) => s,
                 _ => return,
             };
-            
+
             let (width, height) = p.bbox.size.into();
             let loc = p.bbox.loc;
             let logger = self.log.clone();
@@ -247,7 +243,6 @@ impl TopLevelSurface {
         }
     }
 }
-
 
 impl Drop for TopLevelSurface {
     fn drop(&mut self) {

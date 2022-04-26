@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use crate::{client::Env, OutputGroup, XdgWrapperConfig, render::WrapperRenderer};
+use crate::{client::Env, render::WrapperRenderer, OutputGroup, XdgWrapperConfig};
 use sctk::{
     environment::Environment,
     output::{Mode as c_Mode, OutputInfo},
@@ -47,7 +47,7 @@ pub fn handle_output(
         let mut i = 0;
         while i < s_outputs.len() {
             let id = s_outputs[i].2;
-            if ! info.id == id {
+            if !info.id == id {
                 let removed = s_outputs.remove(i);
                 removed.1.destroy();
             } else {

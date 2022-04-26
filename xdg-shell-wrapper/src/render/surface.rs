@@ -9,11 +9,11 @@ use libc::{c_int, c_void};
 use sctk::reexports::client;
 use smithay::{
     backend::egl::{
-            display::EGLDisplayHandle,
-            ffi,
-            native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
-            wrap_egl_call, EGLError,
-        },
+        display::EGLDisplayHandle,
+        ffi,
+        native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
+        wrap_egl_call, EGLError,
+    },
     egl_platform,
     wayland::shell::xdg::PopupSurface,
 };
@@ -67,12 +67,6 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
         true
     }
 }
-
-
-
-
-
-
 
 pub enum ServerSurface {
     TopLevel(Rc<RefCell<smithay::desktop::Window>>),
