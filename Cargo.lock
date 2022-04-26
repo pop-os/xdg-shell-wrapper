@@ -4,9 +4,9 @@ version = 3
 
 [[package]]
 name = "anyhow"
-version = "1.0.56"
+version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4361135be9122e0870de935d7c439aef945b9f9ddd4199a553b5270b49c82a27"
+checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
 
 [[package]]
 name = "appendlist"
@@ -366,12 +366,11 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.23.1"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
+checksum = "8f6d99b651ff9697d6710f9613a07c5b4e0d655040faf56b3b471af108d55597"
 dependencies = [
  "bitflags",
- "cc",
  "cfg-if",
  "libc",
  "memoffset",
@@ -681,7 +680,7 @@ dependencies = [
 [[package]]
 name = "smithay-client-toolkit"
 version = "0.15.4"
-source = "git+https://github.com/wash2/client-toolkit.git#0d6df73087dee636fe7735d60f3d5b6e103cb69e"
+source = "git+https://github.com/wash2/client-toolkit.git?branch=with_dnd#ee9ce4f930abd8c753eccf79d4fb79c10df31c1a"
 dependencies = [
  "bitflags",
  "calloop",
@@ -947,7 +946,7 @@ dependencies = [
  "anyhow",
  "calloop",
  "libc",
- "nix 0.23.1",
+ "nix 0.24.0",
  "once_cell",
  "ron",
  "serde",

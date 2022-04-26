@@ -1,0 +1,47 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'xdg-shell-wrapper'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=xdg-shell-wrapper",
+                    "--package=xdg-shell-wrapper"
+                ],
+                "filter": {
+                    "name": "xdg-shell-wrapper",
+                    "kind": "bin"
+                }
+            },
+            "args": ["nautilus"],
+            "cwd": "${workspaceFolder}",
+            "initCommands": ["settings set target.process.follow-fork-mode child"]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'xdg-shell-wrapper'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=xdg-shell-wrapper",
+                    "--package=xdg-shell-wrapper"
+                ],
+                "filter": {
+                    "name": "xdg-shell-wrapper",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "initCommands": ["settings set target.process.follow-fork-mode child"]
+        }
+    ]
+}

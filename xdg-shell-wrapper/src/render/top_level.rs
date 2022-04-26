@@ -9,6 +9,7 @@ use sctk::reexports::{
     };
 use slog::Logger;
 use smithay::desktop::utils::damage_from_surface_tree;
+use smithay::utils::Rectangle;
 use smithay::{
     backend::{
         egl::surface::EGLSurface,
@@ -132,7 +133,10 @@ impl TopLevelSurface {
             let width = self.dimensions.0 as i32;
             let height = self.dimensions.1 as i32;
             let loc = self.s_top_level.borrow().bbox().loc;
-            let l_damage = damage_from_surface_tree(server_surface, (0,0), None);
+            let mut l_damage = damage_from_surface_tree(server_surface, (0,0), None);
+            if l_damage.len() == 0 {
+                l_damage = vec![Rectangle::from_loc_and_size(loc, (width, height))]
+            }
             let (mut p_damage, p_damage_f64) = 
                 (
                     l_damage.iter().map(|d| d.to_physical(1)).collect::<Vec<_>>(),

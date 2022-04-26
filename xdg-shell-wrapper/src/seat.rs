@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use anyhow::Result;
 use sctk::{
     reexports::{
-    client::protocol::{wl_pointer as c_wl_pointer, wl_seat as c_wl_seat},
+    client::protocol::{wl_pointer as c_wl_pointer, wl_seat as c_wl_seat, wl_surface::WlSurface},
     client::Attached,
     client::{self, protocol::wl_keyboard},
 }, environment::Environment,
@@ -17,13 +17,13 @@ use smithay::{
     utils::bbox_from_surface_tree,},
     reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display},
     wayland::{
-        seat::{self, AxisFrame, FilterResult},
+        seat::{self, AxisFrame, FilterResult, PointerHandle},
         SERIAL_COUNTER, data_device::{set_data_device_focus, set_data_device_selection},
     },
 };
 
 use super::{DesktopClientState};
-use crate::{ClientSeat, GlobalState, Seat, render::ServerSurface, shared_state::EmbeddedServerState, client::Env};
+use crate::{ClientSeat, GlobalState, Seat, render::{ServerSurface, WrapperRenderer}, shared_state::EmbeddedServerState, client::Env};
 
 pub fn send_keyboard_event(
     event: wl_keyboard::Event,
@@ -114,6 +114,7 @@ pub fn send_pointer_event(
         renderer,
         ..
     } = &mut state.desktop_client_state;
+    let EmbeddedServerState { last_button, .. } = &mut state.embedded_server_state;
 
     if let Some(Some(ptr)) = seats
         .iter()
@@ -127,52 +128,7 @@ pub fn send_pointer_event(
                 surface_x,
                 surface_y,
             } => {
-                let focused_surface = match focused_surface {
-                    Some(s) => s,
-                    _ => return,
-                };
-                match renderer
-                    .as_ref()
-                    .map(|r| r.find_server_surface(focused_surface))
-                {
-                    Some(Some(ServerSurface::TopLevel(toplevel))) => {
-                        let toplevel = &*toplevel.borrow();
-                        if let Some((cur_surface, location)) =
-                            toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
-                        {
-                            let adjusted_loc = toplevel.bbox().loc;
-                            let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface)
-                            {
-                                adjusted_loc
-                            } else {
-                                adjusted_loc - location
-                            };
-                            
-                            ptr.motion(
-                                (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
-                                Some((cur_surface, (0, 0).into())),
-                                SERIAL_COUNTER.next_serial(),
-                                time,
-                            );
-                        }
-                    }
-                    Some(Some(ServerSurface::Popup(_toplevel, popup))) => {
-                        let popup_surface = match popup.get_surface() {
-                            Some(s) => s,
-                            _ => return,
-                        };
-                        let bbox = bbox_from_surface_tree(popup_surface, (0,0));
-                        let offset =
-                            bbox.loc + PopupKind::Xdg(popup.clone()).geometry().loc;
-                        ptr.motion(
-                            (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
-                            Some((popup_surface.clone(), (0, 0).into())),
-                            SERIAL_COUNTER.next_serial(),
-                            time,
-                        );
-                    }
-                    _ => return,
-                };
+                handle_motion(renderer, focused_surface.clone(), surface_x, surface_y, ptr, time);
             }
             c_wl_pointer::Event::Button {
                 time,
@@ -185,6 +141,7 @@ pub fn send_pointer_event(
                 if let Some(button_state) = wl_pointer::ButtonState::from_raw(state.to_raw()) {
                     ptr.button(button, button_state, SERIAL_COUNTER.next_serial(), time);
                 }
+                last_button.replace(button);
             }
             c_wl_pointer::Event::Axis { time, axis, value } => {
                 let mut af = axis_frame.frame.take().unwrap_or(AxisFrame::new(time));
@@ -361,4 +318,53 @@ pub(crate) fn set_server_device_selection(
     })?;
     selected_data_provider.replace(Some(seat.clone()));
     Ok(())
+}
+
+pub(crate) fn handle_motion(renderer: &mut Option<WrapperRenderer>, focused_surface: Option<WlSurface>, surface_x: f64, surface_y: f64, ptr: PointerHandle, time: u32) {
+    let focused_surface = match focused_surface {
+        Some(s) => s,
+        _ => return,
+    };
+    match renderer
+    .as_ref()
+    .map(|r| r.find_server_surface(&focused_surface))
+{
+    Some(Some(ServerSurface::TopLevel(toplevel))) => {
+        let toplevel = &*toplevel.borrow();
+        if let Some((cur_surface, location)) =
+            toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
+        {
+            let adjusted_loc = toplevel.bbox().loc;
+            let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface)
+            {
+                adjusted_loc
+            } else {
+                adjusted_loc - location
+            };
+            
+            ptr.motion(
+                (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
+                Some((cur_surface, (0, 0).into())),
+                SERIAL_COUNTER.next_serial(),
+                time,
+            );
+        }
+    }
+    Some(Some(ServerSurface::Popup(_toplevel, popup))) => {
+        let popup_surface = match popup.get_surface() {
+            Some(s) => s,
+            _ => return,
+        };
+        let bbox = bbox_from_surface_tree(popup_surface, (0,0));
+        let offset =
+            bbox.loc + PopupKind::Xdg(popup.clone()).geometry().loc;
+        ptr.motion(
+            (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
+            Some((popup_surface.clone(), (0, 0).into())),
+            SERIAL_COUNTER.next_serial(),
+            time,
+        );
+    }
+    _ => return,
+};
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use once_cell::sync::OnceCell;
+use sctk::data_device::DataDevice;
 use smithay::wayland::compositor::SurfaceAttributes;
 use smithay::wayland::compositor::{get_role, with_states};
 use smithay::wayland::data_device::DataDeviceEvent;
@@ -89,7 +90,16 @@ pub fn new_server(
                         }
                     }
                 }
-                _ => {},
+                DataDeviceEvent::DnDStarted { source, icon, seat } => {
+                    // dbg!(source);
+                    // dbg!(icon);
+                    // dbg!(seat);
+                },
+
+                DataDeviceEvent::DnDDropped { seat } => {
+                    // dbg!(seat);
+                },
+                DataDeviceEvent::NewSelection(_) => todo!(),
             };
          },
         default_action_chooser,
@@ -335,6 +345,7 @@ pub fn new_server(
             root_window: Default::default(),
             focused_surface: Default::default(),
             selected_data_provider: SelectedDataProvider {seat: selected_seat, env_handle: env },
+            last_button: None,
         },
         display,
         (display_sock, client_sock),
