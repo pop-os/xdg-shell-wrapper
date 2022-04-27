@@ -134,7 +134,7 @@ impl WrapperRenderer {
     ) {
         let layer_surface = self.layer_shell.get_layer_surface(
             &c_surface.clone(),
-            Some(&self.output),
+            None,
             self.config.layer.into(),
             "example".to_owned(),
         );
