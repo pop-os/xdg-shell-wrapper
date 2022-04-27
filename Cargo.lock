@@ -366,9 +366,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f6d99b651ff9697d6710f9613a07c5b4e0d655040faf56b3b471af108d55597"
+checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -647,7 +647,7 @@ checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
 [[package]]
 name = "smithay"
 version = "0.3.0"
-source = "git+https://github.com/smithay/smithay?branch=fix/clear_blending#9fb52334d1c41665462ef40c43bd338b3e1e81be"
+source = "git+https://github.com/smithay/smithay#7860fb30f819eabc75bfbbf0903745a1c0965714"
 dependencies = [
  "appendlist",
  "bitflags",
@@ -680,7 +680,7 @@ dependencies = [
 [[package]]
 name = "smithay-client-toolkit"
 version = "0.15.4"
-source = "git+https://github.com/wash2/client-toolkit.git?branch=with_dnd#ee9ce4f930abd8c753eccf79d4fb79c10df31c1a"
+source = "git+https://github.com/smithay/client-toolkit.git#e9eeb05e997d80259d085a94acd88d91704050b6"
 dependencies = [
  "bitflags",
  "calloop",
@@ -946,7 +946,7 @@ dependencies = [
  "anyhow",
  "calloop",
  "libc",
- "nix 0.24.0",
+ "nix 0.24.1",
  "once_cell",
  "ron",
  "serde",
