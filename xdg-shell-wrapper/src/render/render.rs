@@ -358,6 +358,7 @@ impl WrapperRenderer {
     }
 
     // TODO cleanup
+    // What to do about egl display and renderer here?
     fn get_layer_shell(
         &mut self,
         c_surface: Attached<c_wl_surface::WlSurface>,
