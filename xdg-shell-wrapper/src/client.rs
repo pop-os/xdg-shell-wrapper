@@ -27,7 +27,6 @@ use smithay::{
 };
 use std::{cell::RefCell, rc::Rc};
 
-use crate::XdgWrapperConfig;
 use crate::{
     output::handle_output,
     seat::{
@@ -36,6 +35,7 @@ use crate::{
     },
     shared_state::*,
 };
+use crate::{render::WrapperRenderer, XdgWrapperConfig};
 
 default_environment!(Env,
     fields = [
@@ -72,54 +72,83 @@ pub fn new_client(
         .set(env.clone());
     let _attached_display = (*display).clone().attach(queue.token());
 
+    let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
     let mut renderer = None;
-
     let mut s_outputs = Vec::new();
-    for output in env.get_all_outputs() {
-        if let Some(info) = with_output_info(&output, Clone::clone) {
-            let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
-            let env_handle = env.clone();
-            let logger = log.clone();
-            let display_ = display.clone();
-            let config = config.clone();
-            handle_output(
-                config,
-                &layer_shell,
-                env_handle,
-                &mut renderer,
-                logger,
-                display_,
-                output,
-                &info,
-                server_display,
-                &mut s_outputs,
-            );
+    if let Some(preferred_output) = config.output.as_ref() {
+        // swap preffered output to front of list if it is available
+        let mut outputs = env.get_all_outputs();
+        if let Some(preferred_output_index) = outputs.iter().position(|o| {
+            if let Some(info) = with_output_info(&o, Clone::clone) {
+                &info.name == preferred_output
+            } else {
+                false
+            }
+        }) {
+            outputs.swap(preferred_output_index, 0);
         }
+
+        for output in outputs {
+            if let Some(info) = with_output_info(&output, Clone::clone) {
+                let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
+                let env_handle = env.clone();
+                let logger = log.clone();
+                let display_ = display.clone();
+                let config = config.clone();
+                handle_output(
+                    config,
+                    &layer_shell,
+                    env_handle,
+                    &mut renderer,
+                    logger,
+                    display_,
+                    output,
+                    &info,
+                    server_display,
+                    &mut s_outputs,
+                );
+            }
+        }
+    } else {
+        renderer = Some(WrapperRenderer::new(
+            None,
+            env.create_auto_pool()
+                .expect("Failed to create a memory pool!"),
+            config.clone(),
+            display.clone(),
+            layer_shell.clone(),
+            log.clone(),
+        ));
     }
 
-    let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
     let env_handle = env.clone();
     let logger = log.clone();
     let display_ = display.clone();
-    let output_listener = env.listen_for_outputs(move |output, info, mut dispatch_data| {
-        let (state, server_display) = dispatch_data
-            .get::<(GlobalState, wayland_server::Display)>()
-            .unwrap();
-        let outputs = &mut state.outputs;
-        let renderer = &mut state.desktop_client_state.renderer;
-        handle_output(
-            config.clone(),
-            &layer_shell,
-            env_handle.clone(),
-            renderer,
-            logger.clone(),
-            display_.clone(),
-            output,
-            &info,
-            server_display,
-            outputs,
-        );
-    });
+    let output_listener = if config.output.is_some() {
+        Some(
+            env.listen_for_outputs(move |output, info, mut dispatch_data| {
+                let (state, server_display) = dispatch_data
+                    .get::<(GlobalState, wayland_server::Display)>()
+                    .unwrap();
+                let outputs = &mut state.outputs;
+                let renderer = &mut state.desktop_client_state.renderer;
+                handle_output(
+                    config.clone(),
+                    &layer_shell,
+                    env_handle.clone(),
+                    renderer,
+                    logger.clone(),
+                    display_.clone(),
+                    output,
+                    &info,
+                    server_display,
+                    outputs,
+                );
+            }),
+        )
+    } else {
+        None
+    };
 
     // TODO logging
     // dnd listener

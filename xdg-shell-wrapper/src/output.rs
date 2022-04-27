@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use crate::{client::Env, render::WrapperRenderer, OutputGroup, XdgWrapperConfig};
+use crate::{
+    client::Env,
+    render::{self, WrapperRenderer},
+    OutputGroup, XdgWrapperConfig,
+};
 use sctk::{
     environment::Environment,
-    output::{Mode as c_Mode, OutputInfo},
+    output::{with_output_info, Mode as c_Mode, OutputInfo},
     reexports::{
         client::protocol::wl_output::Subpixel as c_Subpixel,
         client::{self, Attached, Display},
@@ -33,21 +37,21 @@ pub fn handle_output(
     // remove output with id if obsolete
     // add output to list if new output
     // if no output in handle after removing output, replace with first output from list
+    let preferred_output = config.output.as_ref().unwrap();
+
+    let mut needs_new_output = &info.name == preferred_output;
     if info.obsolete {
         // an output has been removed, release it
-        if renderer_handle
+        needs_new_output = renderer_handle
             .as_ref()
-            .filter(|r| r.output_id != info.id)
-            .is_some()
-        {
-            *renderer_handle = None;
-        }
+            .filter(|r| r.output.as_ref().unwrap().1 != info.name)
+            .is_some();
 
         // TODO replace with drain_filter
         let mut i = 0;
         while i < s_outputs.len() {
-            let id = s_outputs[i].2;
-            if !info.id == id {
+            let name = &s_outputs[i].2;
+            if &info.name != name {
                 let removed = s_outputs.remove(i);
                 removed.1.destroy();
             } else {
@@ -93,23 +97,33 @@ pub fn handle_output(
             }
         }
         let s_output_global = s_output.create_global(server_display);
-        s_outputs.push((s_output, s_output_global, info.id, output));
+        s_outputs.push((s_output, s_output_global, info.name.clone(), output));
     }
+    let new_output = if let Some(preferred_output_index) = s_outputs
+        .iter()
+        .position(|(_, _, name, _)| name == preferred_output)
+    {
+        Some((
+            s_outputs[preferred_output_index].3.clone(),
+            preferred_output.clone(),
+        ))
+    } else {
+        None
+    };
     if renderer_handle.is_none() {
-        if let Some((_, _, _, output)) = s_outputs.first() {
-            // construct a surface for an output if possible
-            let pool = env_handle
-                .create_auto_pool()
-                .expect("Failed to create a memory pool!");
-            *renderer_handle = Some(WrapperRenderer::new(
-                output.clone(),
-                info.id,
-                pool,
-                config.clone(),
-                display_.clone(),
-                layer_shell.clone(),
-                logger.clone(),
-            ));
-        }
+        // construct a surface for an output if possible
+        let pool = env_handle
+            .create_auto_pool()
+            .expect("Failed to create a memory pool!");
+        *renderer_handle = Some(WrapperRenderer::new(
+            new_output,
+            pool,
+            config.clone(),
+            display_.clone(),
+            layer_shell.clone(),
+            logger.clone(),
+        ));
+    } else if needs_new_output {
+        renderer_handle.as_mut().unwrap().set_output(new_output);
     }
 }

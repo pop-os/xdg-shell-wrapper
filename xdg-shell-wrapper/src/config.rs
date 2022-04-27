@@ -159,6 +159,7 @@ pub struct XdgWrapperConfig {
     pub keyboard_interactivity: KeyboardInteractivity,
     pub min_dimensions: Option<(u32, u32)>,
     pub max_dimensions: Option<(u32, u32)>,
+    pub output: Option<String>,
     pub exec: String,
 }
 
@@ -170,6 +171,7 @@ impl Default for XdgWrapperConfig {
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
             min_dimensions: None,
             max_dimensions: None,
+            output: None,
             exec: "".into(),
         }
     }

@@ -52,8 +52,7 @@ pub struct WrapperRenderer {
     pub surfaces: Vec<TopLevelSurface>,
     pub pool: AutoMemPool,
     pub layer_shell: Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
-    pub output: c_wl_output::WlOutput,
-    pub output_id: u32,
+    pub output: Option<(c_wl_output::WlOutput, String)>,
     pub c_display: client::Display,
     pub config: XdgWrapperConfig,
     pub log: Logger,
@@ -65,8 +64,7 @@ pub struct WrapperRenderer {
 
 impl WrapperRenderer {
     pub(crate) fn new(
-        output: c_wl_output::WlOutput,
-        output_id: u32,
+        output: Option<(c_wl_output::WlOutput, String)>,
         pool: AutoMemPool,
         config: XdgWrapperConfig,
         c_display: client::Display,
@@ -79,7 +77,6 @@ impl WrapperRenderer {
             surfaces: Default::default(),
             layer_shell,
             output,
-            output_id,
             c_display,
             pool,
             config,
@@ -132,112 +129,10 @@ impl WrapperRenderer {
         s_top_level: Rc<RefCell<Window>>,
         mut dimensions: (u32, u32),
     ) {
-        let layer_surface = self.layer_shell.get_layer_surface(
-            &c_surface.clone(),
-            None,
-            self.config.layer.into(),
-            "example".to_owned(),
-        );
         dimensions = self.constrain_dim(dimensions);
-        layer_surface.set_anchor(self.config.anchor.into());
-        layer_surface.set_keyboard_interactivity(self.config.keyboard_interactivity.into());
-        let (x, y) = dimensions;
-        layer_surface.set_size(x, y);
+        let (layer_surface, next_render_event, egl_surface) =
+            self.get_layer_shell(c_surface.clone(), dimensions);
 
-        // Commit so that the server will send a configure event
-        c_surface.commit();
-
-        let client_egl_surface = ClientEglSurface {
-            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, x as i32, y as i32),
-            display: self.c_display.clone(),
-        };
-
-        if self.renderer.is_none() {
-            self.needs_update = true;
-            let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
-                .expect("Failed to initialize EGL display");
-
-            let egl_context = EGLContext::new_with_config(
-                &egl_display,
-                GlAttributes {
-                    version: (3, 0),
-                    profile: None,
-                    debug: cfg!(debug_assertions),
-                    vsync: false,
-                },
-                Default::default(),
-                self.log.clone(),
-            )
-            .expect("Failed to initialize EGL context");
-
-            let mut min_interval_attr = 23239;
-            unsafe {
-                GetConfigAttrib(
-                    egl_display.get_display_handle().handle,
-                    egl_context.config_id(),
-                    ffi::egl::MIN_SWAP_INTERVAL as c_int,
-                    &mut min_interval_attr,
-                );
-            }
-
-            let renderer = unsafe {
-                Gles2Renderer::new(egl_context, self.log.clone())
-                    .expect("Failed to initialize EGL Surface")
-            };
-            trace!(self.log, "{:?}", unsafe {
-                SwapInterval(egl_display.get_display_handle().handle, 0)
-            });
-            self.egl_display = Some(egl_display);
-            self.renderer = Some(renderer);
-        }
-        let renderer = self.renderer.as_ref().unwrap();
-
-        let egl_surface = Rc::new(
-            EGLSurface::new(
-                self.egl_display.as_ref().unwrap(),
-                renderer
-                    .egl_context()
-                    .pixel_format()
-                    .expect("Failed to get pixel format from EGL context "),
-                renderer.egl_context().config_id(),
-                client_egl_surface,
-                self.log.clone(),
-            )
-            .expect("Failed to initialize EGL Surface"),
-        );
-
-        let next_render_event = Rc::new(Cell::new(Some(RenderEvent::WaitConfigure)));
-
-        //let egl_surface_clone = egl_surface.clone();
-        let next_render_event_handle = next_render_event.clone();
-        let logger = self.log.clone();
-        layer_surface.quick_assign(move |layer_surface, event, _| {
-            match (event, next_render_event_handle.get()) {
-                (zwlr_layer_surface_v1::Event::Closed, _) => {
-                    info!(logger, "Received close event. closing.");
-                    next_render_event_handle.set(Some(RenderEvent::Closed));
-                }
-                (
-                    zwlr_layer_surface_v1::Event::Configure {
-                        serial,
-                        width,
-                        height,
-                    },
-                    next,
-                ) if next != Some(RenderEvent::Closed) => {
-                    trace!(
-                        logger,
-                        "received configure event {:?} {:?} {:?}",
-                        serial,
-                        width,
-                        height
-                    );
-                    layer_surface.ack_configure(serial);
-                    next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
-                }
-                (_, _) => {}
-            }
-        });
         let is_root = self.surfaces.len() == 0;
         let top_level = TopLevelSurface {
             dimensions: (0, 0),
@@ -433,5 +328,151 @@ impl WrapperRenderer {
             h = max_h.min(h);
         }
         (w, h)
+    }
+
+    // TODO cleanup & test thouroughly
+    pub fn set_output(&mut self, output: Option<(c_wl_output::WlOutput, String)>) {
+        self.output = output;
+        let c_surfaces: Vec<_> = self
+            .surfaces
+            .iter()
+            .map(|top_level| (top_level.c_top_level.clone(), top_level.dimensions.clone()))
+            .collect();
+        let layer_surfaces: Vec<_> = c_surfaces
+            .iter()
+            .map(|(c_surface, dimensions)| {
+                self.get_layer_shell(c_surface.clone(), dimensions.clone())
+            })
+            .collect();
+
+        for (top_level, (layer_surface, next_render_event, egl_surface)) in
+            &mut self.surfaces.iter_mut().zip(layer_surfaces)
+        {
+            top_level.layer_surface.destroy();
+
+            top_level.next_render_event = next_render_event;
+            top_level.layer_surface = layer_surface;
+            top_level.egl_surface = egl_surface;
+            top_level.dirty = true;
+        }
+    }
+
+    // TODO cleanup
+    fn get_layer_shell(
+        &mut self,
+        c_surface: Attached<c_wl_surface::WlSurface>,
+        dimensions: (u32, u32),
+    ) -> (
+        Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
+        Rc<Cell<Option<RenderEvent>>>,
+        Rc<EGLSurface>,
+    ) {
+        let layer_surface = self.layer_shell.get_layer_surface(
+            &c_surface.clone(),
+            self.output.as_ref().map(|o| o.0.clone()).as_ref(),
+            self.config.layer.into(),
+            "example".to_owned(),
+        );
+
+        layer_surface.set_anchor(self.config.anchor.into());
+        layer_surface.set_keyboard_interactivity(self.config.keyboard_interactivity.into());
+        let (x, y) = dimensions;
+        layer_surface.set_size(x, y);
+
+        // Commit so that the server will send a configure event
+        c_surface.commit();
+
+        let client_egl_surface = ClientEglSurface {
+            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, x as i32, y as i32),
+            display: self.c_display.clone(),
+        };
+
+        if self.renderer.is_none() {
+            self.needs_update = true;
+            let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
+                .expect("Failed to initialize EGL display");
+
+            let egl_context = EGLContext::new_with_config(
+                &egl_display,
+                GlAttributes {
+                    version: (3, 0),
+                    profile: None,
+                    debug: cfg!(debug_assertions),
+                    vsync: false,
+                },
+                Default::default(),
+                self.log.clone(),
+            )
+            .expect("Failed to initialize EGL context");
+
+            let mut min_interval_attr = 23239;
+            unsafe {
+                GetConfigAttrib(
+                    egl_display.get_display_handle().handle,
+                    egl_context.config_id(),
+                    ffi::egl::MIN_SWAP_INTERVAL as c_int,
+                    &mut min_interval_attr,
+                );
+            }
+
+            let renderer = unsafe {
+                Gles2Renderer::new(egl_context, self.log.clone())
+                    .expect("Failed to initialize EGL Surface")
+            };
+            trace!(self.log, "{:?}", unsafe {
+                SwapInterval(egl_display.get_display_handle().handle, 0)
+            });
+            self.egl_display = Some(egl_display);
+            self.renderer = Some(renderer);
+        }
+        let renderer = self.renderer.as_ref().unwrap();
+
+        let egl_surface = Rc::new(
+            EGLSurface::new(
+                self.egl_display.as_ref().unwrap(),
+                renderer
+                    .egl_context()
+                    .pixel_format()
+                    .expect("Failed to get pixel format from EGL context "),
+                renderer.egl_context().config_id(),
+                client_egl_surface,
+                self.log.clone(),
+            )
+            .expect("Failed to initialize EGL Surface"),
+        );
+
+        let next_render_event = Rc::new(Cell::new(Some(RenderEvent::WaitConfigure)));
+
+        //let egl_surface_clone = egl_surface.clone();
+        let next_render_event_handle = next_render_event.clone();
+        let logger = self.log.clone();
+        layer_surface.quick_assign(move |layer_surface, event, _| {
+            match (event, next_render_event_handle.get()) {
+                (zwlr_layer_surface_v1::Event::Closed, _) => {
+                    info!(logger, "Received close event. closing.");
+                    next_render_event_handle.set(Some(RenderEvent::Closed));
+                }
+                (
+                    zwlr_layer_surface_v1::Event::Configure {
+                        serial,
+                        width,
+                        height,
+                    },
+                    next,
+                ) if next != Some(RenderEvent::Closed) => {
+                    trace!(
+                        logger,
+                        "received configure event {:?} {:?} {:?}",
+                        serial,
+                        width,
+                        height
+                    );
+                    layer_surface.ack_configure(serial);
+                    next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
+                }
+                (_, _) => {}
+            }
+        });
+        (layer_surface, next_render_event, egl_surface)
     }
 }
