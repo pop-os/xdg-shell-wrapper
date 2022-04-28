@@ -94,7 +94,7 @@ pub struct EmbeddedServerState {
 pub struct DesktopClientState {
     pub(crate) display: client::Display,
     pub(crate) seats: Vec<Seat>,
-    pub(crate) output_listener: Option<OutputStatusListener>,
+    pub(crate) _output_listener: Option<OutputStatusListener>,
     pub(crate) renderer: Option<WrapperRenderer>,
     pub(crate) cursor_surface: c_wl_surface::WlSurface,
     pub(crate) axis_frame: AxisFrameData,

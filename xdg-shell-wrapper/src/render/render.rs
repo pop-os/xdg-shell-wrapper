@@ -45,7 +45,9 @@ use smithay::{
 use crate::config::XdgWrapperConfig;
 use crate::render::RenderEvent;
 
-use super::{ClientEglSurface, Popup, PopupRenderEvent, ServerSurface, TopLevelSurface};
+use super::{
+    ActiveState, ClientEglSurface, Popup, PopupRenderEvent, ServerSurface, TopLevelSurface,
+};
 
 #[derive(Debug)]
 pub struct WrapperRenderer {
@@ -129,6 +131,10 @@ impl WrapperRenderer {
         s_top_level: Rc<RefCell<Window>>,
         mut dimensions: (u32, u32),
     ) {
+        for top_level in &mut self.surfaces {
+            top_level.active = ActiveState::InactiveCleared(false);
+            top_level.dirty = true;
+        }
         dimensions = self.constrain_dim(dimensions);
         let (layer_surface, next_render_event, egl_surface) =
             self.get_layer_shell(c_surface.clone(), dimensions);
@@ -145,6 +151,7 @@ impl WrapperRenderer {
             c_top_level: c_surface,
             log: self.log.clone(),
             dirty: true,
+            active: ActiveState::ActiveFullyRendered(false),
         };
         self.surfaces.push(top_level);
     }
@@ -336,7 +343,10 @@ impl WrapperRenderer {
         let c_surfaces: Vec<_> = self
             .surfaces
             .iter()
-            .map(|top_level| (top_level.c_top_level.clone(), top_level.dimensions.clone()))
+            .map(|top_level| {
+                top_level.layer_surface.destroy();
+                (top_level.c_top_level.clone(), top_level.dimensions.clone())
+            })
             .collect();
         let layer_surfaces: Vec<_> = c_surfaces
             .iter()
@@ -348,8 +358,6 @@ impl WrapperRenderer {
         for (top_level, (layer_surface, next_render_event, egl_surface)) in
             &mut self.surfaces.iter_mut().zip(layer_surfaces)
         {
-            top_level.layer_surface.destroy();
-
             top_level.next_render_event = next_render_event;
             top_level.layer_surface = layer_surface;
             top_level.egl_surface = egl_surface;
@@ -475,5 +483,27 @@ impl WrapperRenderer {
             }
         });
         (layer_surface, next_render_event, egl_surface)
+    }
+
+    pub fn cycle_active(&mut self) {
+        let cur_active = self
+            .surfaces
+            .iter()
+            .position(|top_level| match top_level.active {
+                ActiveState::ActiveFullyRendered(_) => true,
+                _ => false,
+            });
+        if let Some(cur_active) = cur_active {
+            let next_active = (cur_active + 1) % self.surfaces.len();
+            for (i, top_level) in &mut self.surfaces.iter_mut().enumerate() {
+                if i == next_active {
+                    top_level.active = ActiveState::ActiveFullyRendered(false)
+                }
+                else {
+                    top_level.active = ActiveState::InactiveCleared(false);
+                }
+                top_level.dirty = true;
+            }
+        }
     }
 }

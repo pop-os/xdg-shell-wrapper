@@ -378,7 +378,7 @@ pub fn new_client(
         DesktopClientState {
             renderer,
             display,
-            output_listener,
+            _output_listener: output_listener,
             seats: seats,
             kbd_focus: false,
             axis_frame: Default::default(),

@@ -28,6 +28,12 @@ pub enum RenderEvent {
     Closed,
 }
 
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum ActiveState {
+    InactiveCleared(bool),
+    ActiveFullyRendered(bool),
+}
+
 #[derive(Debug, Clone)]
 pub struct TopLevelSurface {
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
@@ -40,6 +46,7 @@ pub struct TopLevelSurface {
     pub popups: Vec<Popup>,
     pub is_root: bool,
     pub log: Logger,
+    pub active: ActiveState,
 }
 
 impl TopLevelSurface {
@@ -129,7 +136,10 @@ impl TopLevelSurface {
             let height = self.dimensions.1 as i32;
             let loc = self.s_top_level.borrow().bbox().loc;
             let mut l_damage = damage_from_surface_tree(server_surface, (0, 0), None);
-            if l_damage.len() == 0 {
+            if l_damage.len() == 0
+                || self.active == ActiveState::ActiveFullyRendered(false)
+                || self.active == ActiveState::InactiveCleared(false)
+            {
                 l_damage = vec![Rectangle::from_loc_and_size(loc, (width, height))]
             }
             let (mut p_damage, p_damage_f64) = (
@@ -156,17 +166,19 @@ impl TopLevelSurface {
                             .clear(clear_color, &p_damage_f64[..])
                             .expect("Failed to clear frame.");
 
-                        let loc = (-loc.x, -loc.y);
-                        draw_surface_tree(
-                            self_,
-                            frame,
-                            server_surface,
-                            1.0,
-                            loc.into(),
-                            &l_damage,
-                            &logger,
-                        )
-                        .expect("Failed to draw surface tree");
+                        if let ActiveState::ActiveFullyRendered(_) = self.active {
+                            let loc = (-loc.x, -loc.y);
+                            draw_surface_tree(
+                                self_,
+                                frame,
+                                server_surface,
+                                1.0,
+                                loc.into(),
+                                &l_damage,
+                                &logger,
+                            )
+                            .expect("Failed to draw surface tree");
+                        }
                     },
                 )
                 .expect("Failed to render to layer shell surface.");
@@ -215,17 +227,19 @@ impl TopLevelSurface {
                                 .to_physical(1.0)],
                             )
                             .expect("Failed to clear frame.");
-                        let loc = (-loc.x, -loc.y);
-                        draw_surface_tree(
-                            self_,
-                            frame,
-                            wl_surface,
-                            1.0,
-                            loc.into(),
-                            &[damage],
-                            &logger,
-                        )
-                        .expect("Failed to draw surface tree");
+                        if let ActiveState::ActiveFullyRendered(_) = self.active {
+                            let loc = (-loc.x, -loc.y);
+                            draw_surface_tree(
+                                self_,
+                                frame,
+                                wl_surface,
+                                1.0,
+                                loc.into(),
+                                &[damage],
+                                &logger,
+                            )
+                            .expect("Failed to draw surface tree");
+                        }
                     },
                 )
                 .expect("Failed to render to layer shell surface.");
@@ -240,6 +254,15 @@ impl TopLevelSurface {
                 .expect("Failed to swap buffers.");
 
             send_frames_surface_tree(wl_surface, time);
+        }
+        match self.active {
+            ActiveState::ActiveFullyRendered(b) if !b => {
+                self.active = ActiveState::ActiveFullyRendered(true);
+            }
+            ActiveState::InactiveCleared(b) if !b => {
+                self.active = ActiveState::InactiveCleared(true);
+            }
+            _ => {}
         }
     }
 }

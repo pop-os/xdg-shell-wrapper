@@ -44,6 +44,7 @@ pub fn send_keyboard_event(
         seats,
         kbd_focus,
         last_input_serial,
+        renderer,
         ..
     } = &mut state.desktop_client_state;
 
@@ -78,15 +79,27 @@ pub fn send_keyboard_event(
                     client::protocol::wl_keyboard::KeyState::Released => KeyState::Released,
                     _ => return,
                 };
-                kbd.input::<FilterResult<()>, _>(
+                match kbd.input::<(), _>(
                     key,
                     state,
                     SERIAL_COUNTER.next_serial(),
                     time,
-                    |_, _| {
-                        FilterResult::Forward // TODO intercept some key presses maybe
+                    move |modifiers, keysym| {
+                        // Alt + tab cycles the active top level
+                        if modifiers.alt && keysym.raw_code() == 23 && state == KeyState::Released {
+                            FilterResult::Intercept(())
+                        } else {
+                            FilterResult::Forward // TODO intercept some key presses maybe
+                        }
                     },
-                );
+                ) {
+                    Some(_) => {
+                        if let Some(renderer) = renderer {
+                            renderer.cycle_active();
+                        }
+                    }
+                    None => {}
+                }
             }
             wl_keyboard::Event::RepeatInfo { rate, delay } => {
                 kbd.change_repeat_info(rate, delay);

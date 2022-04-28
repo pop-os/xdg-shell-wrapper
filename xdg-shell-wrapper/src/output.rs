@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use crate::{
-    client::Env,
-    render::{self, WrapperRenderer},
-    OutputGroup, XdgWrapperConfig,
-};
+use crate::{client::Env, render::WrapperRenderer, OutputGroup, XdgWrapperConfig};
 use sctk::{
     environment::Environment,
-    output::{with_output_info, Mode as c_Mode, OutputInfo},
+    output::{Mode as c_Mode, OutputInfo},
     reexports::{
         client::protocol::wl_output::Subpixel as c_Subpixel,
         client::{self, Attached, Display},
