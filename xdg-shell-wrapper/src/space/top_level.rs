@@ -83,7 +83,12 @@ impl TopLevelSurface {
         false
     }
 
-    pub fn render(&mut self, time: u32, renderer: &mut Gles2Renderer, egl_surface: &Rc<EGLSurface>) {
+    pub fn render(
+        &mut self,
+        time: u32,
+        renderer: &mut Gles2Renderer,
+        egl_surface: &Rc<EGLSurface>,
+    ) {
         let clear_color = [0.0, 0.0, 0.0, 0.0];
         // render top level surface
         if self.dirty {

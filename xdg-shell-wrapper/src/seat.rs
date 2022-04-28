@@ -16,20 +16,23 @@ use slog::{error, trace, Logger};
 use smithay::{
     backend::input::KeyState,
     desktop::{utils::bbox_from_surface_tree, PopupKind, WindowSurfaceType},
-    reexports::wayland_server::{protocol::{wl_pointer, wl_surface::WlSurface}, DispatchData, Display},
+    reexports::wayland_server::{
+        protocol::{wl_pointer, wl_surface::WlSurface},
+        DispatchData, Display,
+    },
     wayland::{
         data_device::{set_data_device_focus, set_data_device_selection},
         seat::{self, AxisFrame, FilterResult, PointerHandle},
         SERIAL_COUNTER,
     },
 };
-use std::{cell::RefCell, env};
+use std::cell::RefCell;
 
 use super::DesktopClientState;
 use crate::{
     client::Env,
-    space::{ServerSurface, Space, ActiveState},
     shared_state::EmbeddedServerState,
+    space::{ServerSurface, Space},
     ClientSeat, GlobalState, Seat,
 };
 
@@ -140,7 +143,11 @@ pub fn send_pointer_event(
         renderer,
         ..
     } = &mut state.desktop_client_state;
-    let EmbeddedServerState { last_button, focused_surface, .. } = &mut state.embedded_server_state;
+    let EmbeddedServerState {
+        last_button,
+        focused_surface,
+        ..
+    } = &mut state.embedded_server_state;
 
     if let Some(Some(ptr)) = seats
         .iter()
@@ -234,23 +241,40 @@ pub fn send_pointer_event(
                 }
                 _ => return,
             },
-            c_wl_pointer::Event::Enter { surface, .. } => {
+            c_wl_pointer::Event::Enter {
+                surface,
+                surface_x,
+                surface_y,
+                ..
+            } => {
                 dbg!(&surface);
+                // TODO better handling of subsurfaces?
+                // better handling of active surface with popups?
+
+                *focused_surface = if let Some(renderer) = renderer {
+                    match renderer.find_server_surface(&surface) {
+                        Some(ServerSurface::TopLevel(toplevel)) => {
+                            let toplevel = toplevel.borrow();
+                            if let Some((cur_surface, _)) = toplevel
+                                .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
+                            {
+                                Some(cur_surface)
+                            } else {
+                                toplevel.toplevel().get_surface().map(|s| s.clone())
+                            }
+                        }
+                        Some(ServerSurface::Popup(_toplevel, popup)) => match popup.get_surface() {
+                            Some(s) => Some(s.clone()),
+                            _ => None,
+                        },
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
                 c_focused_surface.replace(surface);
-                // *focused_surface = if let Some(renderer) = renderer {
-                //   renderer.cliient_top_levels.iter().find_map(|s|{
-                //       if let ActiveState::ActiveFullyRendered(_) = s.active {
-                //           s.
-                //       }
-                //   })
-                // } else {
-                //     None
-                // }
-                
-            
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
-                dbg!(&surface);
                 if let Some(s) = c_focused_surface {
                     if s == &surface {
                         focused_surface.take();
@@ -386,7 +410,7 @@ pub(crate) fn handle_motion(
     };
     match renderer
         .as_ref()
-        .map(|r| r.find_server_surface(&focused_surface))
+        .map(|r| r.find_server_window(&focused_surface))
     {
         Some(Some(ServerSurface::TopLevel(toplevel))) => {
             let toplevel = &*toplevel.borrow();

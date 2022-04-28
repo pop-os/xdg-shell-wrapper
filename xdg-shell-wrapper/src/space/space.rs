@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::cell::{Cell, RefCell};
-use std::process::Child;
-use std::rc::Rc;
-use std::time::Instant;
+use std::{
+    cell::{Cell, RefCell},
+    process::Child,
+    rc::Rc,
+    time::Instant,
+};
 
 use libc::c_int;
-use sctk::environment::Environment;
-use sctk::reexports::client::protocol::wl_compositor;
-use sctk::reexports::client::protocol::wl_output::WlOutput;
+
 use sctk::{
     reexports::{
         client::protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
@@ -45,7 +45,6 @@ use smithay::{
     wayland::shell::xdg::PopupSurface,
 };
 
-use crate::client::Env;
 use crate::config::XdgWrapperConfig;
 use crate::space::RenderEvent;
 
@@ -238,7 +237,6 @@ impl Space {
                 if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
                     if let ActiveState::InactiveCleared(_) = s.active {
                         s.render(time, &mut self.renderer, &self.egl_surface);
-
                     }
                 }
                 if remove {
@@ -260,12 +258,9 @@ impl Space {
                 _ => false,
             }) {
                 s.render(time, &mut self.renderer, &self.egl_surface);
-
             }
         }
 
-
-        
         self.last_dirty
     }
 
@@ -283,11 +278,7 @@ impl Space {
         self.needs_update = false;
     }
 
-    pub fn add_top_level(
-        &mut self,
-        s_top_level: Rc<RefCell<Window>>,
-        mut dimensions: (u32, u32),
-    ) {
+    pub fn add_top_level(&mut self, s_top_level: Rc<RefCell<Window>>, mut dimensions: (u32, u32)) {
         for top_level in &mut self.cliient_top_levels {
             top_level.active = ActiveState::InactiveCleared(false);
             top_level.dirty = true;
@@ -410,25 +401,25 @@ impl Space {
 
         let mut max_w = w;
         let mut max_h = h;
-        if let Some((max_old_w, max_old_h)) = self.cliient_top_levels.iter().filter_map(|s| {
-            let top_level = s.s_top_level.borrow();
-            let wl_s = match top_level.toplevel() {
-                Kind::Xdg(wl_s) => wl_s.get_surface(),
-            };
-            if wl_s == Some(dirty_top_level_surface) {
-                None
-            } else {
-                Some(s.dimensions)
-
-            }
-                    }).reduce(|accum, s| {
-                (s.0.max(accum.0), s.1.max(accum.1))
-        })
+        if let Some((max_old_w, max_old_h)) = self
+            .cliient_top_levels
+            .iter()
+            .filter_map(|s| {
+                let top_level = s.s_top_level.borrow();
+                let wl_s = match top_level.toplevel() {
+                    Kind::Xdg(wl_s) => wl_s.get_surface(),
+                };
+                if wl_s == Some(dirty_top_level_surface) {
+                    None
+                } else {
+                    Some(s.dimensions)
+                }
+            })
+            .reduce(|accum, s| (s.0.max(accum.0), s.1.max(accum.1)))
         {
             max_w = max_old_w.max(w);
             max_h = max_old_h.max(h);
         }
-
 
         // dbg!(dirty_top_level_surface);
         if let Some(s) = self.cliient_top_levels.iter_mut().find(|s| {
@@ -481,7 +472,33 @@ impl Space {
         }
     }
 
-    pub fn find_server_surface(&self, active_surface: &s_WlSurface) -> Option<ServerSurface> {
+    pub fn find_server_surface(
+        &self,
+        active_surface: &c_wl_surface::WlSurface,
+    ) -> Option<ServerSurface> {
+        if active_surface == &*self.layer_shell_wl_surface {
+            return self.cliient_top_levels.iter().find_map(|s| match s.active {
+                ActiveState::ActiveFullyRendered(_) => {
+                    Some(ServerSurface::TopLevel(s.s_top_level.clone()))
+                }
+                _ => None,
+            });
+        }
+
+        for s in &self.cliient_top_levels {
+            for popup in &s.popups {
+                if popup.c_surface == active_surface.clone() {
+                    return Some(ServerSurface::Popup(
+                        s.s_top_level.clone(),
+                        popup.s_surface.clone(),
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn find_server_window(&self, active_surface: &s_WlSurface) -> Option<ServerSurface> {
         for s in &self.cliient_top_levels {
             if s.s_top_level.borrow().toplevel().get_surface() == Some(active_surface) {
                 return Some(ServerSurface::TopLevel(s.s_top_level.clone()));
@@ -536,7 +553,7 @@ impl Space {
         config: &XdgWrapperConfig,
         c_surface: Attached<c_wl_surface::WlSurface>,
         dimensions: (u32, u32),
-        output: Option<&WlOutput>,
+        output: Option<&c_wl_output::WlOutput>,
         log: Logger,
     ) -> (
         Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,

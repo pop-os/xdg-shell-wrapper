@@ -118,7 +118,7 @@ pub fn handle_output(
             display_.clone(),
             layer_shell.clone(),
             logger.clone(),
-            env_handle.create_surface()
+            env_handle.create_surface(),
         ));
     } else if needs_new_output {
         renderer_handle.as_mut().unwrap().set_output(new_output);

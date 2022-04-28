@@ -118,7 +118,7 @@ pub fn new_client(
             display.clone(),
             layer_shell.clone(),
             log.clone(),
-            env.create_surface()
+            env.create_surface(),
         ));
     }
 
