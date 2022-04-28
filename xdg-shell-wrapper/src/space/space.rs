@@ -6,6 +6,9 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use libc::c_int;
+use sctk::environment::Environment;
+use sctk::reexports::client::protocol::wl_compositor;
+use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::{
     reexports::{
         client::protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
@@ -42,16 +45,17 @@ use smithay::{
     wayland::shell::xdg::PopupSurface,
 };
 
+use crate::client::Env;
 use crate::config::XdgWrapperConfig;
-use crate::render::RenderEvent;
+use crate::space::RenderEvent;
 
 use super::{
     ActiveState, ClientEglSurface, Popup, PopupRenderEvent, ServerSurface, TopLevelSurface,
 };
 
 #[derive(Debug)]
-pub struct WrapperRenderer {
-    pub surfaces: Vec<TopLevelSurface>,
+pub struct Space {
+    pub cliient_top_levels: Vec<TopLevelSurface>,
     pub pool: AutoMemPool,
     pub layer_shell: Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     pub output: Option<(c_wl_output::WlOutput, String)>,
@@ -59,12 +63,19 @@ pub struct WrapperRenderer {
     pub config: XdgWrapperConfig,
     pub log: Logger,
     pub needs_update: bool,
-    pub egl_display: Option<EGLDisplay>,
-    pub renderer: Option<Gles2Renderer>,
+    pub egl_display: EGLDisplay,
+    pub renderer: Gles2Renderer,
     pub last_dirty: Instant,
+    // layer surface which all client surfaces are composited onto
+    pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
+    pub egl_surface: Rc<EGLSurface>,
+    pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
+    pub layer_shell_wl_surface: Attached<c_wl_surface::WlSurface>,
+    // adjusts to fit all client surfaces
+    pub dimensions: (u32, u32),
 }
 
-impl WrapperRenderer {
+impl Space {
     pub(crate) fn new(
         output: Option<(c_wl_output::WlOutput, String)>,
         pool: AutoMemPool,
@@ -72,51 +83,198 @@ impl WrapperRenderer {
         c_display: client::Display,
         layer_shell: Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         log: Logger,
+        c_surface: Attached<c_wl_surface::WlSurface>,
     ) -> Self {
+        let dimensions = Self::constrain_dim(&config, (0, 0));
+        let (w, h) = dimensions;
+        let (layer_surface, next_render_event) = Self::get_layer_shell(
+            &layer_shell,
+            &config,
+            c_surface.clone(),
+            dimensions,
+            output.as_ref().map(|(o, _)| o.clone()).as_ref(),
+            log.clone(),
+        );
+
+        let client_egl_surface = ClientEglSurface {
+            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, w as i32, h as i32),
+            display: c_display.clone(),
+        };
+        let egl_display = EGLDisplay::new(&client_egl_surface, log.clone())
+            .expect("Failed to initialize EGL display");
+
+        let egl_context = EGLContext::new_with_config(
+            &egl_display,
+            GlAttributes {
+                version: (3, 0),
+                profile: None,
+                debug: cfg!(debug_assertions),
+                vsync: false,
+            },
+            Default::default(),
+            log.clone(),
+        )
+        .expect("Failed to initialize EGL context");
+
+        let mut min_interval_attr = 23239;
+        unsafe {
+            GetConfigAttrib(
+                egl_display.get_display_handle().handle,
+                egl_context.config_id(),
+                ffi::egl::MIN_SWAP_INTERVAL as c_int,
+                &mut min_interval_attr,
+            );
+        }
+
+        let renderer = unsafe {
+            Gles2Renderer::new(egl_context, log.clone()).expect("Failed to initialize EGL Surface")
+        };
+        trace!(log, "{:?}", unsafe {
+            SwapInterval(egl_display.get_display_handle().handle, 0)
+        });
+
+        let egl_surface = Rc::new(
+            EGLSurface::new(
+                &egl_display,
+                renderer
+                    .egl_context()
+                    .pixel_format()
+                    .expect("Failed to get pixel format from EGL context "),
+                renderer.egl_context().config_id(),
+                client_egl_surface,
+                log.clone(),
+            )
+            .expect("Failed to initialize EGL Surface"),
+        );
+        let next_render_event_handle = next_render_event.clone();
+        let logger = log.clone();
+        layer_surface.quick_assign(move |layer_surface, event, _| {
+            match (event, next_render_event_handle.get()) {
+                (zwlr_layer_surface_v1::Event::Closed, _) => {
+                    info!(logger, "Received close event. closing.");
+                    next_render_event_handle.set(Some(RenderEvent::Closed));
+                }
+                (
+                    zwlr_layer_surface_v1::Event::Configure {
+                        serial,
+                        width,
+                        height,
+                    },
+                    next,
+                ) if next != Some(RenderEvent::Closed) => {
+                    trace!(
+                        logger,
+                        "received configure event {:?} {:?} {:?}",
+                        serial,
+                        width,
+                        height
+                    );
+                    layer_surface.ack_configure(serial);
+                    next_render_event_handle.set(Some(RenderEvent::Configure { width, height }));
+                }
+                (_, _) => {}
+            }
+        });
+
         Self {
-            egl_display: None,
-            renderer: None,
-            surfaces: Default::default(),
+            egl_display,
+            renderer,
+            cliient_top_levels: Default::default(),
             layer_shell,
             output,
             c_display,
             pool,
             config,
             log,
-            needs_update: false,
+            needs_update: true,
             last_dirty: Instant::now(),
+            dimensions,
+            layer_surface,
+            egl_surface,
+            next_render_event,
+            layer_shell_wl_surface: c_surface,
         }
     }
 
     pub fn handle_events(&mut self, time: u32, child: &mut Child) -> Instant {
+        match self.next_render_event.take() {
+            Some(RenderEvent::Closed) => {
+                trace!(self.log, "root window removed, exiting...");
+                let _ = child.kill();
+            }
+            Some(RenderEvent::Configure { width, height }) => {
+                if self.dimensions != (width, height) {
+                    self.dimensions = (width, height);
+                    self.egl_surface.resize(width as i32, height as i32, 0, 0);
+                    self.needs_update = true;
+                }
+            }
+            Some(RenderEvent::WaitConfigure) => {
+                self.next_render_event
+                    .replace(Some(RenderEvent::WaitConfigure));
+            }
+            None => (),
+        }
+
+        // collect and remove windows that aren't needed
+        let mut needs_new_active = false;
         let mut surfaces = self
-            .surfaces
+            .cliient_top_levels
             .drain(..)
             .filter_map(|mut s| {
                 let remove = s.handle_events();
                 if remove {
+                    dbg!(&s.s_top_level.borrow().toplevel().get_surface());
+                    if let ActiveState::ActiveFullyRendered(_) = s.active {
+                        s.active = ActiveState::InactiveCleared(false);
+                        needs_new_active = true;
+                    }
                     if s.is_root {
                         trace!(self.log, "root window removed, exiting...");
                         let _ = child.kill();
                     }
+                }
+                // clear inactive and destroyed
+                if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
+                    if let ActiveState::InactiveCleared(_) = s.active {
+                        s.render(time, &mut self.renderer, &self.egl_surface);
+
+                    }
+                }
+                if remove {
                     return None;
+                } else {
+                    return Some(s);
                 }
-                if let Some(renderer) = self.renderer.as_mut() {
-                    s.render(time, renderer);
-                }
-                return Some(s);
             })
             .collect();
-        self.surfaces.append(&mut surfaces);
+        self.cliient_top_levels.append(&mut surfaces);
+
+        if needs_new_active {
+            self.cycle_active();
+        }
+        // render active
+        if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
+            if let Some(s) = &mut self.cliient_top_levels.iter_mut().find(|s| match s.active {
+                ActiveState::ActiveFullyRendered(_) => true,
+                _ => false,
+            }) {
+                s.render(time, &mut self.renderer, &self.egl_surface);
+
+            }
+        }
+
+
+        
         self.last_dirty
     }
 
     pub fn apply_display(&mut self, s_display: &s_Display) {
-        if !self.needs_update || self.renderer.is_none() {
+        if !self.needs_update {
             return;
         };
 
-        if let Err(_err) = self.renderer.as_mut().unwrap().bind_wl_display(s_display) {
+        if let Err(_err) = self.renderer.bind_wl_display(s_display) {
             warn!(
                 self.log.clone(),
                 "Failed to bind display to Egl renderer. Hardware acceleration will not be used."
@@ -127,33 +285,26 @@ impl WrapperRenderer {
 
     pub fn add_top_level(
         &mut self,
-        c_surface: Attached<c_wl_surface::WlSurface>,
         s_top_level: Rc<RefCell<Window>>,
         mut dimensions: (u32, u32),
     ) {
-        for top_level in &mut self.surfaces {
+        for top_level in &mut self.cliient_top_levels {
             top_level.active = ActiveState::InactiveCleared(false);
             top_level.dirty = true;
         }
-        dimensions = self.constrain_dim(dimensions);
-        let (layer_surface, next_render_event, egl_surface) =
-            self.get_layer_shell(c_surface.clone(), dimensions);
+        dimensions = Self::constrain_dim(&self.config, dimensions);
 
-        let is_root = self.surfaces.len() == 0;
+        let is_root = self.cliient_top_levels.len() == 0;
         let top_level = TopLevelSurface {
-            dimensions: (0, 0),
-            egl_surface,
-            layer_surface,
+            dimensions: dimensions,
             is_root,
-            next_render_event,
             s_top_level,
             popups: Default::default(),
-            c_top_level: c_surface,
             log: self.log.clone(),
             dirty: true,
             active: ActiveState::ActiveFullyRendered(false),
         };
-        self.surfaces.push(top_level);
+        self.cliient_top_levels.push(top_level);
     }
 
     pub fn add_popup(
@@ -167,7 +318,7 @@ impl WrapperRenderer {
         h: i32,
         popup_manager: Rc<RefCell<PopupManager>>,
     ) {
-        let s = match self.surfaces.iter_mut().find(|s| {
+        let s = match self.cliient_top_levels.iter_mut().find(|s| {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
                 Kind::Xdg(wl_s) => wl_s.get_surface(),
@@ -178,7 +329,7 @@ impl WrapperRenderer {
             None => return,
         };
 
-        s.layer_surface.get_popup(&c_popup);
+        self.layer_surface.get_popup(&c_popup);
         //must be done after role is assigned as popup
         c_surface.commit();
         let next_render_event = Rc::new(Cell::new(Some(PopupRenderEvent::WaitConfigure)));
@@ -228,10 +379,10 @@ impl WrapperRenderer {
             display: self.c_display.clone(),
         };
 
-        let egl_context = self.renderer.as_mut().unwrap().egl_context();
+        let egl_context = self.renderer.egl_context();
         let egl_surface = Rc::new(
             EGLSurface::new(
-                self.egl_display.as_ref().unwrap(),
+                &self.egl_display,
                 egl_context
                     .pixel_format()
                     .expect("Failed to get pixel format from EGL context "),
@@ -254,25 +405,51 @@ impl WrapperRenderer {
         });
     }
 
-    pub fn dirty(&mut self, other_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
+    pub fn dirty(&mut self, dirty_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
         self.last_dirty = Instant::now();
 
-        if let Some(s) = self.surfaces.iter_mut().find(|s| {
+        let mut max_w = w;
+        let mut max_h = h;
+        if let Some((max_old_w, max_old_h)) = self.cliient_top_levels.iter().filter_map(|s| {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
                 Kind::Xdg(wl_s) => wl_s.get_surface(),
             };
-            wl_s == Some(other_top_level_surface)
-        }) {
-            if s.dimensions != (w, h) {
-                s.dimensions = (w, h);
-                s.egl_surface.resize(w as i32, h as i32, 0, 0);
-                s.layer_surface.set_size(w, h);
-                s.c_top_level.commit();
-                s.dirty = true;
+            if wl_s == Some(dirty_top_level_surface) {
+                None
             } else {
-                s.dirty = true;
+                Some(s.dimensions)
+
             }
+                    }).reduce(|accum, s| {
+                (s.0.max(accum.0), s.1.max(accum.1))
+        })
+        {
+            max_w = max_old_w.max(w);
+            max_h = max_old_h.max(h);
+        }
+
+
+        // dbg!(dirty_top_level_surface);
+        if let Some(s) = self.cliient_top_levels.iter_mut().find(|s| {
+            let top_level = s.s_top_level.borrow();
+            let wl_s = match top_level.toplevel() {
+                Kind::Xdg(wl_s) => wl_s.get_surface(),
+            };
+            wl_s == Some(dirty_top_level_surface)
+        }) {
+            // dbg!((max_w,max_h));
+            if s.dimensions != (w, h) {
+                s.dimensions = (max_w, max_h);
+            }
+
+            if self.dimensions != (max_w, max_h) {
+                self.dimensions = (max_w, max_h);
+                self.egl_surface.resize(max_w as i32, max_h as i32, 0, 0);
+                self.layer_surface.set_size(max_w, max_h);
+                self.layer_shell_wl_surface.commit();
+            }
+            s.dirty = true;
         }
     }
 
@@ -283,7 +460,7 @@ impl WrapperRenderer {
         dim: Rectangle<i32, Logical>,
     ) {
         self.last_dirty = Instant::now();
-        if let Some(s) = self.surfaces.iter_mut().find(|s| {
+        if let Some(s) = self.cliient_top_levels.iter_mut().find(|s| {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
                 Kind::Xdg(wl_s) => wl_s.get_surface(),
@@ -304,16 +481,13 @@ impl WrapperRenderer {
         }
     }
 
-    pub fn find_server_surface(
-        &self,
-        other_c_surface: &c_wl_surface::WlSurface,
-    ) -> Option<ServerSurface> {
-        for s in &self.surfaces {
-            if *s.c_top_level == *other_c_surface {
+    pub fn find_server_surface(&self, active_surface: &s_WlSurface) -> Option<ServerSurface> {
+        for s in &self.cliient_top_levels {
+            if s.s_top_level.borrow().toplevel().get_surface() == Some(active_surface) {
                 return Some(ServerSurface::TopLevel(s.s_top_level.clone()));
             } else {
                 for popup in &s.popups {
-                    if &popup.c_surface == other_c_surface {
+                    if popup.s_surface.get_surface() == Some(active_surface) {
                         return Some(ServerSurface::Popup(
                             s.s_top_level.clone(),
                             popup.s_surface.clone(),
@@ -325,12 +499,12 @@ impl WrapperRenderer {
         None
     }
 
-    fn constrain_dim(&self, (mut w, mut h): (u32, u32)) -> (u32, u32) {
-        let (min_w, min_h) = self.config.min_dimensions.unwrap_or((1, 1));
+    fn constrain_dim(config: &XdgWrapperConfig, (mut w, mut h): (u32, u32)) -> (u32, u32) {
+        let (min_w, min_h) = config.min_dimensions.unwrap_or((1, 1));
         w = min_w.max(w);
         h = min_h.max(h);
         // TODO get monitor dimensions
-        if let Some((max_w, max_h)) = self.config.max_dimensions {
+        if let Some((max_w, max_h)) = config.max_dimensions {
             w = max_w.min(w);
             h = max_h.min(h);
         }
@@ -340,121 +514,54 @@ impl WrapperRenderer {
     // TODO cleanup & test thouroughly
     pub fn set_output(&mut self, output: Option<(c_wl_output::WlOutput, String)>) {
         self.output = output;
-        let c_surfaces: Vec<_> = self
-            .surfaces
-            .iter()
-            .map(|top_level| {
-                top_level.layer_surface.destroy();
-                (top_level.c_top_level.clone(), top_level.dimensions.clone())
-            })
-            .collect();
-        let layer_surfaces: Vec<_> = c_surfaces
-            .iter()
-            .map(|(c_surface, dimensions)| {
-                self.get_layer_shell(c_surface.clone(), dimensions.clone())
-            })
-            .collect();
+        self.layer_surface.destroy();
+        let (layer_surface, next_render_event) = Self::get_layer_shell(
+            &self.layer_shell,
+            &self.config,
+            self.layer_shell_wl_surface.clone(),
+            self.dimensions,
+            self.output.as_ref().map(|(o, _)| o.clone()).as_ref(),
+            self.log.clone(),
+        );
 
-        for (top_level, (layer_surface, next_render_event, egl_surface)) in
-            &mut self.surfaces.iter_mut().zip(layer_surfaces)
-        {
-            top_level.next_render_event = next_render_event;
-            top_level.layer_surface = layer_surface;
-            top_level.egl_surface = egl_surface;
-            top_level.dirty = true;
-        }
+        self.next_render_event = next_render_event;
+        self.layer_surface = layer_surface;
+        self.needs_update = true;
     }
 
     // TODO cleanup
     // What to do about egl display and renderer here?
     fn get_layer_shell(
-        &mut self,
+        layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
+        config: &XdgWrapperConfig,
         c_surface: Attached<c_wl_surface::WlSurface>,
         dimensions: (u32, u32),
+        output: Option<&WlOutput>,
+        log: Logger,
     ) -> (
         Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
         Rc<Cell<Option<RenderEvent>>>,
-        Rc<EGLSurface>,
     ) {
-        let layer_surface = self.layer_shell.get_layer_surface(
+        let layer_surface = layer_shell.get_layer_surface(
             &c_surface.clone(),
-            self.output.as_ref().map(|o| o.0.clone()).as_ref(),
-            self.config.layer.into(),
+            output,
+            config.layer.into(),
             "example".to_owned(),
         );
 
-        layer_surface.set_anchor(self.config.anchor.into());
-        layer_surface.set_keyboard_interactivity(self.config.keyboard_interactivity.into());
+        layer_surface.set_anchor(config.anchor.into());
+        layer_surface.set_keyboard_interactivity(config.keyboard_interactivity.into());
         let (x, y) = dimensions;
         layer_surface.set_size(x, y);
 
         // Commit so that the server will send a configure event
         c_surface.commit();
 
-        let client_egl_surface = ClientEglSurface {
-            wl_egl_surface: wayland_egl::WlEglSurface::new(&c_surface, x as i32, y as i32),
-            display: self.c_display.clone(),
-        };
-
-        if self.renderer.is_none() {
-            self.needs_update = true;
-            let egl_display = EGLDisplay::new(&client_egl_surface, self.log.clone())
-                .expect("Failed to initialize EGL display");
-
-            let egl_context = EGLContext::new_with_config(
-                &egl_display,
-                GlAttributes {
-                    version: (3, 0),
-                    profile: None,
-                    debug: cfg!(debug_assertions),
-                    vsync: false,
-                },
-                Default::default(),
-                self.log.clone(),
-            )
-            .expect("Failed to initialize EGL context");
-
-            let mut min_interval_attr = 23239;
-            unsafe {
-                GetConfigAttrib(
-                    egl_display.get_display_handle().handle,
-                    egl_context.config_id(),
-                    ffi::egl::MIN_SWAP_INTERVAL as c_int,
-                    &mut min_interval_attr,
-                );
-            }
-
-            let renderer = unsafe {
-                Gles2Renderer::new(egl_context, self.log.clone())
-                    .expect("Failed to initialize EGL Surface")
-            };
-            trace!(self.log, "{:?}", unsafe {
-                SwapInterval(egl_display.get_display_handle().handle, 0)
-            });
-            self.egl_display = Some(egl_display);
-            self.renderer = Some(renderer);
-        }
-        let renderer = self.renderer.as_ref().unwrap();
-
-        let egl_surface = Rc::new(
-            EGLSurface::new(
-                self.egl_display.as_ref().unwrap(),
-                renderer
-                    .egl_context()
-                    .pixel_format()
-                    .expect("Failed to get pixel format from EGL context "),
-                renderer.egl_context().config_id(),
-                client_egl_surface,
-                self.log.clone(),
-            )
-            .expect("Failed to initialize EGL Surface"),
-        );
-
         let next_render_event = Rc::new(Cell::new(Some(RenderEvent::WaitConfigure)));
 
         //let egl_surface_clone = egl_surface.clone();
         let next_render_event_handle = next_render_event.clone();
-        let logger = self.log.clone();
+        let logger = log.clone();
         layer_surface.quick_assign(move |layer_surface, event, _| {
             match (event, next_render_event_handle.get()) {
                 (zwlr_layer_surface_v1::Event::Closed, _) => {
@@ -482,28 +589,37 @@ impl WrapperRenderer {
                 (_, _) => {}
             }
         });
-        (layer_surface, next_render_event, egl_surface)
+        (layer_surface, next_render_event)
     }
 
     pub fn cycle_active(&mut self) {
-        let cur_active = self
-            .surfaces
-            .iter()
-            .position(|top_level| match top_level.active {
-                ActiveState::ActiveFullyRendered(_) => true,
-                _ => false,
-            });
+        let cur_active =
+            self.cliient_top_levels
+                .iter()
+                .position(|top_level| match top_level.active {
+                    ActiveState::ActiveFullyRendered(_) => true,
+                    _ => false,
+                });
         if let Some(cur_active) = cur_active {
-            let next_active = (cur_active + 1) % self.surfaces.len();
-            for (i, top_level) in &mut self.surfaces.iter_mut().enumerate() {
+            let next_active = (cur_active + 1) % self.cliient_top_levels.len();
+            for (i, top_level) in &mut self.cliient_top_levels.iter_mut().enumerate() {
                 if i == next_active {
-                    top_level.active = ActiveState::ActiveFullyRendered(false)
-                }
-                else {
+                    top_level.active = ActiveState::ActiveFullyRendered(false);
+                } else {
                     top_level.active = ActiveState::InactiveCleared(false);
                 }
                 top_level.dirty = true;
             }
+        } else if self.cliient_top_levels.len() > 0 {
+            let top_level = &mut self.cliient_top_levels[0];
+            top_level.active = ActiveState::ActiveFullyRendered(false);
         }
+    }
+}
+
+impl Drop for Space {
+    fn drop(&mut self) {
+        self.layer_surface.destroy();
+        self.layer_shell_wl_surface.destroy();
     }
 }

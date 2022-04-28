@@ -5,7 +5,7 @@ use sctk::{
     environment::Environment,
     reexports::{
         client::protocol::{
-            wl_pointer as c_wl_pointer, wl_seat as c_wl_seat, wl_surface::WlSurface,
+            wl_pointer as c_wl_pointer, wl_seat as c_wl_seat, wl_surface as c_wl_surface,
         },
         client::Attached,
         client::{self, protocol::wl_keyboard},
@@ -16,19 +16,19 @@ use slog::{error, trace, Logger};
 use smithay::{
     backend::input::KeyState,
     desktop::{utils::bbox_from_surface_tree, PopupKind, WindowSurfaceType},
-    reexports::wayland_server::{protocol::wl_pointer, DispatchData, Display},
+    reexports::wayland_server::{protocol::{wl_pointer, wl_surface::WlSurface}, DispatchData, Display},
     wayland::{
         data_device::{set_data_device_focus, set_data_device_selection},
         seat::{self, AxisFrame, FilterResult, PointerHandle},
         SERIAL_COUNTER,
     },
 };
-use std::cell::RefCell;
+use std::{cell::RefCell, env};
 
 use super::DesktopClientState;
 use crate::{
     client::Env,
-    render::{ServerSurface, WrapperRenderer},
+    space::{ServerSurface, Space, ActiveState},
     shared_state::EmbeddedServerState,
     ClientSeat, GlobalState, Seat,
 };
@@ -136,11 +136,11 @@ pub fn send_pointer_event(
         seats,
         axis_frame,
         last_input_serial,
-        focused_surface,
+        focused_surface: c_focused_surface,
         renderer,
         ..
     } = &mut state.desktop_client_state;
-    let EmbeddedServerState { last_button, .. } = &mut state.embedded_server_state;
+    let EmbeddedServerState { last_button, focused_surface, .. } = &mut state.embedded_server_state;
 
     if let Some(Some(ptr)) = seats
         .iter()
@@ -235,10 +235,23 @@ pub fn send_pointer_event(
                 _ => return,
             },
             c_wl_pointer::Event::Enter { surface, .. } => {
-                focused_surface.replace(surface);
+                dbg!(&surface);
+                c_focused_surface.replace(surface);
+                // *focused_surface = if let Some(renderer) = renderer {
+                //   renderer.cliient_top_levels.iter().find_map(|s|{
+                //       if let ActiveState::ActiveFullyRendered(_) = s.active {
+                //           s.
+                //       }
+                //   })
+                // } else {
+                //     None
+                // }
+                
+            
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
-                if let Some(s) = focused_surface {
+                dbg!(&surface);
+                if let Some(s) = c_focused_surface {
                     if s == &surface {
                         focused_surface.take();
                     }
@@ -360,7 +373,7 @@ pub(crate) fn set_server_device_selection(
 }
 
 pub(crate) fn handle_motion(
-    renderer: &mut Option<WrapperRenderer>,
+    renderer: &mut Option<Space>,
     focused_surface: Option<WlSurface>,
     surface_x: f64,
     surface_y: f64,

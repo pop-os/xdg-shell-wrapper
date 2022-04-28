@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
-use sctk::reexports::{
-    client::protocol::wl_surface as c_wl_surface,
-    client::{Attached, Main},
-};
 use slog::Logger;
 use smithay::desktop::utils::damage_from_surface_tree;
 use smithay::utils::Rectangle;
@@ -16,7 +12,6 @@ use smithay::{
         renderer::{gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, Renderer, Unbind},
     },
     desktop::{utils::send_frames_surface_tree, Kind},
-    reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_surface_v1,
 };
 
 use super::{Popup, PopupRenderEvent};
@@ -36,13 +31,9 @@ pub enum ActiveState {
 
 #[derive(Debug, Clone)]
 pub struct TopLevelSurface {
-    pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
-    pub next_render_event: Rc<Cell<Option<RenderEvent>>>,
     pub s_top_level: Rc<RefCell<smithay::desktop::Window>>,
-    pub egl_surface: Rc<EGLSurface>,
     pub dirty: bool,
     pub dimensions: (u32, u32),
-    pub c_top_level: Attached<c_wl_surface::WlSurface>,
     pub popups: Vec<Popup>,
     pub is_root: bool,
     pub log: Logger,
@@ -56,7 +47,6 @@ impl TopLevelSurface {
         if self.s_top_level.borrow().toplevel().get_surface().is_none() {
             return true;
         }
-        let mut remove_surface = false;
         // TODO replace with drain_filter when stable
 
         let mut i = 0;
@@ -86,44 +76,20 @@ impl TopLevelSurface {
 
             if !should_keep {
                 let _ = self.popups.remove(i);
-                // your code here
             } else {
                 i += 1;
             }
         }
-
-        match self.next_render_event.take() {
-            Some(RenderEvent::Closed) => {
-                remove_surface = true;
-            }
-            Some(RenderEvent::Configure { width, height }) => {
-                if self.dimensions != (width, height) {
-                    self.dimensions = (width, height);
-                    self.egl_surface.resize(width as i32, height as i32, 0, 0);
-                    self.dirty = true;
-                }
-            }
-            Some(RenderEvent::WaitConfigure) => {
-                self.next_render_event
-                    .replace(Some(RenderEvent::WaitConfigure));
-            }
-            None => (),
-        }
-        remove_surface
+        false
     }
 
-    pub fn render(&mut self, time: u32, renderer: &mut Gles2Renderer) {
+    pub fn render(&mut self, time: u32, renderer: &mut Gles2Renderer, egl_surface: &Rc<EGLSurface>) {
         let clear_color = [0.0, 0.0, 0.0, 0.0];
-
         // render top level surface
-        if self.next_render_event.get() == Some(RenderEvent::WaitConfigure) {
-            return;
-        }
         if self.dirty {
             self.dirty = false;
 
             let logger = self.log.clone();
-            let egl_surface = &self.egl_surface;
             let s_top_level = self.s_top_level.borrow();
             let server_surface = match s_top_level.toplevel() {
                 Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
@@ -274,7 +240,5 @@ impl Drop for TopLevelSurface {
             p.c_xdg_surface.destroy();
             p.c_surface.destroy();
         }
-        self.layer_surface.destroy();
-        self.c_top_level.destroy();
     }
 }

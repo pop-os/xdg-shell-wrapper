@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use crate::{client::Env, render::WrapperRenderer, OutputGroup, XdgWrapperConfig};
+use crate::{client::Env, space::Space, OutputGroup, XdgWrapperConfig};
 use sctk::{
     environment::Environment,
     output::{Mode as c_Mode, OutputInfo},
@@ -22,7 +22,7 @@ pub fn handle_output(
     config: XdgWrapperConfig,
     layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     env_handle: Environment<Env>,
-    renderer_handle: &mut Option<WrapperRenderer>,
+    renderer_handle: &mut Option<Space>,
     logger: Logger,
     display_: Display,
     output: client::protocol::wl_output::WlOutput,
@@ -111,13 +111,14 @@ pub fn handle_output(
         let pool = env_handle
             .create_auto_pool()
             .expect("Failed to create a memory pool!");
-        *renderer_handle = Some(WrapperRenderer::new(
+        *renderer_handle = Some(Space::new(
             new_output,
             pool,
             config.clone(),
             display_.clone(),
             layer_shell.clone(),
             logger.clone(),
+            env_handle.create_surface()
         ));
     } else if needs_new_output {
         renderer_handle.as_mut().unwrap().set_output(new_output);

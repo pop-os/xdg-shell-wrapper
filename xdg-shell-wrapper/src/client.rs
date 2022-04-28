@@ -35,7 +35,7 @@ use crate::{
     },
     shared_state::*,
 };
-use crate::{render::WrapperRenderer, XdgWrapperConfig};
+use crate::{space::Space, XdgWrapperConfig};
 
 default_environment!(Env,
     fields = [
@@ -110,7 +110,7 @@ pub fn new_client(
             }
         }
     } else {
-        renderer = Some(WrapperRenderer::new(
+        renderer = Some(Space::new(
             None,
             env.create_auto_pool()
                 .expect("Failed to create a memory pool!"),
@@ -118,6 +118,7 @@ pub fn new_client(
             display.clone(),
             layer_shell.clone(),
             log.clone(),
+            env.create_surface()
         ));
     }
 
@@ -152,7 +153,6 @@ pub fn new_client(
 
     // TODO logging
     // dnd listener
-    let dnd_surface = Rc::new(RefCell::new(None));
     let last_motion = Rc::new(RefCell::new(None));
     let _ = env.set_data_device_callback(move |seat, dnd_event, mut dispatch_data| {
         let (state, _) = dispatch_data
@@ -178,11 +178,10 @@ pub fn new_client(
                 sctk::data_device::DndEvent::Enter {
                     offer,
                     serial: _,
-                    surface,
+                    surface: _,
                     x,
                     y,
                 } => {
-                    dnd_surface.borrow_mut().replace(Some(surface));
                     let offer = match offer {
                         Some(o) => o,
                         None => return,
@@ -266,7 +265,7 @@ pub fn new_client(
 
                     handle_motion(
                         renderer,
-                        dnd_surface.borrow().clone().unwrap(),
+                        focused_surface.clone(),
                         x,
                         y,
                         seat.server.0.get_pointer().unwrap(),

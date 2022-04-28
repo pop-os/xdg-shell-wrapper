@@ -228,6 +228,7 @@ pub fn new_server(
                     window.refresh();
                     let g = window.geometry();
                     let dimensions = (g.size.w as u32, g.size.h as u32);
+                    *focused_surface = surface.get_surface().map(|s| s.clone());
 
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
@@ -244,12 +245,12 @@ pub fn new_server(
                         smithay::desktop::Kind::Xdg(surface),
                     )));
 
-                    let layer_shell_surface = env_handle.create_surface();
-
                     if let Some(renderer) = renderer.as_mut() {
-                        renderer.add_top_level(layer_shell_surface, window.clone(), dimensions);
+                        renderer.add_top_level(window.clone(), dimensions);
                     }
-                    root_window.replace(window);
+                    if root_window.is_none() {
+                        root_window.replace(window);
+                    }
                 }
                 XdgRequest::NewPopup {
                     surface: s_popup_surface,

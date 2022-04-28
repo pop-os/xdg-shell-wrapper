@@ -2,12 +2,12 @@
 
 mod cached_buffer;
 mod popup;
-mod render;
+mod space;
 mod surface;
 mod top_level;
 
 pub use cached_buffer::*;
 pub use popup::*;
-pub use render::*;
+pub use space::*;
 pub use surface::*;
 pub use top_level::*;

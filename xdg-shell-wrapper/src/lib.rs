@@ -2,13 +2,13 @@
 
 use anyhow::Result;
 use config::XdgWrapperConfig;
-use render::CachedBuffers;
 use shared_state::*;
 use slog::Logger;
 use smithay::{
     reexports::{nix::fcntl, wayland_server::Display},
     wayland::data_device::set_data_device_selection,
 };
+use space::CachedBuffers;
 use std::{
     cell::Cell,
     os::unix::io::AsRawFd,
@@ -21,10 +21,10 @@ use std::{
 mod client;
 pub mod config;
 mod output;
-mod render;
 mod seat;
 mod server;
 mod shared_state;
+mod space;
 mod util;
 
 pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConfig) -> Result<()> {
