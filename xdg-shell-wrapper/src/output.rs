@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{client::Env, space::Space, OutputGroup, XdgWrapperConfig};
 use sctk::{
     environment::Environment,
@@ -13,7 +15,10 @@ use slog::Logger;
 use smithay::{
     reexports::{
         wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
-        wayland_server::{protocol::wl_output::Subpixel as s_Subpixel, Display as s_Display},
+        wayland_server::{
+            protocol::{wl_output::Subpixel as s_Subpixel, wl_surface::WlSurface},
+            Display as s_Display,
+        },
     },
     wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties},
 };
@@ -29,6 +34,7 @@ pub fn handle_output(
     info: &OutputInfo,
     server_display: &mut s_Display,
     s_outputs: &mut Vec<OutputGroup>,
+    focused_surface: Rc<RefCell<Option<WlSurface>>>,
 ) {
     // remove output with id if obsolete
     // add output to list if new output
@@ -119,6 +125,7 @@ pub fn handle_output(
             layer_shell.clone(),
             logger.clone(),
             env_handle.create_surface(),
+            focused_surface,
         ));
     } else if needs_new_output {
         renderer_handle.as_mut().unwrap().set_output(new_output);

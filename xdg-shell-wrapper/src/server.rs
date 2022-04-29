@@ -228,11 +228,11 @@ pub fn new_server(
                     window.refresh();
                     let g = window.geometry();
                     let dimensions = (g.size.w as u32, g.size.h as u32);
+                    let mut focused_surface = focused_surface.borrow_mut();
                     *focused_surface = surface.get_surface().map(|s| s.clone());
 
                     surface.send_configure();
                     let wl_surface = surface.get_surface();
-                    *focused_surface = wl_surface.map(|s| s.clone());
                     if *kbd_focus {
                         for s in seats {
                             if let Some(kbd) = s.server.0.get_keyboard() {

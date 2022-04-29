@@ -72,6 +72,8 @@ pub struct Space {
     pub layer_shell_wl_surface: Attached<c_wl_surface::WlSurface>,
     // adjusts to fit all client surfaces
     pub dimensions: (u32, u32),
+    // focused surface so it can be changed when a window is removed
+    focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
 }
 
 impl Space {
@@ -83,6 +85,7 @@ impl Space {
         layer_shell: Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         log: Logger,
         c_surface: Attached<c_wl_surface::WlSurface>,
+        focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
     ) -> Self {
         let dimensions = Self::constrain_dim(&config, (0, 0));
         let (w, h) = dimensions;
@@ -192,6 +195,7 @@ impl Space {
             egl_surface,
             next_render_event,
             layer_shell_wl_surface: c_surface,
+            focused_surface,
         }
     }
 
@@ -623,6 +627,13 @@ impl Space {
             for (i, top_level) in &mut self.cliient_top_levels.iter_mut().enumerate() {
                 if i == next_active {
                     top_level.active = ActiveState::ActiveFullyRendered(false);
+                    let mut focused_surface = self.focused_surface.borrow_mut();
+                    *focused_surface = top_level
+                        .s_top_level
+                        .borrow()
+                        .toplevel()
+                        .get_surface()
+                        .map(|s| s.clone());
                 } else {
                     top_level.active = ActiveState::InactiveCleared(false);
                 }
@@ -632,6 +643,13 @@ impl Space {
             let top_level = &mut self.cliient_top_levels[0];
             top_level.active = ActiveState::ActiveFullyRendered(false);
             top_level.dirty = true;
+            let mut focused_surface = self.focused_surface.borrow_mut();
+            *focused_surface = top_level
+                .s_top_level
+                .borrow()
+                .toplevel()
+                .get_surface()
+                .map(|s| s.clone());
         }
     }
 }

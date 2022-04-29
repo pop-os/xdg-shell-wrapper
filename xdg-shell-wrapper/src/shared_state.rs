@@ -85,7 +85,7 @@ pub struct EmbeddedServerState {
     pub(crate) client: wayland_server::Client,
     pub(crate) shell_state: Arc<Mutex<ShellState>>,
     pub(crate) root_window: Option<Rc<RefCell<Window>>>,
-    pub(crate) focused_surface: Option<WlSurface>,
+    pub(crate) focused_surface: Rc<RefCell<Option<WlSurface>>>,
     pub(crate) popup_manager: Rc<RefCell<PopupManager>>,
     pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,

@@ -116,7 +116,10 @@ pub fn send_keyboard_event(
                 );
                 set_data_device_focus(&seat.server.0, Some(client.clone()));
                 *kbd_focus = true;
-                kbd.set_focus(focused_surface.as_ref(), SERIAL_COUNTER.next_serial());
+                kbd.set_focus(
+                    focused_surface.borrow().as_ref(),
+                    SERIAL_COUNTER.next_serial(),
+                );
             }
             wl_keyboard::Event::Leave { .. } => {
                 *kbd_focus = false;
@@ -163,7 +166,7 @@ pub fn send_pointer_event(
             } => {
                 handle_motion(
                     renderer,
-                    focused_surface.clone(),
+                    focused_surface.borrow().clone(),
                     surface_x,
                     surface_y,
                     ptr,
@@ -250,7 +253,7 @@ pub fn send_pointer_event(
                 dbg!(&surface);
                 // TODO better handling of subsurfaces?
                 // better handling of active surface with popups?
-
+                let mut focused_surface = focused_surface.borrow_mut();
                 *focused_surface = if let Some(renderer) = renderer {
                     match renderer.find_server_surface(&surface) {
                         Some(ServerSurface::TopLevel(toplevel)) => {

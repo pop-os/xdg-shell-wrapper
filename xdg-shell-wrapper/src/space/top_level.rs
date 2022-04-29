@@ -111,7 +111,7 @@ impl TopLevelSurface {
                 ActiveState::InactiveCleared(b) if b == false => true,
                 _ => false,
             };
-            let mut l_damage = if full_clear {                
+            let mut l_damage = if full_clear {
                 vec![Rectangle::from_loc_and_size((0, 0), (width, height))]
             } else {
                 damage_from_surface_tree(server_surface, (0, 0), None)

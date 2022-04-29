@@ -12,7 +12,7 @@ use space::CachedBuffers;
 use std::{
     cell::Cell,
     os::unix::io::AsRawFd,
-    process::{Command, Stdio},
+    process::Command,
     rc::Rc,
     thread,
     time::{Duration, Instant},

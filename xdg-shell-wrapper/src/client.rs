@@ -70,6 +70,7 @@ pub fn new_client(
         .selected_data_provider
         .env_handle
         .set(env.clone());
+    let focused_surface = embedded_server_state.focused_surface.clone();
     let _attached_display = (*display).clone().attach(queue.token());
 
     let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
@@ -106,6 +107,7 @@ pub fn new_client(
                     &info,
                     server_display,
                     &mut s_outputs,
+                    focused_surface.clone(),
                 );
             }
         }
@@ -119,6 +121,7 @@ pub fn new_client(
             layer_shell.clone(),
             log.clone(),
             env.create_surface(),
+            embedded_server_state.focused_surface.clone(),
         ));
     }
 
@@ -144,6 +147,7 @@ pub fn new_client(
                     &info,
                     server_display,
                     outputs,
+                    focused_surface.clone(),
                 );
             }),
         )
@@ -196,7 +200,10 @@ pub fn new_client(
                         &seat.server.0,
                         SERIAL_COUNTER.next_serial(),
                         seat::PointerGrabStartData {
-                            focus: focused_surface.as_ref().map(|s| (s.clone(), (0, 0).into())),
+                            focus: focused_surface
+                                .borrow()
+                                .as_ref()
+                                .map(|s| (s.clone(), (0, 0).into())),
                             button: *last_button,
                             location: (x, y).into(),
                         },
@@ -265,7 +272,7 @@ pub fn new_client(
 
                     handle_motion(
                         renderer,
-                        focused_surface.clone(),
+                        focused_surface.borrow().clone(),
                         x,
                         y,
                         seat.server.0.get_pointer().unwrap(),
