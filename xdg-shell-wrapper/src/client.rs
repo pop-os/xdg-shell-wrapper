@@ -74,7 +74,7 @@ pub fn new_client(
     let _attached_display = (*display).clone().attach(queue.token());
 
     let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
-    let mut renderer = None;
+    let mut space = None;
     let mut s_outputs = Vec::new();
     if let Some(preferred_output) = config.output.as_ref() {
         // swap preffered output to front of list if it is available
@@ -100,7 +100,7 @@ pub fn new_client(
                     config,
                     &layer_shell,
                     env_handle,
-                    &mut renderer,
+                    &mut space,
                     logger,
                     display_,
                     output,
@@ -112,7 +112,7 @@ pub fn new_client(
             }
         }
     } else {
-        renderer = Some(Space::new(
+        space = Some(Space::new(
             None,
             env.create_auto_pool()
                 .expect("Failed to create a memory pool!"),
@@ -383,7 +383,7 @@ pub fn new_client(
     trace!(log.clone(), "client setup complete");
     Ok((
         DesktopClientState {
-            space: renderer,
+            space,
             display,
             _output_listener: output_listener,
             seats: seats,
