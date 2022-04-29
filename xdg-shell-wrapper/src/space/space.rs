@@ -223,7 +223,6 @@ impl Space {
             .filter_map(|mut s| {
                 let remove = s.handle_events();
                 if remove {
-                    dbg!(&s.s_top_level.borrow().toplevel().get_surface());
                     if let ActiveState::ActiveFullyRendered(_) = s.active {
                         s.active = ActiveState::InactiveCleared(false);
                         needs_new_active = true;
@@ -252,12 +251,14 @@ impl Space {
             self.cycle_active();
         }
         // render active
-        if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
-            if let Some(s) = &mut self.cliient_top_levels.iter_mut().find(|s| match s.active {
-                ActiveState::ActiveFullyRendered(_) => true,
-                _ => false,
-            }) {
-                s.render(time, &mut self.renderer, &self.egl_surface);
+        else {
+            if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
+                if let Some(s) = &mut self.cliient_top_levels.iter_mut().find(|s| match s.active {
+                    ActiveState::ActiveFullyRendered(_) => true,
+                    _ => false,
+                }) {
+                    s.render(time, &mut self.renderer, &self.egl_surface);
+                }
             }
         }
 
@@ -630,6 +631,7 @@ impl Space {
         } else if self.cliient_top_levels.len() > 0 {
             let top_level = &mut self.cliient_top_levels[0];
             top_level.active = ActiveState::ActiveFullyRendered(false);
+            top_level.dirty = true;
         }
     }
 }
