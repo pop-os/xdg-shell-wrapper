@@ -95,7 +95,7 @@ pub struct DesktopClientState {
     pub(crate) display: client::Display,
     pub(crate) seats: Vec<Seat>,
     pub(crate) _output_listener: Option<OutputStatusListener>,
-    pub(crate) renderer: Option<Space>,
+    pub(crate) space: Option<Space>,
     pub(crate) cursor_surface: c_wl_surface::WlSurface,
     pub(crate) axis_frame: AxisFrameData,
     pub(crate) kbd_focus: bool,

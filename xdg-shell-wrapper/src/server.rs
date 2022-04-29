@@ -104,7 +104,7 @@ pub fn new_server(
                 DataDeviceEvent::DnDDropped { seat } => {
                     // dbg!(seat);
                 }
-                DataDeviceEvent::NewSelection(_) => todo!(),
+                DataDeviceEvent::NewSelection(_) => {},
             };
         },
         default_action_chooser,
@@ -118,7 +118,7 @@ pub fn new_server(
             let state = dispatch_data.get::<GlobalState>().unwrap();
             let DesktopClientState {
                 cursor_surface,
-                renderer,
+                space,
                 seats,
                 shm,
                 ..
@@ -134,7 +134,7 @@ pub fn new_server(
             let role = get_role(&surface);
             trace!(log, "role: {:?} surface: {:?}", &role, &surface);
             if role == "xdg_toplevel".into() {
-                if let Some(renderer) = renderer.as_mut() {
+                if let Some(renderer) = space.as_mut() {
                     if let Some(top_level) = shell_state.lock().unwrap().toplevel_surface(&surface)
                     {
                         on_commit_buffer_handler(&surface);
@@ -186,7 +186,7 @@ pub fn new_server(
                     Some(PopupKind::Xdg(s)) => (s.get_parent_surface(), s),
                     _ => return,
                 };
-                if let (Some(renderer), Some(top_level_surface)) = (renderer, top_level_surface) {
+                if let (Some(renderer), Some(top_level_surface)) = (space, top_level_surface) {
                     renderer.dirty_popup(
                         &top_level_surface,
                         popup_surface,
@@ -209,7 +209,7 @@ pub fn new_server(
                 seats,
                 kbd_focus,
                 env_handle,
-                renderer,
+                space,
                 xdg_wm_base,
                 ..
             } = &mut state.desktop_client_state;
@@ -245,7 +245,7 @@ pub fn new_server(
                         smithay::desktop::Kind::Xdg(surface),
                     )));
 
-                    if let Some(renderer) = renderer.as_mut() {
+                    if let Some(renderer) = space.as_mut() {
                         renderer.add_top_level(window.clone(), dimensions);
                     }
                     if root_window.is_none() {
@@ -298,7 +298,7 @@ pub fn new_server(
                     let popup = xdg_surface.get_popup(None, &positioner);
 
                     if let (Some(parent), Some(renderer)) =
-                        (s_popup_surface.get_parent_surface(), renderer.as_mut())
+                        (s_popup_surface.get_parent_surface(), space.as_mut())
                     {
                         renderer.add_popup(
                             wl_surface,

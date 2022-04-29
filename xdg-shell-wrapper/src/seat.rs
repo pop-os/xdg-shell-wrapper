@@ -26,7 +26,7 @@ use smithay::{
         SERIAL_COUNTER,
     },
 };
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use super::DesktopClientState;
 use crate::{
@@ -47,7 +47,7 @@ pub fn send_keyboard_event(
         seats,
         kbd_focus,
         last_input_serial,
-        renderer,
+        space,
         ..
     } = &mut state.desktop_client_state;
 
@@ -97,7 +97,7 @@ pub fn send_keyboard_event(
                     },
                 ) {
                     Some(_) => {
-                        if let Some(renderer) = renderer {
+                        if let Some(renderer) = space {
                             renderer.cycle_active();
                         }
                     }
@@ -143,7 +143,7 @@ pub fn send_pointer_event(
         axis_frame,
         last_input_serial,
         focused_surface: c_focused_surface,
-        renderer,
+        space,
         ..
     } = &mut state.desktop_client_state;
     let EmbeddedServerState {
@@ -165,7 +165,7 @@ pub fn send_pointer_event(
                 surface_y,
             } => {
                 handle_motion(
-                    renderer,
+                    space,
                     focused_surface.borrow().clone(),
                     surface_x,
                     surface_y,
@@ -253,28 +253,7 @@ pub fn send_pointer_event(
                 dbg!(&surface);
                 // TODO better handling of subsurfaces?
                 // better handling of active surface with popups?
-                let mut focused_surface = focused_surface.borrow_mut();
-                *focused_surface = if let Some(renderer) = renderer {
-                    match renderer.find_server_surface(&surface) {
-                        Some(ServerSurface::TopLevel(toplevel)) => {
-                            let toplevel = toplevel.borrow();
-                            if let Some((cur_surface, _)) = toplevel
-                                .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
-                            {
-                                Some(cur_surface)
-                            } else {
-                                toplevel.toplevel().get_surface().map(|s| s.clone())
-                            }
-                        }
-                        Some(ServerSurface::Popup(_toplevel, popup)) => match popup.get_surface() {
-                            Some(s) => Some(s.clone()),
-                            _ => None,
-                        },
-                        _ => None,
-                    }
-                } else {
-                    None
-                };
+                set_focused_surface(focused_surface, space, &surface, surface_x, surface_y);
                 c_focused_surface.replace(surface);
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
@@ -450,5 +429,30 @@ pub(crate) fn handle_motion(
             );
         }
         _ => return,
+    };
+}
+
+pub(crate) fn set_focused_surface(focused_surface: &Rc<RefCell<Option<WlSurface>>>, space: &mut Option<Space>, surface: &c_wl_surface::WlSurface, x: f64, y: f64) {
+    let mut focused_surface = focused_surface.borrow_mut();
+    *focused_surface = if let Some(space) = space {
+        match space.find_server_surface(surface) {
+            Some(ServerSurface::TopLevel(toplevel)) => {
+                let toplevel = toplevel.borrow();
+                if let Some((cur_surface, _)) = toplevel
+                    .surface_under((x, y), WindowSurfaceType::ALL)
+                {
+                    Some(cur_surface)
+                } else {
+                    toplevel.toplevel().get_surface().map(|s| s.clone())
+                }
+            }
+            Some(ServerSurface::Popup(_toplevel, popup)) => match popup.get_surface() {
+                Some(s) => Some(s.clone()),
+                _ => None,
+            },
+            _ => None,
+        }
+    } else {
+        None
     };
 }

@@ -238,14 +238,16 @@ impl Space {
                 }
                 // clear inactive and destroyed
                 if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
-                    if let ActiveState::InactiveCleared(_) = s.active {
-                        s.render(time, &mut self.renderer, &self.egl_surface);
+                    if let ActiveState::InactiveCleared(cleared) = s.active {
+                        if !cleared {
+                            s.render(time, &mut self.renderer, &self.egl_surface);
+                        }
                     }
                 }
                 if remove {
-                    return None;
+                    None
                 } else {
-                    return Some(s);
+                    Some(s)
                 }
             })
             .collect();

@@ -12,7 +12,7 @@ use space::CachedBuffers;
 use std::{
     cell::Cell,
     os::unix::io::AsRawFd,
-    process::Command,
+    process::{Command, Stdio},
     rc::Rc,
     thread,
     time::{Duration, Instant},
@@ -61,7 +61,7 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
     let mut child = child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
         .env_remove("WAYLAND_DEBUG")
-        // .stderr(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .expect("Failed to start child process");
 
@@ -97,7 +97,7 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
             let display = &mut shared_data.desktop_client_state.display;
             display.flush().unwrap();
 
-            let renderer = &mut shared_data.desktop_client_state.renderer.as_mut();
+            let renderer = &mut shared_data.desktop_client_state.space.as_mut();
             if let Some(renderer) = renderer {
                 renderer.apply_display(&server_display);
                 last_dirty = renderer.handle_events(

@@ -23,7 +23,7 @@ use smithay::{
     wayland::{
         data_device::{start_dnd, SourceMetadata},
         seat, SERIAL_COUNTER,
-    },
+    }, desktop::WindowSurfaceType,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -31,9 +31,9 @@ use crate::{
     output::handle_output,
     seat::{
         handle_motion, seat_handle_callback, send_keyboard_event, send_pointer_event,
-        set_server_device_selection,
+        set_server_device_selection, set_focused_surface,
     },
-    shared_state::*,
+    shared_state::*, space::ServerSurface,
 };
 use crate::{space::Space, XdgWrapperConfig};
 
@@ -135,7 +135,7 @@ pub fn new_client(
                     .get::<(GlobalState, wayland_server::Display)>()
                     .unwrap();
                 let outputs = &mut state.outputs;
-                let renderer = &mut state.desktop_client_state.renderer;
+                let renderer = &mut state.desktop_client_state.space;
                 handle_output(
                     config.clone(),
                     &layer_shell,
@@ -165,7 +165,7 @@ pub fn new_client(
         let DesktopClientState {
             seats,
             env_handle,
-            renderer,
+            space,
             ..
         } = &mut state.desktop_client_state;
 
@@ -182,15 +182,16 @@ pub fn new_client(
                 sctk::data_device::DndEvent::Enter {
                     offer,
                     serial: _,
-                    surface: _,
+                    surface,
                     x,
                     y,
                 } => {
+                    set_focused_surface(focused_surface, space, &surface, x, y);
                     let offer = match offer {
                         Some(o) => o,
                         None => return,
                     };
-                    // dbg!(offer);
+
                     let mime_types = offer.with_mime_types(|mime_types| Vec::from(mime_types));
 
                     offer.accept(mime_types.iter().next().map(|s| s.clone()));
@@ -271,7 +272,7 @@ pub fn new_client(
                     last_motion.replace(Some(((x, y), time)));
 
                     handle_motion(
-                        renderer,
+                        space,
                         focused_surface.borrow().clone(),
                         x,
                         y,
@@ -382,7 +383,7 @@ pub fn new_client(
     trace!(log.clone(), "client setup complete");
     Ok((
         DesktopClientState {
-            renderer,
+            space: renderer,
             display,
             _output_listener: output_listener,
             seats: seats,
