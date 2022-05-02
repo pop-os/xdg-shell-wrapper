@@ -250,9 +250,7 @@ pub fn send_pointer_event(
                 surface_y,
                 ..
             } => {
-                dbg!(&surface);
                 // TODO better handling of subsurfaces?
-                // better handling of active surface with popups?
                 set_focused_surface(focused_surface, space, &surface, surface_x, surface_y);
                 c_focused_surface.replace(surface);
             }

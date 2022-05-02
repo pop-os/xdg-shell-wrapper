@@ -21,7 +21,7 @@ use smithay::{
         },
     },
     wayland::{
-        data_device::{start_dnd, SourceMetadata},
+        data_device::{start_dnd, SourceMetadata, set_data_device_focus},
         seat, SERIAL_COUNTER,
     }, desktop::WindowSurfaceType,
 };
@@ -156,6 +156,7 @@ pub fn new_client(
     };
 
     // TODO logging
+    // FIXME focus lost after drop from source outside xdg-shell-wrapper
     // dnd listener
     let last_motion = Rc::new(RefCell::new(None));
     let _ = env.set_data_device_callback(move |seat, dnd_event, mut dispatch_data| {
@@ -172,6 +173,7 @@ pub fn new_client(
         let EmbeddedServerState {
             focused_surface,
             last_button,
+            client,
             ..
         } = &state.embedded_server_state;
 
@@ -186,6 +188,8 @@ pub fn new_client(
                     x,
                     y,
                 } => {
+                    set_data_device_focus(&seat.server.0, Some(client.clone()));
+
                     set_focused_surface(focused_surface, space, &surface, x, y);
                     let offer = match offer {
                         Some(o) => o,
@@ -251,7 +255,7 @@ pub fn new_client(
                                 }
                             }
                             smithay::wayland::data_device::ServerDndEvent::Finished => {
-                                println!("finished");
+                                // println!("finished");
                                 let _ = env_clone.with_data_device(&seat_clone, |device| {
                                     device.with_dnd(|offer| {
                                         if let Some(offer) = offer {

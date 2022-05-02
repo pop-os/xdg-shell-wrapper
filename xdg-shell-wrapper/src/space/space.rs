@@ -406,29 +406,6 @@ impl Space {
     pub fn dirty(&mut self, dirty_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
         self.last_dirty = Instant::now();
 
-        let mut max_w = w;
-        let mut max_h = h;
-        if let Some((max_old_w, max_old_h)) = self
-            .cliient_top_levels
-            .iter()
-            .filter_map(|s| {
-                let top_level = s.s_top_level.borrow();
-                let wl_s = match top_level.toplevel() {
-                    Kind::Xdg(wl_s) => wl_s.get_surface(),
-                };
-                if wl_s == Some(dirty_top_level_surface) {
-                    None
-                } else {
-                    Some(s.dimensions)
-                }
-            })
-            .reduce(|accum, s| (s.0.max(accum.0), s.1.max(accum.1)))
-        {
-            max_w = max_old_w.max(w);
-            max_h = max_old_h.max(h);
-        }
-
-        // dbg!(dirty_top_level_surface);
         if let Some(s) = self.cliient_top_levels.iter_mut().find(|s| {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
@@ -438,16 +415,19 @@ impl Space {
         }) {
             // dbg!((max_w,max_h));
             if s.dimensions != (w, h) {
-                s.dimensions = (max_w, max_h);
+                s.dimensions = (w, h);
+                if let ActiveState::ActiveFullyRendered(_) = s.active {
+                    if self.dimensions != (w, h) {
+                        self.dimensions = (w, h);
+                        self.egl_surface.resize(w as i32, h as i32, 0, 0);
+                        self.layer_surface.set_size(w, h);
+                        self.layer_shell_wl_surface.commit();
+                    }
+                }
             }
 
-            if self.dimensions != (max_w, max_h) {
-                self.dimensions = (max_w, max_h);
-                self.egl_surface.resize(max_w as i32, max_h as i32, 0, 0);
-                self.layer_surface.set_size(max_w, max_h);
-                self.layer_shell_wl_surface.commit();
-            }
             s.dirty = true;
+            
         }
     }
 
@@ -636,6 +616,11 @@ impl Space {
                         .toplevel()
                         .get_surface()
                         .map(|s| s.clone());
+                    let (w,h) = top_level.dimensions;
+                    self.dimensions = (w, h);
+                    self.egl_surface.resize(w as i32, h as i32, 0, 0);
+                    self.layer_surface.set_size(w, h);
+                    self.layer_shell_wl_surface.commit();
                 } else {
                     top_level.active = ActiveState::InactiveCleared(false);
                 }
@@ -652,6 +637,12 @@ impl Space {
                 .toplevel()
                 .get_surface()
                 .map(|s| s.clone());
+
+                let (w,h) = top_level.dimensions;
+                self.dimensions = (w, h);
+                self.egl_surface.resize(w as i32, h as i32, 0, 0);
+                self.layer_surface.set_size(w, h);
+                self.layer_shell_wl_surface.commit();
         }
     }
 }

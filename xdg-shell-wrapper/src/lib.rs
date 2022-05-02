@@ -61,6 +61,7 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
     let mut child = child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
         .env_remove("WAYLAND_DEBUG")
+        // .env("WAYLAND_DEBUG", "1")
         .stderr(Stdio::null())
         .spawn()
         .expect("Failed to start child process");
