@@ -651,9 +651,6 @@ impl Space {
     }
 
     // TODO cleanup
-    // FIXME transparent ring around active windows which have drop shadow in a situation with multiple top levels
-    // XXX better draws and clears?
-    // TODO better popup damage use
     fn render(&mut self, time: u32) {
         let logger = self.log.clone();
         let width = self.dimensions.0 as i32;
@@ -663,24 +660,13 @@ impl Space {
         let mut _top_levels: Vec<&mut TopLevelSurface> = self
             .cliient_top_levels
             .iter_mut()
-            .sorted_by(|a, b| Ord::cmp(&b.active, &a.active))
+            .sorted_by(|a, b| Ord::cmp(&b.active, &a.active).reverse())
             .collect();
 
-        // get damage of active window
-        let l_damage_active =
-            if let Some(active_top_level) = _top_levels.iter().filter(|t| t.dirty).last() {
-                let s_top_level = active_top_level.s_top_level.borrow();
-                let server_surface = match s_top_level.toplevel() {
-                    Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
-                        Some(s) => s,
-                        _ => return,
-                    },
-                };
-                damage_from_surface_tree(server_surface, (0, 0), None)
-            } else {
-                Vec::new()
-            };
-
+        // aggregate damage of all top levels
+        // clear once with aggregated damage
+        // redraw each top level using the aggregated damage
+        let mut l_damage = Vec::new();
         let mut p_damage = Vec::new();
         let mut p_damage_f64 = Vec::new();
         let clear_color = [0.0, 0.0, 0.0, 0.0];
@@ -694,7 +680,6 @@ impl Space {
                 smithay::utils::Transform::Flipped180,
                 |self_: &mut Gles2Renderer, frame| {
                     // clear frame with total damage
-                    let mut l_damage = l_damage_active.clone();
                     for top_level in &mut _top_levels.iter().filter(|t| t.dirty) {
                         let s_top_level = top_level.s_top_level.borrow();
                         let server_surface = match s_top_level.toplevel() {
@@ -705,34 +690,40 @@ impl Space {
                         };
                         let mut loc = s_top_level.bbox().loc - top_level.loc_offset;
                         loc = (-loc.x, -loc.y).into();
+                        let full_clear = match top_level.active {
+                            ActiveState::ActiveFullyRendered(b) if b == false => true,
+                            ActiveState::InactiveCleared(b) if b == false => false,
+                            _ => false,
+                        };
 
                         let surface_tree_damage =
                             damage_from_surface_tree(server_surface, (0, 0), None);
-                        l_damage.extend(if surface_tree_damage.len() == 0 {
-                            let dimensions = if top_level.is_root {
-                                (top_level.dimensions.0 as i32, top_level.dimensions.1 as i32)
-                                    .into()
+                        l_damage.extend(
+                            if surface_tree_damage.len() == 0 || full_clear {
+                                vec![Rectangle::from_loc_and_size(
+                                    loc,
+                                    (top_level.dimensions.0 as i32, top_level.dimensions.1 as i32),
+                                )]
                             } else {
-                                top_level.s_top_level.borrow().bbox().size
-                            };
-                            vec![Rectangle::from_loc_and_size(loc, dimensions)]
-                        } else {
-                            surface_tree_damage
-                        });
+                                surface_tree_damage
+                            }
+                            .into_iter()
+                            .map(|d| (d, top_level.loc_offset)),
+                        );
                         let (mut cur_p_damage, mut cur_p_damage_f64) = (
                             l_damage
                                 .iter()
-                                .map(|d| {
+                                .map(|(d, o)| {
                                     let mut d = d.clone();
-                                    d.loc += top_level.loc_offset;
+                                    d.loc += *o;
                                     d.to_physical(1)
                                 })
                                 .collect::<Vec<_>>(),
                             l_damage
                                 .iter()
-                                .map(|d| {
+                                .map(|(d, o)| {
                                     let mut d = d.clone();
-                                    d.loc += top_level.loc_offset;
+                                    d.loc += *o;
                                     d.to_physical(1).to_f64()
                                 })
                                 .collect::<Vec<_>>(),
@@ -754,24 +745,9 @@ impl Space {
                                 _ => continue,
                             },
                         };
-                        if top_level.dirty || l_damage_active.len() > 0 {
+                        if top_level.dirty || l_damage.len() > 0 {
                             let mut loc = s_top_level.bbox().loc - top_level.loc_offset;
                             loc = (-loc.x, -loc.y).into();
-
-                            let surface_tree_damage =
-                                damage_from_surface_tree(server_surface, (0, 0), None);
-                            let mut l_damage = if surface_tree_damage.len() == 0 {
-                                let dimensions = if top_level.is_root {
-                                    (top_level.dimensions.0 as i32, top_level.dimensions.1 as i32)
-                                        .into()
-                                } else {
-                                    top_level.s_top_level.borrow().bbox().size
-                                };
-                                vec![Rectangle::from_loc_and_size(loc, dimensions)]
-                            } else {
-                                surface_tree_damage
-                            };
-                            l_damage.append(&mut l_damage_active.clone());
 
                             draw_surface_tree(
                                 self_,
@@ -779,7 +755,15 @@ impl Space {
                                 server_surface,
                                 1.0,
                                 loc,
-                                &l_damage,
+                                &l_damage
+                                    .clone()
+                                    .into_iter()
+                                    .map(|(d, o)| {
+                                        let mut d = d.clone();
+                                        d.loc += o - top_level.loc_offset;
+                                        d
+                                    })
+                                    .collect::<Vec<_>>(),
                                 &logger,
                             )
                             .expect("Failed to draw surface tree");
