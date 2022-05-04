@@ -99,9 +99,9 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
             display.flush().unwrap();
 
             let renderer = &mut shared_data.desktop_client_state.space.as_mut();
-            if let Some(renderer) = renderer {
-                renderer.apply_display(&server_display);
-                last_dirty = renderer.handle_events(
+            if let Some(space) = renderer {
+                space.apply_display(&server_display);
+                last_dirty = space.handle_events(
                     shared_data.start_time.elapsed().as_millis() as u32,
                     &mut child,
                 );

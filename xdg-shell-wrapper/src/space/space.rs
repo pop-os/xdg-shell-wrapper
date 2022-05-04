@@ -773,111 +773,101 @@ impl Space {
             )
             .expect("Failed to render to layer shell surface.");
 
-        if _top_levels
-            .iter()
-            .filter(|t| t.dirty)
-            .peekable()
-            .peek()
-            .is_some()
-        {
+        if _top_levels.iter().find(|t| t.dirty).is_some() {
             self.egl_surface
                 .swap_buffers(Some(&mut p_damage))
                 .expect("Failed to swap buffers.");
+        }
 
-            // render popups
-            for top_level in &mut _top_levels {
-                for p in &mut top_level.popups {
-                    if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
-                        continue;
-                    }
-                    p.dirty = false;
-                    let wl_surface = match p.s_surface.get_surface() {
-                        Some(s) => s,
-                        _ => return,
-                    };
-
-                    let (width, height) = p.bbox.size.into();
-                    let loc = p.bbox.loc + top_level.loc_offset;
-                    let logger = top_level.log.clone();
-                    let _ = self.renderer.unbind();
-                    self.renderer
-                        .bind(p.egl_surface.clone())
-                        .expect("Failed to bind surface to GL");
-                    self.renderer
-                        .render(
-                            (width, height).into(),
-                            smithay::utils::Transform::Flipped180,
-                            |self_: &mut Gles2Renderer, frame| {
-                                let damage =
-                                    smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                                        loc: loc.clone().into(),
-                                        size: (width, height).into(),
-                                    };
-
-                                frame
-                                    .clear(
-                                        clear_color,
-                                        &[smithay::utils::Rectangle::<
-                                            f64,
-                                            smithay::utils::Logical,
-                                        > {
-                                            loc: (loc.x as f64, loc.y as f64).clone().into(),
-                                            size: (width as f64, height as f64).into(),
-                                        }
-                                        .to_physical(1.0)],
-                                    )
-                                    .expect("Failed to clear frame.");
-                                if let ActiveState::ActiveFullyRendered(_) = top_level.active {
-                                    let loc = (-loc.x, -loc.y);
-                                    draw_surface_tree(
-                                        self_,
-                                        frame,
-                                        wl_surface,
-                                        1.0,
-                                        loc.into(),
-                                        &[damage],
-                                        &logger,
-                                    )
-                                    .expect("Failed to draw surface tree");
-                                }
-                            },
-                        )
-                        .expect("Failed to render to layer shell surface.");
-
-                    let mut damage = [smithay::utils::Rectangle {
-                        loc: (0, 0).into(),
-                        size: (width, height).into(),
-                    }];
-
-                    p.egl_surface
-                        .swap_buffers(Some(&mut damage))
-                        .expect("Failed to swap buffers.");
-
-                    send_frames_surface_tree(wl_surface, time);
+        // render popups
+        for top_level in &mut _top_levels {
+            for p in &mut top_level.popups {
+                if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
+                    continue;
                 }
-            }
-
-            for top_level in &mut _top_levels.iter_mut().filter(|t| t.dirty) {
-                top_level.dirty = false;
-
-                let s_top_level = top_level.s_top_level.borrow();
-                let server_surface = match s_top_level.toplevel() {
-                    Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
-                        Some(s) => s,
-                        _ => continue,
-                    },
+                p.dirty = false;
+                let wl_surface = match p.s_surface.get_surface() {
+                    Some(s) => s,
+                    _ => return,
                 };
-                send_frames_surface_tree(server_surface, time);
 
-                match top_level.active {
-                    ActiveState::ActiveFullyRendered(b) if !b => {
-                        top_level.active = ActiveState::ActiveFullyRendered(true);
-                    }
-                    ActiveState::InactiveCleared(b) if !b => {
-                        top_level.active = ActiveState::InactiveCleared(true);
-                    }
-                    _ => {}
+                let (width, height) = p.bbox.size.into();
+                let loc = p.bbox.loc + top_level.loc_offset;
+                let logger = top_level.log.clone();
+                let _ = self.renderer.unbind();
+                self.renderer
+                    .bind(p.egl_surface.clone())
+                    .expect("Failed to bind surface to GL");
+                self.renderer
+                    .render(
+                        (width, height).into(),
+                        smithay::utils::Transform::Flipped180,
+                        |self_: &mut Gles2Renderer, frame| {
+                            let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
+                                loc: loc.clone().into(),
+                                size: (width, height).into(),
+                            };
+
+                            frame
+                                .clear(
+                                    clear_color,
+                                    &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
+                                        loc: (loc.x as f64, loc.y as f64).clone().into(),
+                                        size: (width as f64, height as f64).into(),
+                                    }
+                                    .to_physical(1.0)],
+                                )
+                                .expect("Failed to clear frame.");
+                            if let ActiveState::ActiveFullyRendered(_) = top_level.active {
+                                let loc = (-loc.x, -loc.y);
+                                draw_surface_tree(
+                                    self_,
+                                    frame,
+                                    wl_surface,
+                                    1.0,
+                                    loc.into(),
+                                    &[damage],
+                                    &logger,
+                                )
+                                .expect("Failed to draw surface tree");
+                            }
+                        },
+                    )
+                    .expect("Failed to render to layer shell surface.");
+
+                let mut damage = [smithay::utils::Rectangle {
+                    loc: (0, 0).into(),
+                    size: (width, height).into(),
+                }];
+
+                p.egl_surface
+                    .swap_buffers(Some(&mut damage))
+                    .expect("Failed to swap buffers.");
+
+                send_frames_surface_tree(wl_surface, time);
+            }
+        }
+
+        for top_level in &mut _top_levels.iter_mut().filter(|t| t.dirty) {
+            top_level.dirty = false;
+
+            let s_top_level = top_level.s_top_level.borrow();
+            let server_surface = match s_top_level.toplevel() {
+                Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
+                    Some(s) => s,
+                    _ => continue,
+                },
+            };
+            send_frames_surface_tree(server_surface, time);
+
+            match top_level.active {
+                ActiveState::ActiveFullyRendered(b) if !b => {
+                    top_level.active = ActiveState::ActiveFullyRendered(true);
                 }
+                ActiveState::InactiveCleared(b) if !b => {
+                    top_level.active = ActiveState::InactiveCleared(true);
+                }
+                _ => {}
             }
         }
     }

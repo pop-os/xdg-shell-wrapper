@@ -36,6 +36,7 @@ pub struct CachedBuffers {
     log: Logger,
 }
 
+// FIXME Cursor images seem to be broken
 impl CachedBuffers {
     pub fn new(log: Logger) -> Self {
         Self {
