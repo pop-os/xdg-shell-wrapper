@@ -7,6 +7,7 @@ use std::{
     time::Instant,
 };
 
+use itertools::Itertools;
 use libc::c_int;
 
 use sctk::{
@@ -28,9 +29,15 @@ use smithay::{
             },
             surface::EGLSurface,
         },
-        renderer::{gles2::Gles2Renderer, ImportEgl},
+        renderer::{
+            gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, ImportEgl, Renderer,
+            Unbind,
+        },
     },
-    desktop::{Kind, PopupKind, PopupManager, Window},
+    desktop::{
+        utils::{damage_from_surface_tree, send_frames_surface_tree},
+        Kind, PopupKind, PopupManager, Window,
+    },
     reexports::{
         wayland_protocols::{
             wlr::unstable::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1},
@@ -236,14 +243,6 @@ impl Space {
                         let _ = child.kill();
                     }
                 }
-                // clear inactive and destroyed
-                if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
-                    if let ActiveState::InactiveCleared(cleared) = s.active {
-                        if !cleared {
-                            s.render(time, &mut self.renderer, &self.egl_surface);
-                        }
-                    }
-                }
                 if remove {
                     None
                 } else {
@@ -256,16 +255,9 @@ impl Space {
         if needs_new_active {
             self.cycle_active();
         }
-        // render active
-        else {
-            if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
-                if let Some(s) = &mut self.cliient_top_levels.iter_mut().find(|s| match s.active {
-                    ActiveState::ActiveFullyRendered(_) => true,
-                    _ => false,
-                }) {
-                    s.render(time, &mut self.renderer, &self.egl_surface);
-                }
-            }
+
+        if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
+            self.render(time);
         }
 
         self.last_dirty
@@ -285,22 +277,22 @@ impl Space {
         self.needs_update = false;
     }
 
-    pub fn add_top_level(&mut self, s_top_level: Rc<RefCell<Window>>, mut dimensions: (u32, u32)) {
+    pub fn add_top_level(&mut self, s_top_level: Rc<RefCell<Window>>) {
         for top_level in &mut self.cliient_top_levels {
             top_level.active = ActiveState::InactiveCleared(false);
             top_level.dirty = true;
         }
-        dimensions = Self::constrain_dim(&self.config, dimensions);
 
         let is_root = self.cliient_top_levels.len() == 0;
         let top_level = TopLevelSurface {
-            dimensions: dimensions,
+            dimensions: (0, 0).into(),
             is_root,
             s_top_level,
             popups: Default::default(),
             log: self.log.clone(),
             dirty: true,
             active: ActiveState::ActiveFullyRendered(false),
+            loc_offset: (0, 0).into(),
         };
         self.cliient_top_levels.push(top_level);
     }
@@ -317,7 +309,7 @@ impl Space {
         popup_manager: Rc<RefCell<PopupManager>>,
     ) {
         let s = match self.cliient_top_levels.iter_mut().find(|s| {
-            let top_level = s.s_top_level.borrow();
+            let top_level: &Window = &s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
                 Kind::Xdg(wl_s) => wl_s.get_surface(),
             };
@@ -406,6 +398,33 @@ impl Space {
     pub fn dirty(&mut self, dirty_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
         self.last_dirty = Instant::now();
 
+        let mut max_w = w;
+        let mut max_h = h;
+        if let Some((max_old_w, max_old_h)) = self
+            .cliient_top_levels
+            .iter()
+            .filter_map(|s| {
+                let top_level = s.s_top_level.borrow();
+                let wl_s = match top_level.toplevel() {
+                    Kind::Xdg(wl_s) => wl_s.get_surface(),
+                };
+                if wl_s == Some(dirty_top_level_surface) {
+                    None
+                } else {
+                    Some(s.dimensions)
+                }
+            })
+            .reduce(|accum, s| (s.0.max(accum.0), s.1.max(accum.1)))
+        {
+            max_w = max_old_w.max(w);
+            max_h = max_old_h.max(h);
+        }
+        if self.dimensions != (max_w, max_h) {
+            self.dimensions = (max_w, max_h);
+            self.egl_surface.resize(max_w as i32, max_h as i32, 0, 0);
+            self.layer_surface.set_size(max_w, max_h);
+            self.layer_shell_wl_surface.commit();
+        }
         if let Some(s) = self.cliient_top_levels.iter_mut().find(|s| {
             let top_level = s.s_top_level.borrow();
             let wl_s = match top_level.toplevel() {
@@ -413,21 +432,14 @@ impl Space {
             };
             wl_s == Some(dirty_top_level_surface)
         }) {
-            // dbg!((max_w,max_h));
             if s.dimensions != (w, h) {
-                s.dimensions = (w, h);
-                if let ActiveState::ActiveFullyRendered(_) = s.active {
-                    if self.dimensions != (w, h) {
-                        self.dimensions = (w, h);
-                        self.egl_surface.resize(w as i32, h as i32, 0, 0);
-                        self.layer_surface.set_size(w, h);
-                        self.layer_shell_wl_surface.commit();
-                    }
-                }
-            }
+                let x_offset = (max_w - w) as i32 / 2;
+                let y_offset = (max_h - h) as i32 / 2;
 
+                s.loc_offset = (x_offset as i32, y_offset as i32).into();
+                s.dimensions = (w, h);
+            }
             s.dirty = true;
-            
         }
     }
 
@@ -447,7 +459,6 @@ impl Space {
         }) {
             for popup in &mut s.popups {
                 if popup.s_surface.get_surface() == other_popup.get_surface() {
-                    // TODO use loc
                     if popup.bbox != dim {
                         popup.bbox = dim;
                         popup.egl_surface.resize(dim.size.w, dim.size.h, 0, 0);
@@ -465,9 +476,10 @@ impl Space {
     ) -> Option<ServerSurface> {
         if active_surface == &*self.layer_shell_wl_surface {
             return self.cliient_top_levels.iter().find_map(|s| match s.active {
-                ActiveState::ActiveFullyRendered(_) => {
-                    Some(ServerSurface::TopLevel(s.s_top_level.clone()))
-                }
+                ActiveState::ActiveFullyRendered(_) => Some(ServerSurface::TopLevel(
+                    s.loc_offset.clone(),
+                    s.s_top_level.clone(),
+                )),
                 _ => None,
             });
         }
@@ -476,6 +488,7 @@ impl Space {
             for popup in &s.popups {
                 if popup.c_surface == active_surface.clone() {
                     return Some(ServerSurface::Popup(
+                        s.loc_offset.clone(),
                         s.s_top_level.clone(),
                         popup.s_surface.clone(),
                     ));
@@ -488,11 +501,15 @@ impl Space {
     pub fn find_server_window(&self, active_surface: &s_WlSurface) -> Option<ServerSurface> {
         for s in &self.cliient_top_levels {
             if s.s_top_level.borrow().toplevel().get_surface() == Some(active_surface) {
-                return Some(ServerSurface::TopLevel(s.s_top_level.clone()));
+                return Some(ServerSurface::TopLevel(
+                    s.loc_offset.clone(),
+                    s.s_top_level.clone(),
+                ));
             } else {
                 for popup in &s.popups {
                     if popup.s_surface.get_surface() == Some(active_surface) {
                         return Some(ServerSurface::Popup(
+                            s.loc_offset.clone(),
                             s.s_top_level.clone(),
                             popup.s_surface.clone(),
                         ));
@@ -533,8 +550,6 @@ impl Space {
         self.needs_update = true;
     }
 
-    // TODO cleanup
-    // What to do about egl display and renderer here?
     fn get_layer_shell(
         layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         config: &XdgWrapperConfig,
@@ -550,7 +565,7 @@ impl Space {
             &c_surface.clone(),
             output,
             config.layer.into(),
-            "example".to_owned(),
+            "".to_owned(),
         );
 
         layer_surface.set_anchor(config.anchor.into());
@@ -616,11 +631,6 @@ impl Space {
                         .toplevel()
                         .get_surface()
                         .map(|s| s.clone());
-                    let (w,h) = top_level.dimensions;
-                    self.dimensions = (w, h);
-                    self.egl_surface.resize(w as i32, h as i32, 0, 0);
-                    self.layer_surface.set_size(w, h);
-                    self.layer_shell_wl_surface.commit();
                 } else {
                     top_level.active = ActiveState::InactiveCleared(false);
                 }
@@ -637,12 +647,254 @@ impl Space {
                 .toplevel()
                 .get_surface()
                 .map(|s| s.clone());
+        }
+    }
 
-                let (w,h) = top_level.dimensions;
-                self.dimensions = (w, h);
-                self.egl_surface.resize(w as i32, h as i32, 0, 0);
-                self.layer_surface.set_size(w, h);
-                self.layer_shell_wl_surface.commit();
+    // TODO cleanup
+    // FIXME transparent ring around active windows which have drop shadow in a situation with multiple top levels
+    // XXX better draws and clears?
+    // TODO better popup damage use
+    fn render(&mut self, time: u32) {
+        let logger = self.log.clone();
+        let width = self.dimensions.0 as i32;
+        let height = self.dimensions.1 as i32;
+
+        // reorder top levels so active window is last
+        let mut _top_levels: Vec<&mut TopLevelSurface> = self
+            .cliient_top_levels
+            .iter_mut()
+            .sorted_by(|a, b| Ord::cmp(&b.active, &a.active))
+            .collect();
+
+        // get damage of active window
+        let l_damage_active =
+            if let Some(active_top_level) = _top_levels.iter().filter(|t| t.dirty).last() {
+                let s_top_level = active_top_level.s_top_level.borrow();
+                let server_surface = match s_top_level.toplevel() {
+                    Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
+                        Some(s) => s,
+                        _ => return,
+                    },
+                };
+                damage_from_surface_tree(server_surface, (0, 0), None)
+            } else {
+                Vec::new()
+            };
+
+        let mut p_damage = Vec::new();
+        let mut p_damage_f64 = Vec::new();
+        let clear_color = [0.0, 0.0, 0.0, 0.0];
+        let _ = self.renderer.unbind();
+        self.renderer
+            .bind(self.egl_surface.clone())
+            .expect("Failed to bind surface to GL");
+        self.renderer
+            .render(
+                (width, height).into(),
+                smithay::utils::Transform::Flipped180,
+                |self_: &mut Gles2Renderer, frame| {
+                    // clear frame with total damage
+                    let mut l_damage = l_damage_active.clone();
+                    for top_level in &mut _top_levels.iter().filter(|t| t.dirty) {
+                        let s_top_level = top_level.s_top_level.borrow();
+                        let server_surface = match s_top_level.toplevel() {
+                            Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
+                                Some(s) => s,
+                                _ => continue,
+                            },
+                        };
+                        let mut loc = s_top_level.bbox().loc - top_level.loc_offset;
+                        loc = (-loc.x, -loc.y).into();
+
+                        let surface_tree_damage =
+                            damage_from_surface_tree(server_surface, (0, 0), None);
+                        l_damage.extend(if surface_tree_damage.len() == 0 {
+                            let dimensions = if top_level.is_root {
+                                (top_level.dimensions.0 as i32, top_level.dimensions.1 as i32)
+                                    .into()
+                            } else {
+                                top_level.s_top_level.borrow().bbox().size
+                            };
+                            vec![Rectangle::from_loc_and_size(loc, dimensions)]
+                        } else {
+                            surface_tree_damage
+                        });
+                        let (mut cur_p_damage, mut cur_p_damage_f64) = (
+                            l_damage
+                                .iter()
+                                .map(|d| {
+                                    let mut d = d.clone();
+                                    d.loc += top_level.loc_offset;
+                                    d.to_physical(1)
+                                })
+                                .collect::<Vec<_>>(),
+                            l_damage
+                                .iter()
+                                .map(|d| {
+                                    let mut d = d.clone();
+                                    d.loc += top_level.loc_offset;
+                                    d.to_physical(1).to_f64()
+                                })
+                                .collect::<Vec<_>>(),
+                        );
+                        p_damage.append(&mut cur_p_damage);
+                        p_damage_f64.append(&mut cur_p_damage_f64);
+                    }
+                    frame
+                        .clear(clear_color, &p_damage_f64)
+                        .expect("Failed to clear frame.");
+
+                    // draw each surface which needs to be drawn
+                    for top_level in &mut _top_levels {
+                        // render top level surface
+                        let s_top_level = top_level.s_top_level.borrow();
+                        let server_surface = match s_top_level.toplevel() {
+                            Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
+                                Some(s) => s,
+                                _ => continue,
+                            },
+                        };
+                        if top_level.dirty || l_damage_active.len() > 0 {
+                            let mut loc = s_top_level.bbox().loc - top_level.loc_offset;
+                            loc = (-loc.x, -loc.y).into();
+
+                            let surface_tree_damage =
+                                damage_from_surface_tree(server_surface, (0, 0), None);
+                            let mut l_damage = if surface_tree_damage.len() == 0 {
+                                let dimensions = if top_level.is_root {
+                                    (top_level.dimensions.0 as i32, top_level.dimensions.1 as i32)
+                                        .into()
+                                } else {
+                                    top_level.s_top_level.borrow().bbox().size
+                                };
+                                vec![Rectangle::from_loc_and_size(loc, dimensions)]
+                            } else {
+                                surface_tree_damage
+                            };
+                            l_damage.append(&mut l_damage_active.clone());
+
+                            draw_surface_tree(
+                                self_,
+                                frame,
+                                server_surface,
+                                1.0,
+                                loc,
+                                &l_damage,
+                                &logger,
+                            )
+                            .expect("Failed to draw surface tree");
+                        }
+                    }
+                },
+            )
+            .expect("Failed to render to layer shell surface.");
+
+        if _top_levels
+            .iter()
+            .filter(|t| t.dirty)
+            .peekable()
+            .peek()
+            .is_some()
+        {
+            self.egl_surface
+                .swap_buffers(Some(&mut p_damage))
+                .expect("Failed to swap buffers.");
+
+            // render popups
+            for top_level in &mut _top_levels {
+                for p in &mut top_level.popups {
+                    if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
+                        continue;
+                    }
+                    p.dirty = false;
+                    let wl_surface = match p.s_surface.get_surface() {
+                        Some(s) => s,
+                        _ => return,
+                    };
+
+                    let (width, height) = p.bbox.size.into();
+                    let loc = p.bbox.loc + top_level.loc_offset;
+                    let logger = top_level.log.clone();
+                    let _ = self.renderer.unbind();
+                    self.renderer
+                        .bind(p.egl_surface.clone())
+                        .expect("Failed to bind surface to GL");
+                    self.renderer
+                        .render(
+                            (width, height).into(),
+                            smithay::utils::Transform::Flipped180,
+                            |self_: &mut Gles2Renderer, frame| {
+                                let damage =
+                                    smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
+                                        loc: loc.clone().into(),
+                                        size: (width, height).into(),
+                                    };
+
+                                frame
+                                    .clear(
+                                        clear_color,
+                                        &[smithay::utils::Rectangle::<
+                                            f64,
+                                            smithay::utils::Logical,
+                                        > {
+                                            loc: (loc.x as f64, loc.y as f64).clone().into(),
+                                            size: (width as f64, height as f64).into(),
+                                        }
+                                        .to_physical(1.0)],
+                                    )
+                                    .expect("Failed to clear frame.");
+                                if let ActiveState::ActiveFullyRendered(_) = top_level.active {
+                                    let loc = (-loc.x, -loc.y);
+                                    draw_surface_tree(
+                                        self_,
+                                        frame,
+                                        wl_surface,
+                                        1.0,
+                                        loc.into(),
+                                        &[damage],
+                                        &logger,
+                                    )
+                                    .expect("Failed to draw surface tree");
+                                }
+                            },
+                        )
+                        .expect("Failed to render to layer shell surface.");
+
+                    let mut damage = [smithay::utils::Rectangle {
+                        loc: (0, 0).into(),
+                        size: (width, height).into(),
+                    }];
+
+                    p.egl_surface
+                        .swap_buffers(Some(&mut damage))
+                        .expect("Failed to swap buffers.");
+
+                    send_frames_surface_tree(wl_surface, time);
+                }
+            }
+
+            for top_level in &mut _top_levels.iter_mut().filter(|t| t.dirty) {
+                top_level.dirty = false;
+
+                let s_top_level = top_level.s_top_level.borrow();
+                let server_surface = match s_top_level.toplevel() {
+                    Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
+                        Some(s) => s,
+                        _ => continue,
+                    },
+                };
+                send_frames_surface_tree(server_surface, time);
+
+                match top_level.active {
+                    ActiveState::ActiveFullyRendered(b) if !b => {
+                        top_level.active = ActiveState::ActiveFullyRendered(true);
+                    }
+                    ActiveState::InactiveCleared(b) if !b => {
+                        top_level.active = ActiveState::InactiveCleared(true);
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }

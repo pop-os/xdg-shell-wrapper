@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::rc::Rc;
 
 use slog::Logger;
-use smithay::desktop::utils::damage_from_surface_tree;
-use smithay::utils::Rectangle;
-use smithay::{
-    backend::{
-        egl::surface::EGLSurface,
-        renderer::{gles2::Gles2Renderer, utils::draw_surface_tree, Bind, Frame, Renderer, Unbind},
-    },
-    desktop::{utils::send_frames_surface_tree, Kind},
-};
+use smithay::utils::{Logical, Point};
 
 use super::{Popup, PopupRenderEvent};
 
@@ -23,12 +16,34 @@ pub enum RenderEvent {
     Closed,
 }
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug, Eq)]
 pub enum ActiveState {
     InactiveCleared(bool),
     ActiveFullyRendered(bool),
 }
 
+impl PartialOrd for ActiveState {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ActiveState {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (ActiveState::InactiveCleared(_), ActiveState::InactiveCleared(_)) => Ordering::Equal,
+            (ActiveState::InactiveCleared(_), ActiveState::ActiveFullyRendered(_)) => {
+                Ordering::Less
+            }
+            (ActiveState::ActiveFullyRendered(_), ActiveState::InactiveCleared(_)) => {
+                Ordering::Greater
+            }
+            (ActiveState::ActiveFullyRendered(_), ActiveState::ActiveFullyRendered(_)) => {
+                Ordering::Equal
+            }
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TopLevelSurface {
     pub s_top_level: Rc<RefCell<smithay::desktop::Window>>,
@@ -38,6 +53,7 @@ pub struct TopLevelSurface {
     pub is_root: bool,
     pub log: Logger,
     pub active: ActiveState,
+    pub loc_offset: Point<i32, Logical>,
 }
 
 impl TopLevelSurface {
@@ -81,169 +97,6 @@ impl TopLevelSurface {
             }
         }
         false
-    }
-
-    pub fn render(
-        &mut self,
-        time: u32,
-        renderer: &mut Gles2Renderer,
-        egl_surface: &Rc<EGLSurface>,
-    ) {
-        let clear_color = [0.0, 0.0, 0.0, 0.0];
-        // render top level surface
-        if self.dirty {
-            self.dirty = false;
-
-            let logger = self.log.clone();
-            let s_top_level = self.s_top_level.borrow();
-            let server_surface = match s_top_level.toplevel() {
-                Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
-                    Some(s) => s,
-                    _ => return,
-                },
-            };
-
-            let width = self.dimensions.0 as i32;
-            let height = self.dimensions.1 as i32;
-            let loc = self.s_top_level.borrow().bbox().loc;
-            let full_clear = match self.active {
-                ActiveState::ActiveFullyRendered(b) if b == false => true,
-                ActiveState::InactiveCleared(b) if b == false => true,
-                _ => false,
-            };
-            let mut l_damage = if full_clear {
-                vec![Rectangle::from_loc_and_size((0, 0), (width, height))]
-            } else {
-                damage_from_surface_tree(server_surface, (0, 0), None)
-            };
-            if l_damage.len() == 0
-                || self.active == ActiveState::ActiveFullyRendered(false)
-                || self.active == ActiveState::InactiveCleared(false)
-            {
-                l_damage = vec![Rectangle::from_loc_and_size(loc, (width, height))]
-            }
-            let (mut p_damage, p_damage_f64) = (
-                l_damage
-                    .iter()
-                    .map(|d| d.to_physical(1))
-                    .collect::<Vec<_>>(),
-                l_damage
-                    .iter()
-                    .map(|d| d.to_physical(1).to_f64())
-                    .collect::<Vec<_>>(),
-            );
-
-            let _ = renderer.unbind();
-            renderer
-                .bind(egl_surface.clone())
-                .expect("Failed to bind surface to GL");
-            renderer
-                .render(
-                    (width, height).into(),
-                    smithay::utils::Transform::Flipped180,
-                    |self_: &mut Gles2Renderer, frame| {
-                        frame
-                            .clear(clear_color, &p_damage_f64[..])
-                            .expect("Failed to clear frame.");
-
-                        if let ActiveState::ActiveFullyRendered(_) = self.active {
-                            let loc = (-loc.x, -loc.y);
-                            draw_surface_tree(
-                                self_,
-                                frame,
-                                server_surface,
-                                1.0,
-                                loc.into(),
-                                &l_damage,
-                                &logger,
-                            )
-                            .expect("Failed to draw surface tree");
-                        }
-                    },
-                )
-                .expect("Failed to render to layer shell surface.");
-
-            egl_surface
-                .swap_buffers(Some(&mut p_damage[..]))
-                .expect("Failed to swap buffers.");
-
-            send_frames_surface_tree(server_surface, time);
-        }
-        // render popups
-        for p in &mut self.popups {
-            if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
-                continue;
-            }
-            p.dirty = false;
-            let wl_surface = match p.s_surface.get_surface() {
-                Some(s) => s,
-                _ => return,
-            };
-
-            let (width, height) = p.bbox.size.into();
-            let loc = p.bbox.loc;
-            let logger = self.log.clone();
-            let _ = renderer.unbind();
-            renderer
-                .bind(p.egl_surface.clone())
-                .expect("Failed to bind surface to GL");
-            renderer
-                .render(
-                    (width, height).into(),
-                    smithay::utils::Transform::Flipped180,
-                    |self_: &mut Gles2Renderer, frame| {
-                        let damage = smithay::utils::Rectangle::<i32, smithay::utils::Logical> {
-                            loc: loc.clone().into(),
-                            size: (width, height).into(),
-                        };
-
-                        frame
-                            .clear(
-                                clear_color,
-                                &[smithay::utils::Rectangle::<f64, smithay::utils::Logical> {
-                                    loc: (loc.x as f64, loc.y as f64).clone().into(),
-                                    size: (width as f64, height as f64).into(),
-                                }
-                                .to_physical(1.0)],
-                            )
-                            .expect("Failed to clear frame.");
-                        if let ActiveState::ActiveFullyRendered(_) = self.active {
-                            let loc = (-loc.x, -loc.y);
-                            draw_surface_tree(
-                                self_,
-                                frame,
-                                wl_surface,
-                                1.0,
-                                loc.into(),
-                                &[damage],
-                                &logger,
-                            )
-                            .expect("Failed to draw surface tree");
-                        }
-                    },
-                )
-                .expect("Failed to render to layer shell surface.");
-
-            let mut damage = [smithay::utils::Rectangle {
-                loc: (0, 0).into(),
-                size: (width, height).into(),
-            }];
-
-            p.egl_surface
-                .swap_buffers(Some(&mut damage))
-                .expect("Failed to swap buffers.");
-
-            send_frames_surface_tree(wl_surface, time);
-        }
-        match self.active {
-            ActiveState::ActiveFullyRendered(b) if !b => {
-                self.active = ActiveState::ActiveFullyRendered(true);
-            }
-            ActiveState::InactiveCleared(b) if !b => {
-                self.active = ActiveState::InactiveCleared(true);
-            }
-            _ => {}
-        }
     }
 }
 

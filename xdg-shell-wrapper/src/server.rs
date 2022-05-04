@@ -104,7 +104,7 @@ pub fn new_server(
                 DataDeviceEvent::DnDDropped { seat } => {
                     // dbg!(seat);
                 }
-                DataDeviceEvent::NewSelection(_) => {},
+                DataDeviceEvent::NewSelection(_) => {}
             };
         },
         default_action_chooser,
@@ -226,8 +226,6 @@ pub fn new_server(
                 XdgRequest::NewToplevel { surface } => {
                     let window = Window::new(Kind::Xdg(surface.clone()));
                     window.refresh();
-                    let g = window.geometry();
-                    let dimensions = (g.size.w as u32, g.size.h as u32);
                     let mut focused_surface = focused_surface.borrow_mut();
                     *focused_surface = surface.get_surface().map(|s| s.clone());
 
@@ -246,7 +244,7 @@ pub fn new_server(
                     )));
 
                     if let Some(renderer) = space.as_mut() {
-                        renderer.add_top_level(window.clone(), dimensions);
+                        renderer.add_top_level(window.clone());
                     }
                     if root_window.is_none() {
                         root_window.replace(window);
@@ -291,7 +289,6 @@ pub fn new_server(
                             positioner.set_parent_size(parent_size.w, parent_size.h);
                         }
                     }
-                    // TODO what to do with parent configure?
 
                     let wl_surface = env_handle.create_surface().detach();
                     let xdg_surface = xdg_wm_base.get_xdg_surface(&wl_surface);
@@ -327,7 +324,6 @@ pub fn new_server(
                                 ) {
                                     error!(log.clone(), "{}", e);
                                 }
-                                // TODO forward grab on client?
                                 break;
                             }
                         }

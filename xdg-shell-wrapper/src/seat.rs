@@ -376,6 +376,7 @@ pub(crate) fn set_server_device_selection(
     Ok(())
 }
 
+// TODO revisit motion over popup
 pub(crate) fn handle_motion(
     renderer: &mut Option<Space>,
     focused_surface: Option<WlSurface>,
@@ -392,7 +393,9 @@ pub(crate) fn handle_motion(
         .as_ref()
         .map(|r| r.find_server_window(&focused_surface))
     {
-        Some(Some(ServerSurface::TopLevel(toplevel))) => {
+        Some(Some(ServerSurface::TopLevel(loc_offset, toplevel))) => {
+            let surface_x = surface_x - loc_offset.x as f64;
+            let surface_y = surface_y - loc_offset.y as f64;
             let toplevel = &*toplevel.borrow();
             if let Some((cur_surface, location)) =
                 toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
@@ -412,7 +415,7 @@ pub(crate) fn handle_motion(
                 );
             }
         }
-        Some(Some(ServerSurface::Popup(_toplevel, popup))) => {
+        Some(Some(ServerSurface::Popup(_, _toplevel, popup))) => {
             let popup_surface = match popup.get_surface() {
                 Some(s) => s,
                 _ => return,
@@ -430,21 +433,28 @@ pub(crate) fn handle_motion(
     };
 }
 
-pub(crate) fn set_focused_surface(focused_surface: &Rc<RefCell<Option<WlSurface>>>, space: &mut Option<Space>, surface: &c_wl_surface::WlSurface, x: f64, y: f64) {
+pub(crate) fn set_focused_surface(
+    focused_surface: &Rc<RefCell<Option<WlSurface>>>,
+    space: &mut Option<Space>,
+    surface: &c_wl_surface::WlSurface,
+    x: f64,
+    y: f64,
+) {
     let mut focused_surface = focused_surface.borrow_mut();
     *focused_surface = if let Some(space) = space {
         match space.find_server_surface(surface) {
-            Some(ServerSurface::TopLevel(toplevel)) => {
+            Some(ServerSurface::TopLevel(loc_offset, toplevel)) => {
                 let toplevel = toplevel.borrow();
-                if let Some((cur_surface, _)) = toplevel
-                    .surface_under((x, y), WindowSurfaceType::ALL)
-                {
+                if let Some((cur_surface, _)) = toplevel.surface_under(
+                    (x - loc_offset.x as f64, y - loc_offset.y as f64),
+                    WindowSurfaceType::ALL,
+                ) {
                     Some(cur_surface)
                 } else {
                     toplevel.toplevel().get_surface().map(|s| s.clone())
                 }
             }
-            Some(ServerSurface::Popup(_toplevel, popup)) => match popup.get_surface() {
+            Some(ServerSurface::Popup(_, _toplevel, popup)) => match popup.get_surface() {
                 Some(s) => Some(s.clone()),
                 _ => None,
             },

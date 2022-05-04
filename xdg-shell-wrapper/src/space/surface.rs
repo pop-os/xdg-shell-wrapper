@@ -15,6 +15,7 @@ use smithay::{
         wrap_egl_call, EGLError,
     },
     egl_platform,
+    utils::{Logical, Point},
     wayland::shell::xdg::PopupSurface,
 };
 
@@ -69,6 +70,10 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
 }
 
 pub enum ServerSurface {
-    TopLevel(Rc<RefCell<smithay::desktop::Window>>),
-    Popup(Rc<RefCell<smithay::desktop::Window>>, PopupSurface),
+    TopLevel(Point<i32, Logical>, Rc<RefCell<smithay::desktop::Window>>),
+    Popup(
+        Point<i32, Logical>,
+        Rc<RefCell<smithay::desktop::Window>>,
+        PopupSurface,
+    ),
 }

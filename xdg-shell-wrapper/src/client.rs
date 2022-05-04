@@ -21,9 +21,9 @@ use smithay::{
         },
     },
     wayland::{
-        data_device::{start_dnd, SourceMetadata, set_data_device_focus},
+        data_device::{set_data_device_focus, start_dnd, SourceMetadata},
         seat, SERIAL_COUNTER,
-    }, desktop::WindowSurfaceType,
+    },
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -31,9 +31,9 @@ use crate::{
     output::handle_output,
     seat::{
         handle_motion, seat_handle_callback, send_keyboard_event, send_pointer_event,
-        set_server_device_selection, set_focused_surface,
+        set_focused_surface, set_server_device_selection,
     },
-    shared_state::*, space::ServerSurface,
+    shared_state::*,
 };
 use crate::{space::Space, XdgWrapperConfig};
 
