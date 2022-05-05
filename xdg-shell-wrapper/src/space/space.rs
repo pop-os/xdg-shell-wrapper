@@ -656,6 +656,10 @@ impl Space {
         let width = self.dimensions.0 as i32;
         let height = self.dimensions.1 as i32;
 
+        let full_clear = self.cliient_top_levels.iter().map(| top_level | match top_level.active {
+            ActiveState::ActiveFullyRendered(b) if b == false => true,
+            _ => false,
+        }).reduce(|a, b| a || b ).unwrap_or_default();
         // reorder top levels so active window is last
         let mut _top_levels: Vec<&mut TopLevelSurface> = self
             .cliient_top_levels
@@ -680,57 +684,63 @@ impl Space {
                 smithay::utils::Transform::Flipped180,
                 |self_: &mut Gles2Renderer, frame| {
                     // clear frame with total damage
-                    for top_level in &mut _top_levels.iter().filter(|t| t.dirty) {
-                        let s_top_level = top_level.s_top_level.borrow();
-                        let server_surface = match s_top_level.toplevel() {
-                            Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
-                                Some(s) => s,
-                                _ => continue,
-                            },
-                        };
-                        let mut loc = s_top_level.bbox().loc - top_level.loc_offset;
-                        loc = (-loc.x, -loc.y).into();
-                        let full_clear = match top_level.active {
-                            ActiveState::ActiveFullyRendered(b) if b == false => true,
-                            ActiveState::InactiveCleared(b) if b == false => false,
-                            _ => false,
-                        };
-
-                        let surface_tree_damage =
-                            damage_from_surface_tree(server_surface, (0, 0), None);
-                        l_damage.extend(
-                            if surface_tree_damage.len() == 0 || full_clear {
-                                vec![Rectangle::from_loc_and_size(
-                                    loc,
-                                    (top_level.dimensions.0 as i32, top_level.dimensions.1 as i32),
-                                )]
-                            } else {
-                                surface_tree_damage
-                            }
-                            .into_iter()
-                            .map(|d| (d, top_level.loc_offset)),
-                        );
-                        let (mut cur_p_damage, mut cur_p_damage_f64) = (
-                            l_damage
-                                .iter()
-                                .map(|(d, o)| {
-                                    let mut d = d.clone();
-                                    d.loc += *o;
-                                    d.to_physical(1)
-                                })
-                                .collect::<Vec<_>>(),
-                            l_damage
-                                .iter()
-                                .map(|(d, o)| {
-                                    let mut d = d.clone();
-                                    d.loc += *o;
-                                    d.to_physical(1).to_f64()
-                                })
-                                .collect::<Vec<_>>(),
-                        );
-                        p_damage.append(&mut cur_p_damage);
-                        p_damage_f64.append(&mut cur_p_damage_f64);
+                    if full_clear {
+                        l_damage = vec![(Rectangle::from_loc_and_size((0,0), (self.dimensions.0 as i32, self.dimensions.1 as i32)), (0,0).into())];
                     }
+                    else {
+                        for top_level in &mut _top_levels.iter().filter(|t| t.dirty) {
+                            let s_top_level = top_level.s_top_level.borrow();
+                            let server_surface = match s_top_level.toplevel() {
+                                Kind::Xdg(xdg_surface) => match xdg_surface.get_surface() {
+                                    Some(s) => s,
+                                    _ => continue,
+                                },
+                            };
+                            let mut loc = s_top_level.bbox().loc - top_level.loc_offset;
+                            loc = (-loc.x, -loc.y).into();
+                            let full_clear = match top_level.active {
+                                ActiveState::ActiveFullyRendered(b) if b == false => true,
+                                ActiveState::InactiveCleared(b) if b == false => false,
+                                _ => false,
+                            };
+    
+                            let surface_tree_damage =
+                                damage_from_surface_tree(server_surface, (0, 0), None);
+                            l_damage.extend( 
+                                if surface_tree_damage.len() == 0 || full_clear {
+                                    vec![Rectangle::from_loc_and_size(
+                                        loc,
+                                        (top_level.dimensions.0 as i32, top_level.dimensions.1 as i32),
+                                    )]
+                                } else {
+                                    surface_tree_damage
+                                }
+                                .into_iter()
+                                .map(|d| (d, top_level.loc_offset)),
+                            );
+                        }
+                    }
+                   
+                    let (mut cur_p_damage, mut cur_p_damage_f64) = (
+                        l_damage
+                            .iter()
+                            .map(|(d, o)| {
+                                let mut d = d.clone();
+                                d.loc += *o;
+                                d.to_physical(1)
+                            })
+                            .collect::<Vec<_>>(),
+                        l_damage
+                            .iter()
+                            .map(|(d, o)| {
+                                let mut d = d.clone();
+                                d.loc += *o;
+                                d.to_physical(1).to_f64()
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                    p_damage.append(&mut cur_p_damage);
+                    p_damage_f64.append(&mut cur_p_damage_f64);
                     frame
                         .clear(clear_color, &p_damage_f64)
                         .expect("Failed to clear frame.");
