@@ -124,6 +124,9 @@ pub fn send_keyboard_event(
             wl_keyboard::Event::Leave { .. } => {
                 *kbd_focus = false;
                 kbd.set_focus(None, SERIAL_COUNTER.next_serial());
+                if let Some(space) = space {
+                    space.close_popups()
+                }
             }
             _ => (),
         };

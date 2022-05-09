@@ -395,6 +395,14 @@ impl Space {
         });
     }
 
+    pub fn close_popups(&mut self) {
+        for top_level in &mut self.cliient_top_levels {
+            for popup in top_level.popups.drain(..) {
+                popup.s_surface.send_popup_done();
+            }
+        }
+    }
+
     pub fn dirty(&mut self, dirty_top_level_surface: &s_WlSurface, (w, h): (u32, u32)) {
         self.last_dirty = Instant::now();
 
