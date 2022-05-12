@@ -60,12 +60,15 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "calloop"
-version = "0.9.3"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf2eec61efe56aa1e813f5126959296933cf0700030e4314786c48779a66ab82"
+checksum = "84221146483fe8a40de9af92111abd5a71ab8cf0e3c673df2b209f891a82e02e"
 dependencies = [
  "log",
- "nix 0.22.3",
+ "nix 0.24.1",
+ "slotmap",
+ "thiserror",
+ "vec_map",
 ]
 
 [[package]]
@@ -654,6 +657,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "slotmap"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e08e261d0e8f5c43123b7adf3e4ca1690d655377ac93a03b2c9d3e98de1342"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -662,7 +674,7 @@ checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
 [[package]]
 name = "smithay"
 version = "0.3.0"
-source = "git+https://github.com/smithay/smithay#d5d8b670246d0da26bfd4fd19c4cbad5ca71bf9d"
+source = "git+https://github.com/wash2/smithay#630dbe161f1e963d3cde6c238454db4ce208b0f4"
 dependencies = [
  "appendlist",
  "bitflags",
@@ -695,7 +707,7 @@ dependencies = [
 [[package]]
 name = "smithay-client-toolkit"
 version = "0.15.4"
-source = "git+https://github.com/smithay/client-toolkit.git#e9eeb05e997d80259d085a94acd88d91704050b6"
+source = "git+https://github.com/wash2/client-toolkit.git#d66b46bb460d9bad4b48c44b74d2b1ce9aaf01c4"
 dependencies = [
  "bitflags",
  "calloop",
@@ -804,6 +816,18 @@ name = "unicode-xid"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "957e51f3646910546462e67d5f7599b9e4fb8acdd304b087a6494730f9eebf04"
+
+[[package]]
+name = "vec_map"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+
+[[package]]
+name = "version_check"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "wasi"

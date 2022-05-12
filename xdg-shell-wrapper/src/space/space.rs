@@ -72,6 +72,7 @@ pub struct Space {
     pub egl_display: EGLDisplay,
     pub renderer: Gles2Renderer,
     pub last_dirty: Instant,
+    pub full_clear: bool,
     // layer surface which all client surfaces are composited onto
     pub layer_surface: Main<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
     pub egl_surface: Rc<EGLSurface>,
@@ -203,10 +204,12 @@ impl Space {
             next_render_event,
             layer_shell_wl_surface: c_surface,
             focused_surface,
+            full_clear: true,
         }
     }
 
     pub fn handle_events(&mut self, time: u32, child: &mut Child) -> Instant {
+        let mut should_render = false;
         match self.next_render_event.take() {
             Some(RenderEvent::Closed) => {
                 trace!(self.log, "root window removed, exiting...");
@@ -223,7 +226,7 @@ impl Space {
                 self.next_render_event
                     .replace(Some(RenderEvent::WaitConfigure));
             }
-            None => (),
+            None => { should_render = true; },
         }
 
         // collect and remove windows that aren't needed
@@ -256,8 +259,11 @@ impl Space {
             self.cycle_active();
         }
 
-        if self.next_render_event.get() != Some(RenderEvent::WaitConfigure) {
+        if should_render {
             self.render(time);
+        }
+        if Some((self.dimensions.0 as i32, self.dimensions.1 as i32).into()) != self.egl_surface.get_size() {
+            self.full_clear = true;
         }
 
         self.last_dirty
@@ -428,8 +434,6 @@ impl Space {
             max_h = max_old_h.max(h);
         }
         if self.dimensions != (max_w, max_h) {
-            self.dimensions = (max_w, max_h);
-            self.egl_surface.resize(max_w as i32, max_h as i32, 0, 0);
             self.layer_surface.set_size(max_w, max_h);
             self.layer_shell_wl_surface.commit();
         }
@@ -664,7 +668,7 @@ impl Space {
         let width = self.dimensions.0 as i32;
         let height = self.dimensions.1 as i32;
 
-        let full_clear = self
+        let full_clear = self.full_clear || self
             .client_top_levels
             .iter()
             .map(|top_level| match top_level.active {
@@ -673,6 +677,7 @@ impl Space {
             })
             .reduce(|a, b| a || b)
             .unwrap_or_default();
+        self.full_clear = false;
         // reorder top levels so active window is last
         let mut _top_levels: Vec<&mut TopLevelSurface> = self
             .client_top_levels
