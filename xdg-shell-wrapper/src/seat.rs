@@ -161,8 +161,6 @@ pub fn send_pointer_event(
         .map(|idx| &seats[idx])
         .map(|seat| seat.server.0.get_pointer())
     {
-        // dbg!(&event);
-        // dbg!(&focused_surface);
         match event {
             c_wl_pointer::Event::Motion {
                 time,
