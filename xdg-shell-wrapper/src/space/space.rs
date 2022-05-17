@@ -818,17 +818,18 @@ impl Space {
         // render popups
         for top_level in &mut _top_levels {
             for p in &mut top_level.popups {
-                if !p.dirty || !p.s_surface.alive() || p.next_render_event.get() != None {
+                if !p.dirty || p.next_render_event.get() != None {
                     continue;
                 }
                 p.dirty = false;
                 let wl_surface = match p.s_surface.get_surface() {
                     Some(s) => s,
-                    _ => return,
+                    _ => continue,
                 };
 
                 let (width, height) = p.bbox.size.into();
                 let loc = p.bbox.loc + top_level.loc_offset;
+
                 let logger = top_level.log.clone();
                 let _ = self.renderer.unbind();
                 self.renderer

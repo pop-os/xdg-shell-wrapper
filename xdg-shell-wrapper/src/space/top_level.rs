@@ -71,6 +71,9 @@ impl TopLevelSurface {
             let should_keep = {
                 if !p.s_surface.alive() {
                     false
+                } else if !p.c_surface.as_ref().is_alive() {
+                    p.s_surface.send_popup_done();
+                    false  
                 } else {
                     match p.next_render_event.take() {
                         Some(PopupRenderEvent::Closed) => false,
