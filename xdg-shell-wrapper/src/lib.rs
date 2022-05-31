@@ -100,7 +100,8 @@ pub fn xdg_shell_wrapper(mut child: Command, log: Logger, config: XdgWrapperConf
 
             let renderer = &mut shared_data.desktop_client_state.space.as_mut();
             if let Some(space) = renderer {
-                space.apply_display(&server_display);
+                // FIXME
+                // space.apply_display(&server_display);
                 last_dirty = space.handle_events(
                     shared_data.start_time.elapsed().as_millis() as u32,
                     &mut child,
