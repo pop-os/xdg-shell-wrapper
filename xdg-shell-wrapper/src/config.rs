@@ -9,175 +9,35 @@ use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::clien
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
 use xdg::BaseDirectories;
-
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
-pub enum Anchor {
-    TopLeft,
-    BottomLeft,
-    Left,
-    TopRight,
-    BottomRight,
-    Right,
-    Top,
-    Bottom,
-    Center,
-}
-
-impl From<zwlr_layer_surface_v1::Anchor> for Anchor {
-    fn from(align: zwlr_layer_surface_v1::Anchor) -> Self {
-        if align.contains(zwlr_layer_surface_v1::Anchor::Top)
-            && align.contains(zwlr_layer_surface_v1::Anchor::Left)
-        {
-            Self::TopLeft
-        } else if align.contains(zwlr_layer_surface_v1::Anchor::Bottom)
-            && align.contains(zwlr_layer_surface_v1::Anchor::Left)
-        {
-            Self::BottomLeft
-        } else if align.contains(zwlr_layer_surface_v1::Anchor::Left) {
-            Self::Left
-        } else if align.contains(zwlr_layer_surface_v1::Anchor::Top)
-            && align.contains(zwlr_layer_surface_v1::Anchor::Right)
-        {
-            Self::TopRight
-        } else if align.contains(zwlr_layer_surface_v1::Anchor::Bottom)
-            && align.contains(zwlr_layer_surface_v1::Anchor::Right)
-        {
-            Self::BottomRight
-        } else if align.contains(zwlr_layer_surface_v1::Anchor::Right) {
-            Self::Right
-        } else if align.contains(zwlr_layer_surface_v1::Anchor::Top) {
-            Self::Top
-        } else if align.contains(zwlr_layer_surface_v1::Anchor::Bottom) {
-            Self::Bottom
-        } else {
-            Self::Center
-        }
-    }
-}
-
-impl Into<zwlr_layer_surface_v1::Anchor> for Anchor {
-    fn into(self) -> zwlr_layer_surface_v1::Anchor {
-        let mut anchor = zwlr_layer_surface_v1::Anchor::empty();
-        match self {
-            Self::TopLeft => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Top);
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Left);
-            }
-            Self::BottomLeft => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Bottom);
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Left);
-            }
-            Self::Left => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Left);
-            }
-            Self::TopRight => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Top);
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Right);
-            }
-            Self::BottomRight => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Bottom);
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Right);
-            }
-            Self::Right => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Right);
-            }
-            Self::Top => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Top);
-            }
-            Self::Bottom => {
-                anchor.insert(zwlr_layer_surface_v1::Anchor::Bottom);
-            }
-            _ => {}
-        };
-        anchor
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
-pub enum Layer {
-    Background,
-    Bottom,
-    Top,
-    Overlay,
-}
-
-impl From<zwlr_layer_shell_v1::Layer> for Layer {
-    fn from(layer: zwlr_layer_shell_v1::Layer) -> Self {
-        match layer {
-            zwlr_layer_shell_v1::Layer::Background => Self::Background,
-            zwlr_layer_shell_v1::Layer::Bottom => Self::Bottom,
-            zwlr_layer_shell_v1::Layer::Top => Self::Top,
-            zwlr_layer_shell_v1::Layer::Overlay => Self::Overlay,
-            _ => Self::Top,
-        }
-    }
-}
-
-impl Into<zwlr_layer_shell_v1::Layer> for Layer {
-    fn into(self) -> zwlr_layer_shell_v1::Layer {
-        match self {
-            Self::Background => zwlr_layer_shell_v1::Layer::Background,
-            Self::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
-            Self::Top => zwlr_layer_shell_v1::Layer::Top,
-            Self::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
-pub enum KeyboardInteractivity {
-    None,
-    Exclusive,
-    OnDemand,
-}
-
-impl From<zwlr_layer_surface_v1::KeyboardInteractivity> for KeyboardInteractivity {
-    fn from(kb: zwlr_layer_surface_v1::KeyboardInteractivity) -> Self {
-        match kb {
-            zwlr_layer_surface_v1::KeyboardInteractivity::None => Self::None,
-            zwlr_layer_surface_v1::KeyboardInteractivity::Exclusive => Self::Exclusive,
-            zwlr_layer_surface_v1::KeyboardInteractivity::OnDemand => Self::OnDemand,
-            _ => Self::None,
-        }
-    }
-}
-
-impl Into<zwlr_layer_surface_v1::KeyboardInteractivity> for KeyboardInteractivity {
-    fn into(self) -> zwlr_layer_surface_v1::KeyboardInteractivity {
-        match self {
-            Self::None => zwlr_layer_surface_v1::KeyboardInteractivity::None,
-            Self::Exclusive => zwlr_layer_surface_v1::KeyboardInteractivity::Exclusive,
-            Self::OnDemand => zwlr_layer_surface_v1::KeyboardInteractivity::OnDemand,
-        }
-    }
-}
+use cosmic_panel_config::config::*;
+use std::ops::Range;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct XdgWrapperConfig {
+pub struct Config {
     pub anchor: Anchor,
     pub layer: Layer,
     pub keyboard_interactivity: KeyboardInteractivity,
-    pub min_dimensions: Option<(u32, u32)>,
-    pub max_dimensions: Option<(u32, u32)>,
-    pub output: Option<String>,
+    pub width_range: Option<Range<u32>>,
+    pub height_range: Option<Range<u32>>,
+    pub output: CosmicPanelOutput,
     pub exec: String,
 }
 
-impl Default for XdgWrapperConfig {
+impl Default for Config {
     fn default() -> Self {
         Self {
             anchor: Anchor::Center,
             layer: Layer::Top,
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
-            min_dimensions: None,
-            max_dimensions: None,
-            output: None,
+            width_range: None,
+            height_range: None,
+            output: CosmicPanelOutput::Auto,
             exec: "".into(),
         }
     }
 }
 
-impl XdgWrapperConfig {
+impl Config {
     pub fn load(name: &str) -> Self {
         match Self::get_configs().remove(name.into()) {
             Some(c) => c,
@@ -187,7 +47,7 @@ impl XdgWrapperConfig {
 
     pub fn write(&self, name: &str) -> Result<()> {
         let mut configs = Self::get_configs();
-        configs.insert(name.into(), XdgWrapperConfig::default());
+        configs.insert(name.into(), Config::default());
         let xdg = BaseDirectories::new()?;
         let f = xdg
             .place_config_file("xdg-shell-wrapper/config.ron")
@@ -202,10 +62,42 @@ impl XdgWrapperConfig {
             .map(|dirs| dirs.find_config_file("xdg-shell-wrapper/config.ron"))
             .map(|c| c.map(|c| File::open(c)))
             .map(|file| {
-                file.map(|file| ron::de::from_reader::<_, HashMap<String, XdgWrapperConfig>>(file?))
+                file.map(|file| ron::de::from_reader::<_, HashMap<String, Config>>(file?))
             }) {
             Ok(Some(Ok(c))) => c,
             _ => HashMap::new(),
         }
     }
 }
+
+
+impl XdgWrapperConfig for Config {
+    fn plugins_center(&self) -> Option<Vec<(String, u32)>> {
+        Some(vec![(self.exec.clone(), 1000)])
+    }
+    fn output(&self) -> CosmicPanelOutput {
+        self.output.clone()
+    }
+
+    fn anchor(&self) -> Anchor {
+        self.anchor
+    }
+
+    fn padding(&self) -> u32 {
+        0
+    }
+
+    fn layer(&self) -> zwlr_layer_shell_v1::Layer {
+        self.layer.into()
+    }
+
+    fn keyboard_interactivity(&self) -> zwlr_layer_surface_v1::KeyboardInteractivity {
+        self.keyboard_interactivity.into()
+    }
+
+    /// get constraints for the thickness of the panel bar
+    fn get_dimensions(&self, output_dims: (u32, u32)) -> (Option<Range<u32>>, Option<Range<u32>>) {
+        (self.width_range.clone(), self.height_range.clone())
+    }
+}
+

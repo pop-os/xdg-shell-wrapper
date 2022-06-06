@@ -16,3 +16,5 @@ slog-async = "2.7.0"
 slog-stdlog = "4.1.0"
 slog-scope = "4.4.0"
 xdg-shell-wrapper = { path = "./xdg-shell-wrapper" }
+cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel"}
+cosmic-panel-xdg-wrapper = { git = "https://github.com/pop-os/cosmic-panel"}
