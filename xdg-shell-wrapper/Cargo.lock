@@ -85,7 +85,7 @@ dependencies = [
 [[package]]
 name = "cosmic-panel-config"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-panel#2ab98e036db418c21c72888ec617efb233bc6a7d"
+source = "git+https://github.com/pop-os/cosmic-panel#a016ad14a6ac03bcb6d7b9440fb993dd71dea0af"
 dependencies = [
  "anyhow",
  "notify",

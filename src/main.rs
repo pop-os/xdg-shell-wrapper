@@ -49,7 +49,7 @@ fn main() -> Result<()> {
     trace!(log, "child: {}", &exec);
 
     let mut child = Command::new(exec);
-    while let Some(arg) = exec_iter.next() {
+    for arg in exec_iter {
         trace!(log, "child argument: {}", &arg);
         child.arg(arg);
     }

@@ -19,7 +19,7 @@ pub struct Config {
     pub keyboard_interactivity: KeyboardInteractivity,
     pub width_range: Option<Range<u32>>,
     pub height_range: Option<Range<u32>>,
-    pub output: CosmicPanelOutput,
+    pub output: Option<String>,
     pub exec: String,
 }
 
@@ -31,7 +31,7 @@ impl Default for Config {
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
             width_range: None,
             height_range: None,
-            output: CosmicPanelOutput::Auto,
+            output: None,
             exec: "".into(),
         }
     }
@@ -75,7 +75,7 @@ impl XdgWrapperConfig for Config {
     fn plugins_center(&self) -> Option<Vec<(String, u32)>> {
         Some(vec![(self.exec.clone(), 1000)])
     }
-    fn output(&self) -> CosmicPanelOutput {
+    fn output(&self) -> Option<String> {
         self.output.clone()
     }
 

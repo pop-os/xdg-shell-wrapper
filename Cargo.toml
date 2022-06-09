@@ -18,3 +18,5 @@ slog-scope = "4.4.0"
 xdg-shell-wrapper = { path = "./xdg-shell-wrapper" }
 cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel"}
 cosmic-panel-xdg-wrapper = { git = "https://github.com/pop-os/cosmic-panel"}
+# cosmic-panel-config = { path = "../cosmic-dock/cosmic-panel-config" }
+# cosmic-panel-xdg-wrapper = { path = "../cosmic-dock/cosmic-panel-xdg-wrapper" }
