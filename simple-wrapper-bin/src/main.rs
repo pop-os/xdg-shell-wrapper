@@ -2,11 +2,14 @@
 
 use anyhow::Result;
 use shlex::Shlex;
+use simple_wrapper_config::SimpleWrapperConfig;
 use slog::{o, trace, Drain};
 use std::process::Command;
-use xdg_shell_wrapper::{config::Config};
-use cosmic_panel_xdg_wrapper::xdg_wrapper;
-use cosmic_panel_config::config::XdgWrapperConfig;
+use xdg_shell_wrapper::xdg_wrapper;
+
+use crate::space::SimpleWrapperSpace;
+
+mod space;
 
 fn main() -> Result<()> {
     // A logger facility, here we use the terminal
@@ -24,14 +27,14 @@ fn main() -> Result<()> {
     let config = match arg.as_ref().map(|s| &s[..]) {
         Some(arg) if arg == "--profile" || arg == "-p" => {
             if let Some(profile) = std::env::args().nth(2) {
-                Config::load(profile.as_str())
+                SimpleWrapperConfig::load(profile.as_str())
             } else {
                 println!("{}", usage);
                 std::process::exit(1);
             }
         }
         Some(exec) => {
-            let mut config = Config::default();
+            let mut config = SimpleWrapperConfig::default();
             config.exec = exec.into();
             config
         }
@@ -53,7 +56,6 @@ fn main() -> Result<()> {
         trace!(log, "child argument: {}", &arg);
         child.arg(arg);
     }
-    
-    xdg_wrapper(log, config, None)?;
+    xdg_wrapper(SimpleWrapperSpace::new(config, log))?;
     Ok(())
 }

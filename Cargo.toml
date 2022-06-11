@@ -1,22 +1,8 @@
-[package]
-name = "xdg-shell-wrapper-bin"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[[bin]]
-name = "xdg-shell-wrapper"
-path = "src/main.rs"
-
-[dependencies]
-anyhow = "1.0.53"
-shlex = "1.1.0"
-slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }
-slog-term = "2.8.1"
-slog-async = "2.7.0"
-slog-stdlog = "4.1.0"
-slog-scope = "4.4.0"
-xdg-shell-wrapper = { path = "./xdg-shell-wrapper" }
-cosmic-panel-config = { git = "https://github.com/pop-os/cosmic-panel"}
-cosmic-panel-xdg-wrapper = { git = "https://github.com/pop-os/cosmic-panel"}
-# cosmic-panel-config = { path = "../cosmic-dock/cosmic-panel-config" }
-# cosmic-panel-xdg-wrapper = { path = "../cosmic-dock/cosmic-panel-xdg-wrapper" }
+# TODO extract simple-wrapper crates to their own repo
+members = [
+    "simple-wrapper-bin",
+    "xdg-shell-wrapper",
+    "simple-wrapper-config"
+]
