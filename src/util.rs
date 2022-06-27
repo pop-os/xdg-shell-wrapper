@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::{
-    os::unix::{net::UnixStream, prelude::AsRawFd},
-    process::{Child, Command},
+            os::unix::{net::UnixStream,},
+    process::{Child, Command}, sync::Arc,
 };
 
 use shlex::Shlex;
 use slog::{trace, Logger};
 use smithay::{
-    nix::fcntl,
-    reexports::wayland_server::{self, Client},
+    reexports::wayland_server::{self, Client, backend::ClientData},
 };
 
 /// utility function which maps a value [0, 1] -> [0, 1] using the smootherstep function
@@ -17,24 +16,35 @@ pub fn smootherstep(t: f32) -> f32 {
     (6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3)).clamp(0.0, 1.0)
 }
 
+/// helper function for inserting a wrapped applet client
 pub fn get_client_sock(
-    display: &mut wayland_server::Display,
-) -> (Client, (UnixStream, UnixStream)) {
+    display: &mut wayland_server::DisplayHandle,
+) -> (Client, UnixStream) {
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
-    let raw_fd = display_sock.as_raw_fd();
-    let fd_flags =
-        fcntl::FdFlag::from_bits(fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD).unwrap()).unwrap();
-    fcntl::fcntl(
-        raw_fd,
-        fcntl::FcntlArg::F_SETFD(fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC)),
-    )
-    .unwrap();
+    // let raw_fd = display_sock.as_raw_fd();
+    // let fd_flags =
+    //     fcntl::FdFlag::from_bits(fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD).unwrap()).unwrap();
+    // fcntl::fcntl(
+    //     raw_fd,
+    //     fcntl::FcntlArg::F_SETFD(fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC)),
+    // )
+    // .unwrap();
     (
-        unsafe { display.create_client(raw_fd, &mut ()) },
-        (display_sock, client_sock),
+        display.insert_client(display_sock, Arc::new(WrapperClientData{})).unwrap(),
+        client_sock
     )
 }
 
+/// data for wrapper clients
+#[derive(Debug)]
+pub struct WrapperClientData {}
+impl ClientData for WrapperClientData {
+    fn initialized(&self, client_id: wayland_server::backend::ClientId) {}
+
+    fn disconnected(&self, client_id: wayland_server::backend::ClientId, reason: wayland_server::backend::DisconnectReason) {}
+}
+
+/// helper function for launching a wrapped applet
 pub fn exec_child(
     c: &str,
     config_name: Option<&str>,

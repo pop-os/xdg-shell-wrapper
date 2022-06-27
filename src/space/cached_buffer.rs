@@ -19,7 +19,7 @@ use smithay::{
     wayland::{
         compositor::BufferAssignment,
         shm::{with_buffer_contents, BufferData},
-    },
+    }, reexports::wayland_server::DisplayHandle,
 };
 use std::{
     cell::Cell,
@@ -47,21 +47,19 @@ impl CachedBuffers {
 
     pub fn write_and_attach_buffer(
         &mut self,
+        display_handle: &DisplayHandle,
         buffer_assignment: &BufferAssignment,
         surface: &WlSurface,
         shm: &Attached<wl_shm::WlShm>,
     ) -> Result<()> {
-        if let BufferAssignment::NewBuffer {
-            buffer: source_buffer,
-            ..
-        } = buffer_assignment
+        if let BufferAssignment::NewBuffer(source_buffer) = buffer_assignment
         {
             trace!(self.log, "checking buffer format...");
-            if let Some(BufferType::Shm) = buffer_type(source_buffer) {
+            if let Some(BufferType::Shm) = buffer_type(display_handle, source_buffer) {
                 with_buffer_contents(
                     source_buffer,
                     move |slice: &[u8], buffer_metadata: BufferData| {
-                        if let Some(format) = shm::Format::from_raw(buffer_metadata.format.to_raw())
+                        if let Some(format) = shm::Format::from_raw(buffer_metadata.format as u32)
                         {
                             let pos = self.index_of_pair_buffer(
                                 buffer_metadata.width,
@@ -211,7 +209,7 @@ impl Buffer {
                 self.pool.resize(self.pool_size);
             }
 
-            if let Some(format) = shm::Format::from_raw(buffer_metadata.format.to_raw()) {
+            if let Some(format) = shm::Format::from_raw(buffer_metadata.format as u32) {
                 self.buffer = self
                     .pool
                     .create_buffer(0, self.x, self.y, self.x * 4, format);

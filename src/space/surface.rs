@@ -68,13 +68,3 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
         true
     }
 }
-
-#[derive(Debug)]
-pub enum ServerSurface {
-    TopLevel(Point<i32, Logical>, Rc<RefCell<smithay::desktop::Window>>),
-    Popup(
-        Point<i32, Logical>,
-        Rc<RefCell<smithay::desktop::Window>>,
-        PopupSurface,
-    ),
-}

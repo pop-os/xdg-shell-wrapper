@@ -2,35 +2,35 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{client::Env, shared_state::OutputGroup, space::WrapperSpace};
+use crate::{shared_state::{OutputGroup, GlobalState}, space::WrapperSpace};
+use super::super::state::Env;
+
 use sctk::{
     environment::Environment,
     output::{Mode as c_Mode, OutputInfo},
     reexports::{
         client::protocol::wl_output::Subpixel as c_Subpixel,
         client::{self, Attached, Display},
+        protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
     },
 };
 use slog::Logger;
 use smithay::{
-    reexports::{
-        wayland_protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
-        wayland_server::{
-            protocol::{wl_output::Subpixel as s_Subpixel, wl_surface::WlSurface},
-            Display as s_Display,
-        },
+    reexports::wayland_server::{
+        protocol::{wl_output::Subpixel as s_Subpixel, wl_surface::WlSurface},
+        DisplayHandle,
     },
     wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties},
 };
 
-pub fn handle_output<W: WrapperSpace>(
+pub fn handle_output<W: WrapperSpace + 'static> (
     layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     env_handle: Environment<Env>,
     logger: Logger,
     c_display: Display,
     output: &client::protocol::wl_output::WlOutput,
     info: &OutputInfo,
-    s_display: &mut s_Display,
+    s_display: &mut DisplayHandle,
     s_outputs: &mut Vec<OutputGroup>,
     focused_surface: Rc<RefCell<Option<WlSurface>>>,
     space: &mut W,
@@ -79,7 +79,7 @@ pub fn handle_output<W: WrapperSpace>(
                 s_output.add_mode(s_mode);
             }
         }
-        let s_output_global = s_output.create_global(s_display);
+        let s_output_global = s_output.create_global::<GlobalState<W>>(s_display);
         s_outputs.push((s_output, s_output_global, info.name.clone(), output.clone()));
     }
 
