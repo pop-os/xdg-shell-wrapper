@@ -147,6 +147,9 @@ pub trait WrapperSpace {
     /// This function does nothing for unmapped windows.
     /// If activate is true it will set the new windows state to be activate and removes that state from every other mapped window.
     fn raise_window(&mut self, w: Window, active: bool) {}
+
+    /// marks the space as dirtied
+    fn dirty(&mut self) {}
 }
 
 // // TODO
