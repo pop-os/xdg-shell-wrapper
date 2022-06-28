@@ -226,7 +226,12 @@ impl Buffer {
         writer.flush()?;
 
         trace!(self.log, "attaching buffer to surface");
-        surface.attach(Some(&self.buffer), self.x, self.y);
+        if surface.as_ref().version() >= 5 {
+            surface.attach(Some(&self.buffer), 0, 0);
+            surface.offset(self.x, self.y);
+        } else {
+            surface.attach(Some(&self.buffer), self.x, self.y);
+        }
         surface.damage(0, 0, self.x, self.y);
         surface.commit();
 
