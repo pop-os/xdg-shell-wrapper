@@ -17,10 +17,10 @@ use sctk::{
 use slog::Logger;
 use smithay::{
     reexports::wayland_server::{
-        protocol::{wl_output::{Subpixel as s_Subpixel, self as s_WlOutput}, wl_surface::WlSurface},
+        protocol::{wl_output::{Subpixel as s_Subpixel, Transform}, wl_surface::WlSurface},
         DisplayHandle, backend::GlobalId,
     },
-    wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties},
+    wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties, Scale},
 };
 
 pub fn handle_output<W: WrapperSpace + 'static> (
@@ -91,7 +91,7 @@ pub fn c_output_as_s_output<W: WrapperSpace + 'static>(dh: &DisplayHandle, info:
         dimensions,
         refresh_rate,
         is_preferred,
-        ..
+        is_current,
     } in &info.modes
     {
         let s_mode = s_Mode {
@@ -100,9 +100,11 @@ pub fn c_output_as_s_output<W: WrapperSpace + 'static>(dh: &DisplayHandle, info:
         };
         if *is_preferred {
             s_output.set_preferred(s_mode);
-        } else {
-            s_output.add_mode(s_mode);
         }
+        if *is_current {
+            s_output.change_current_state(Some(s_mode), Some(Transform::Normal), Some(Scale::Integer(1)), Some(info.location.into()))
+        }
+        s_output.add_mode(s_mode);
     }
     let s_output_global = s_output.create_global::<GlobalState<W>>(dh);
     (s_output, s_output_global)

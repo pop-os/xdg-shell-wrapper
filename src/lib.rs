@@ -79,6 +79,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
     let set_clipboard_once = Rc::new(Cell::new(false));
 
     loop {
+        shared_data.0.space.space().refresh(&s_dh);
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
             shared_data

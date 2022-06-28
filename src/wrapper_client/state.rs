@@ -85,18 +85,17 @@ impl DesktopClientState {
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         let outputs = env.get_all_outputs();
-        for o in &outputs {
-            if let Some(info) = with_output_info(&o, Clone::clone) {
-                let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
-                space.space().map_output(&s_o, info.location)
-            }
-            
-        }
         match config.output() {
             None => {
                 let pool = env
                     .create_auto_pool()
                     .expect("Failed to create a memory pool!");
+                for o in &outputs {
+                    if let Some(info) = with_output_info(&o, Clone::clone) {
+                        let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
+                        space.space().map_output(&s_o, info.location);
+                    }   
+                }
                 space
                     .add_output(
                         None,
@@ -109,8 +108,6 @@ impl DesktopClientState {
                         focused_surface,
                     )
                     .unwrap()
-                // FIXME causes crash
-                // space.bind_wl_display(s_display);
             }
             Some(configured_output) => {
                 if let Some((o, info)) = outputs.iter().find_map(|o| {
@@ -122,6 +119,9 @@ impl DesktopClientState {
                         }
                     })
                 }) {
+                    let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
+                    space.space().map_output(&s_o, info.location);
+
                     let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
                     let env_handle = env.clone();
                     let logger = log.clone();

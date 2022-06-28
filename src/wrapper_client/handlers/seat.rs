@@ -418,7 +418,7 @@ pub(crate) fn handle_motion<W: WrapperSpace>(
             global_state,
             &dh,
             &MotionEvent {
-                location: (surface_x, surface_y).into(),
+                location: (surface_x - w.geometry().loc.x as f64, surface_y - w.geometry().loc.y as f64).into(),
                 focus: Some((s, p)),
                 serial: SERIAL_COUNTER.next_serial(),
                 time,

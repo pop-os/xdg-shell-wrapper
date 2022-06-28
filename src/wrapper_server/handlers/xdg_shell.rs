@@ -42,9 +42,8 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 
     fn new_toplevel(&mut self, dh: &DisplayHandle, surface: ToplevelSurface) {
         let window = Window::new(Kind::Xdg(surface.clone()));
-        window.refresh();
+        // window.refresh();
 
-        surface.send_configure();
         let wl_surface = surface.wl_surface();
         if self.desktop_client_state.kbd_focus {
             for s in &self.embedded_server_state.seats {
@@ -55,6 +54,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         }
 
         self.space.add_top_level(window);
+        surface.send_configure();
     }
 
     fn new_popup(&mut self, _dh: &DisplayHandle, surface: PopupSurface, positioner_state: PositionerState) {
