@@ -28,7 +28,9 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
 
         let role = get_role(&surface);
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
+        dbg!(role);
         if role == "xdg_toplevel".into() {
+            dbg!(&surface);
             on_commit_buffer_handler(&dh, &surface);
             self.space.dirty_window(&surface)
         } else if role == "xdg_popup".into() {

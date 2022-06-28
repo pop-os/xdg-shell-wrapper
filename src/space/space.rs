@@ -69,7 +69,10 @@ impl Default for Visibility {
     }
 }
 
+/// Wrapper Space
+/// manages and renders xdg-shell-window(s) on a layer shell surface
 pub trait WrapperSpace {
+    /// Wrapper config type 
     type Config: WrapperConfig;
 
     /// add the configured output to the space
@@ -157,19 +160,4 @@ pub trait WrapperSpace {
 
     /// gets the popup manager for this space
     fn popup_manager(&mut self) -> &mut PopupManager;
-}
-
-// // TODO
-// impl Drop for WrapperSpace<Config = Any> {
-//     fn drop(&mut self) {
-//         self.layer_surface.as_mut().map(|ls| ls.destroy());
-//         elf.layer_shell_wl_surface.as_mut().map(|wls| wls.destroy());
-//     }
-// }
-
-#[derive(Debug)]
-pub enum Alignment {
-    Left,
-    Center,
-    Right,
 }

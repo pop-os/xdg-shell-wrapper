@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -15,10 +13,9 @@ use smithay::{
         wrap_egl_call, EGLError,
     },
     egl_platform,
-    utils::{Logical, Point},
-    wayland::shell::xdg::PopupSurface,
 };
 
+/// Client Egl surface
 #[derive(Debug)]
 pub struct ClientEglSurface {
     pub wl_egl_surface: wayland_egl::WlEglSurface,

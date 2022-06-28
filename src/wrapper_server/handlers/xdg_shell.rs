@@ -54,10 +54,6 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             }
         }
 
-        let window = smithay::desktop::Window::new(
-            smithay::desktop::Kind::Xdg(surface),
-        );
-
         self.space.add_top_level(window);
     }
 
