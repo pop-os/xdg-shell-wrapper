@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{config::WrapperConfig, client_state::Focus};
+use crate::{config::WrapperConfig, client_state::{Focus, Env}};
 use sctk::{
     output::OutputInfo,
     reexports::{
@@ -18,16 +18,16 @@ use sctk::{
         },
         protocols::{
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
-            xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_surface::XdgSurface},
+            xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_surface::XdgSurface, xdg_wm_base::XdgWmBase},
         },
     },
-    shm::AutoMemPool,
+    shm::AutoMemPool, environment::Environment,
 };
 use slog::Logger;
 use smithay::{
     desktop::{PopupManager, Window, Space},
     reexports::wayland_server::{
-        self, protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display,
+        self, protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display, DisplayHandle,
     },
     utils::{Logical, Size},
     wayland::shell::xdg::{PopupSurface, PositionerState},
@@ -36,13 +36,13 @@ use smithay::{
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum SpaceEvent {
     WaitConfigure {
-        width: u32,
-        height: u32,
+        width: i32,
+        height: i32,
     },
     Configure {
-        width: u32,
-        height: u32,
-        serial: u32,
+        width: i32,
+        height: i32,
+        serial: i32,
     },
     Quit,
 }
@@ -92,17 +92,16 @@ pub trait WrapperSpace {
     fn handle_button(&mut self, c_focused_surface: &c_wl_surface::WlSurface);
 
     /// add a top level window to the space
-    fn add_top_level(&mut self, s_top_level: Rc<RefCell<Window>>);
+    fn add_top_level(&mut self, s_top_level: Window);
 
     /// add a popup to the space
     fn add_popup(
         &mut self,
-        c_surface: c_wl_surface::WlSurface,
-        c_xdg_surface: Main<XdgSurface>,
+        env: &Environment<Env>,
+        xdg_surface_state: &Attached<XdgWmBase>,
         s_surface: PopupSurface,
         positioner: Main<XdgPositioner>,
         positioner_state: PositionerState,
-        popup_manager: Rc<RefCell<PopupManager>>,
     );
 
     /// close all popups for the wrapper space
@@ -122,7 +121,7 @@ pub trait WrapperSpace {
 
     /// called in a loop by xdg-shell-wrapper
     /// handles events for the space
-    fn handle_events(&mut self, time: u32, focus: &Focus) -> Instant;
+    fn handle_events(&mut self, dh: &DisplayHandle, time: u32, focus: &Focus) -> Instant;
 
     /// gets the config
     fn config(&self) -> Self::Config;
@@ -131,8 +130,10 @@ pub trait WrapperSpace {
     fn spawn_clients(
         &mut self,
         display: &mut wayland_server::DisplayHandle,
-    ) -> anyhow::Result<Vec<(UnixStream, UnixStream)>>;
-    fn visibility(&self) -> Visibility;
+    ) -> anyhow::Result<Vec<UnixStream>>;
+
+    /// gets visibility of the wrapper
+    fn visibility(&self) -> Visibility { Visibility::Visible }
 
     /// gets the logger
     fn log(&self) -> Option<Logger>;
@@ -141,15 +142,21 @@ pub trait WrapperSpace {
     fn destroy(&mut self);
 
     /// gets the space
-    fn space(&mut self) -> Space;
+    fn space(&mut self) -> &mut Space;
 
     /// Moves an already mapped Window to top of the stack
     /// This function does nothing for unmapped windows.
     /// If activate is true it will set the new windows state to be activate and removes that state from every other mapped window.
-    fn raise_window(&mut self, w: Window, active: bool) {}
+    fn raise_window(&mut self, _: &Window, _: bool) {}
 
-    /// marks the space as dirtied
-    fn dirty(&mut self) {}
+    /// marks the window as dirtied
+    fn dirty_window(&mut self, w: &s_WlSurface);
+
+    /// marks the popup as dirtied()
+    fn dirty_popup(&mut self, w: &s_WlSurface);
+
+    /// gets the popup manager for this space
+    fn popup_manager(&mut self) -> &mut PopupManager;
 }
 
 // // TODO

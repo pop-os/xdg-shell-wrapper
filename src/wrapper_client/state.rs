@@ -6,7 +6,7 @@ use smithay::{wayland::seat, reexports::wayland_server};
 
 use crate::{space::{WrapperSpace, SpaceEvent}, shared_state::{AxisFrameData, OutputGroup, GlobalState}, wrapper_client::handlers::seat::send_keyboard_event, server_state::{SeatPair, EmbeddedServerState}, config::WrapperConfig};
 
-use super::handlers::{seat::{seat_handle_callback, send_pointer_event}, output::handle_output};
+use super::handlers::{seat::{seat_handle_callback, send_pointer_event}, output::{handle_output, c_output_as_s_output}};
 
 #[derive(Debug)]
 pub struct ClientSeat {
@@ -54,11 +54,11 @@ impl std::fmt::Debug for Env {
 }
 
 impl DesktopClientState {
-    pub fn new<W: WrapperSpace + 'static>(
+    pub(crate) fn new<W: WrapperSpace + 'static>(
         loop_handle: calloop::LoopHandle<'static, (GlobalState<W>, wayland_server::Display<GlobalState<W>>)>,
         space: &mut W,
         log: Logger,
-        server_display: &mut wayland_server::DisplayHandle,
+        dh: &mut wayland_server::DisplayHandle,
         embedded_server_state: &mut EmbeddedServerState<W>,
     ) -> anyhow::Result<Self> {
         let config = space.config();
@@ -83,8 +83,15 @@ impl DesktopClientState {
         let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
         let mut s_outputs = Vec::new();
 
+        // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         let outputs = env.get_all_outputs();
-
+        // for o in &outputs {
+        //     if let Some(info) = with_output_info(&o, Clone::clone) {
+        //         let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
+        //         space.space().map_output(&s_o, info.location)
+        //     }
+            
+        // }
         match config.output() {
             None => {
                 let pool = env
@@ -126,7 +133,7 @@ impl DesktopClientState {
                         display_,
                         o,
                         &info,
-                        server_display,
+                        dh,
                         &mut s_outputs,
                         Rc::clone(&focused_surface),
                         space,
@@ -327,7 +334,7 @@ impl DesktopClientState {
 
                 let mut new_seat = SeatPair {
                     name: name.clone(),
-                    server: seat::Seat::new(server_display, name.clone(), log.clone()),
+                    server: seat::Seat::new(dh, name.clone(), log.clone()),
                     client: ClientSeat {
                         kbd: None,
                         ptr: None,

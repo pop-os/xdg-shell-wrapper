@@ -54,26 +54,26 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             }
         }
 
-        let window = Rc::new(RefCell::new(smithay::desktop::Window::new(
+        let window = smithay::desktop::Window::new(
             smithay::desktop::Kind::Xdg(surface),
-        )));
+        );
 
-        self.space.add_top_level(window.clone());
+        self.space.add_top_level(window);
     }
 
     fn new_popup(&mut self, _dh: &DisplayHandle, surface: PopupSurface, positioner_state: PositionerState) {
         let positioner = self.desktop_client_state.xdg_wm_base.create_positioner();
 
-        let wl_surface = self.desktop_client_state.env_handle.create_surface().detach();
-        let xdg_surface = self.desktop_client_state.xdg_wm_base.get_xdg_surface(&wl_surface);
+        // let wl_surface = self.desktop_client_state.env_handle.create_surface().detach();
+        // let xdg_surface = self.desktop_client_state.xdg_wm_base.get_xdg_surface(&wl_surface);
+
 
         self.space.add_popup(
-            wl_surface,
-            xdg_surface,
+            &self.desktop_client_state.env_handle,
+            &self.desktop_client_state.xdg_wm_base,
             surface,
             positioner,
             positioner_state,
-            Rc::clone(&self.embedded_server_state.popup_manager),
         );
     }
 
@@ -98,7 +98,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         if self.desktop_client_state.kbd_focus {
             for s in &self.embedded_server_state.seats {
                 if s.server.owns(&seat) {
-                    if let Err(e) = self.embedded_server_state.popup_manager.borrow_mut().grab_popup(
+                    if let Err(e) = self.space.popup_manager().grab_popup(
                         dh,
                         PopupKind::Xdg(surface),
                         &s.server,

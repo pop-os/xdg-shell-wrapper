@@ -23,7 +23,6 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
     }
 
     fn commit(&mut self, dh: &DisplayHandle, surface: &WlSurface) {
-        let mut popup_manager = self.embedded_server_state.popup_manager.borrow_mut();
         let cached_buffers = &mut self.cached_buffers;
         let log = &mut self.log;
 
@@ -31,11 +30,11 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
         if role == "xdg_toplevel".into() {
             on_commit_buffer_handler(&dh, &surface);
+            self.space.dirty_window(&surface)
         } else if role == "xdg_popup".into() {
             // println!("dirtying popup");
-            let popup = popup_manager.find_popup(&surface);
             on_commit_buffer_handler(&dh, &surface);
-            popup_manager.commit(&surface);
+            self.space.dirty_popup(&surface)
         } else if role == "cursor_image".into() {
             // pass cursor image to parent compositor
             trace!(log, "received surface with cursor image");

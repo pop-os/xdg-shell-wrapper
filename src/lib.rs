@@ -83,9 +83,8 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
         if last_cleanup.elapsed() > five_min {
             shared_data
                 .0
-                .embedded_server_state
-                .popup_manager
-                .borrow_mut()
+                .space
+                .popup_manager()
                 .cleanup();
             last_cleanup = Instant::now();
         }
@@ -107,6 +106,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
             // FIXME
             // space_manager.apply_display(server_display);
             let _ = space.handle_events(
+                &s_dh,
                 shared_data
                     .start_time
                     .elapsed()

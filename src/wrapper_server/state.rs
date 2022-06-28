@@ -12,7 +12,6 @@ use crate::{shared_state::{SelectedDataProvider, GlobalState}, client_state::{Cl
 pub struct EmbeddedServerState<W: WrapperSpace + 'static> {
     pub(crate) root_window: Option<Rc<RefCell<Window>>>,
     pub(crate) focused_surface: Rc<RefCell<Option<WlSurface>>>,
-    pub(crate) popup_manager: Rc<RefCell<smithay::desktop::PopupManager>>,
     pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,
@@ -84,10 +83,8 @@ pub fn new(
     //     default_action_chooser,
     //     log.clone(),
     // );S
-    let popup_manager = Rc::new(RefCell::new(PopupManager::new(log.clone())));
 
     EmbeddedServerState {
-        popup_manager,
         root_window: Default::default(),
         focused_surface: Default::default(),
         selected_data_provider: SelectedDataProvider {
