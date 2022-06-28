@@ -85,13 +85,13 @@ impl DesktopClientState {
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         let outputs = env.get_all_outputs();
-        // for o in &outputs {
-        //     if let Some(info) = with_output_info(&o, Clone::clone) {
-        //         let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
-        //         space.space().map_output(&s_o, info.location)
-        //     }
+        for o in &outputs {
+            if let Some(info) = with_output_info(&o, Clone::clone) {
+                let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
+                space.space().map_output(&s_o, info.location)
+            }
             
-        // }
+        }
         match config.output() {
             None => {
                 let pool = env
