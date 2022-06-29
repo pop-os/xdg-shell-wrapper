@@ -31,21 +31,21 @@ use std::{
 use tempfile::tempfile;
 
 #[derive(Debug)]
-pub struct CachedBuffers {
+pub(crate) struct CachedBuffers {
     buffers: Vec<Buffer>,
     log: Logger,
 }
 
 // FIXME Cursor images are broken
 impl CachedBuffers {
-    pub fn new(log: Logger) -> Self {
+    pub(crate) fn new(log: Logger) -> Self {
         Self {
             buffers: Default::default(),
             log,
         }
     }
 
-    pub fn write_and_attach_buffer(
+    pub(crate) fn write_and_attach_buffer(
         &mut self,
         display_handle: &DisplayHandle,
         buffer_assignment: &BufferAssignment,
@@ -104,7 +104,7 @@ impl CachedBuffers {
         let mut best_candidate = None;
         for (i, buffer) in self.buffers.iter().enumerate() {
             if buffer.free() {
-                if buffer.x == x && buffer.y == y && buffer.format == format {
+                if buffer.w == x && buffer.h == y && buffer.format == format {
                     return i;
                 }
                 // TODO
@@ -138,20 +138,20 @@ impl CachedBuffers {
 }
 
 #[derive(Debug)]
-pub struct Buffer {
+pub(crate) struct Buffer {
     free: Rc<Cell<bool>>,
     file: File,
     pool: Main<WlShmPool>,
     pool_size: i32,
     buffer: Main<WlBuffer>,
-    x: i32,
-    y: i32,
+    w: i32,
+    h: i32,
     format: wl_shm::Format,
     log: Logger,
 }
 
 impl Buffer {
-    pub fn new(
+    pub(crate) fn new(
         shm: &Attached<wl_shm::WlShm>,
         x: i32,
         y: i32,
@@ -184,26 +184,26 @@ impl Buffer {
             pool,
             buffer,
             pool_size: size,
-            x,
-            y,
+            w: x,
+            h: y,
             format,
             log,
         }
     }
 
-    pub fn try_write_buffer_and_attach(
+    pub(crate) fn try_write_buffer_and_attach(
         &mut self,
         source: &[u8],
         buffer_metadata: BufferData,
         surface: &WlSurface,
     ) -> Result<()> {
         // resize pool and buffer if necessary
-        if self.x != buffer_metadata.width && self.y != buffer_metadata.height {
+        if self.w != buffer_metadata.width && self.h != buffer_metadata.height {
             trace!(self.log, "resizing pool and buffer before write and attach");
-            self.x = buffer_metadata.width;
-            self.y = buffer_metadata.height;
+            self.w = buffer_metadata.width;
+            self.h = buffer_metadata.height;
             self.buffer.destroy();
-            let required_size = self.x * self.y * 4;
+            let required_size = self.w * self.h * 4;
             if self.pool_size < required_size {
                 self.pool_size = required_size;
                 self.pool.resize(self.pool_size);
@@ -212,7 +212,7 @@ impl Buffer {
             if let Some(format) = shm::Format::from_raw(buffer_metadata.format as u32) {
                 self.buffer = self
                     .pool
-                    .create_buffer(0, self.x, self.y, self.x * 4, format);
+                    .create_buffer(0, self.w, self.h, self.w * 4, format);
             } else {
                 bail!("bad buffer format!")
             }
@@ -224,8 +224,13 @@ impl Buffer {
         writer.flush()?;
 
         trace!(self.log, "attaching buffer to surface");
-        surface.attach(Some(&self.buffer), self.x, self.y);
-        surface.damage(0, 0, self.x, self.y);
+        surface.attach(Some(&self.buffer), self.w, self.h);
+        if surface.as_ref().version() >= 5 {
+            surface.attach(Some(&self.buffer), 0, 0);
+            surface.offset(self.w, self.h);
+        } else {
+            surface.attach(Some(&self.buffer), self.w, self.h);
+        }        surface.damage(0, 0, self.w, self.h);
         surface.commit();
 
         trace!(
@@ -236,7 +241,7 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn free(&self) -> bool {
+    pub(crate) fn free(&self) -> bool {
         self.free.get()
     }
 }
