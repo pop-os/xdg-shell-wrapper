@@ -1,32 +1,33 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use anyhow::{bail, Result};
-use sctk::{
-    reexports::client::{
-        protocol::{
-            wl_buffer::{self, WlBuffer},
-            wl_shm,
-            wl_shm_pool::WlShmPool,
-            wl_surface::WlSurface,
-        },
-        Attached, Main,
-    },
-    shm,
-};
-use slog::{trace, warn, Logger};
-use smithay::{
-    backend::renderer::{buffer_type, BufferType},
-    wayland::{
-        compositor::BufferAssignment,
-        shm::{with_buffer_contents, BufferData},
-    }, reexports::wayland_server::DisplayHandle,
-};
 use std::{
     cell::Cell,
     fs::File,
     io::{BufWriter, Write},
     os::unix::io::AsRawFd,
     rc::Rc,
+};
+
+use anyhow::{bail, Result};
+use sctk::{
+    reexports::client::{
+        Attached,
+        Main, protocol::{
+            wl_buffer::{self, WlBuffer},
+            wl_shm,
+            wl_shm_pool::WlShmPool,
+            wl_surface::WlSurface,
+        },
+    },
+    shm,
+};
+use slog::{Logger, trace, warn};
+use smithay::{
+    backend::renderer::{buffer_type, BufferType},
+    reexports::wayland_server::DisplayHandle, wayland::{
+        compositor::BufferAssignment,
+        shm::{BufferData, with_buffer_contents},
+    },
 };
 use tempfile::tempfile;
 

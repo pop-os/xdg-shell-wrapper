@@ -1,9 +1,9 @@
 use std::cell::RefMut;
 
 use slog::trace;
-use smithay::{wayland::{compositor::{CompositorHandler, CompositorState, get_role, with_states, SurfaceAttributes, BufferAssignment}, buffer::BufferHandler, shm::{ShmState, ShmHandler}, SERIAL_COUNTER}, reexports::wayland_server::{DisplayHandle, protocol::{wl_surface::WlSurface, wl_buffer}}, backend::renderer::{utils::on_commit_buffer_handler, BufferType, buffer_type}, delegate_compositor, delegate_shm};
+use smithay::{backend::renderer::{buffer_type, BufferType, utils::on_commit_buffer_handler}, delegate_compositor, delegate_shm, reexports::wayland_server::{DisplayHandle, protocol::{wl_buffer, wl_surface::WlSurface}}, wayland::{buffer::BufferHandler, compositor::{BufferAssignment, CompositorHandler, CompositorState, get_role, SurfaceAttributes, with_states}, SERIAL_COUNTER, shm::{ShmHandler, ShmState}}};
 
-use crate::{shared_state::GlobalState, space::WrapperSpace, server_state::SeatPair};
+use crate::{server_state::SeatPair, shared_state::GlobalState, space::WrapperSpace};
 
 // let DesktopClientState {
 //     cursor_surface,

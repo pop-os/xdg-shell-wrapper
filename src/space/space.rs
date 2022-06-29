@@ -7,31 +7,31 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{config::WrapperConfig, client_state::{Focus, Env}};
 use sctk::{
+    environment::Environment,
     output::OutputInfo,
     reexports::{
         client::{
             self,
-            protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
-            Attached, Main,
+            Attached,
+            Main, protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
         },
         protocols::{
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
             xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_surface::XdgSurface, xdg_wm_base::XdgWmBase},
         },
-    },
-    shm::AutoMemPool, environment::Environment,
+    }, shm::AutoMemPool,
 };
 use slog::Logger;
 use smithay::{
-    desktop::{PopupManager, Window, Space},
+    desktop::{PopupManager, Space, Window},
     reexports::wayland_server::{
-        self, protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display, DisplayHandle,
+        self, DisplayHandle, protocol::wl_surface::WlSurface as s_WlSurface,
     },
-    utils::{Logical, Size},
     wayland::shell::xdg::{PopupSurface, PositionerState},
 };
+
+use crate::{client_state::{Env, Focus}, config::WrapperConfig};
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum SpaceEvent {

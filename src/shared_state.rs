@@ -1,24 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use once_cell::sync::OnceCell;
-use smithay::reexports::wayland_server::backend::GlobalId;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::client_state::{DesktopClientState, Env};
-use crate::server_state::EmbeddedServerState;
-use crate::space::WrapperSpace;
-use crate::{CachedBuffers};
-
+use once_cell::sync::OnceCell;
 use sctk::{
     environment::Environment,
     reexports::{
         client::{
+            Attached,
             protocol::{
                 wl_output as c_wl_output,
                 wl_seat as c_wl_seat,
             },
-            Attached,
         },
     },
 };
@@ -26,14 +20,16 @@ use slog::Logger;
 use smithay::{
     reexports::{
         calloop,
-        wayland_server::{
-            protocol::{wl_pointer::AxisSource},
-        },
+        wayland_server::protocol::wl_pointer::AxisSource,
     },
     wayland::{output::Output, seat},
 };
+use smithay::reexports::wayland_server::backend::GlobalId;
 
-
+use crate::CachedBuffers;
+use crate::client_state::{DesktopClientState, Env};
+use crate::server_state::EmbeddedServerState;
+use crate::space::WrapperSpace;
 
 pub type OutputGroup = (
     Output,

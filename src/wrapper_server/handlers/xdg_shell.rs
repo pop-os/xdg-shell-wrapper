@@ -1,20 +1,18 @@
-use std::{rc::Rc, cell::RefCell};
-
 use slog::error;
 use smithay::{
     delegate_xdg_shell,
-    desktop::{Kind, Window, PopupKind},
+    desktop::{Kind, PopupKind, Window},
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
         wayland_server::{
-            protocol::{wl_seat, wl_surface::WlSurface},
-            DisplayHandle, Resource,
+            DisplayHandle,
+            protocol::{wl_seat, wl_surface::WlSurface}, Resource,
         },
     },
     wayland::{
         seat::{PointerGrabStartData, Seat},
-        shell::xdg::{PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState},
-        Serial, SERIAL_COUNTER,
+        Serial,
+        SERIAL_COUNTER, shell::xdg::{PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState},
     },
 };
 

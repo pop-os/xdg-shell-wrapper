@@ -1,12 +1,12 @@
-use std::{time::Instant, rc::Rc};
+use std::{rc::Rc, time::Instant};
 
-use sctk::{reexports::{client::{Attached, protocol::{wl_seat, wl_keyboard, wl_pointer, wl_surface, wl_shm}, self}, protocols::{xdg_shell::client::xdg_wm_base::XdgWmBase, wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1}}, environment::{Environment, SimpleGlobal}, output::{OutputStatusListener, with_output_info}, default_environment, seat::SeatHandling};
-use slog::{Logger};
-use smithay::{wayland::seat, reexports::wayland_server};
+use sctk::{default_environment, environment::{Environment, SimpleGlobal}, output::{OutputStatusListener, with_output_info}, reexports::{client::{self, Attached, protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface}}, protocols::{wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1, xdg_shell::client::xdg_wm_base::XdgWmBase}}, seat::SeatHandling};
+use slog::Logger;
+use smithay::{reexports::wayland_server, wayland::seat};
 
-use crate::{space::{WrapperSpace, SpaceEvent}, shared_state::{AxisFrameData, OutputGroup, GlobalState}, wrapper_client::handlers::seat::send_keyboard_event, server_state::{SeatPair, EmbeddedServerState}, config::WrapperConfig};
+use crate::{config::WrapperConfig, server_state::{EmbeddedServerState, SeatPair}, shared_state::{AxisFrameData, GlobalState, OutputGroup}, space::{SpaceEvent, WrapperSpace}, wrapper_client::handlers::seat::send_keyboard_event};
 
-use super::handlers::{seat::{seat_handle_callback, send_pointer_event}, output::{handle_output, c_output_as_s_output}};
+use super::handlers::{output::{c_output_as_s_output, handle_output}, seat::{seat_handle_callback, send_pointer_event}};
 
 #[derive(Debug)]
 pub struct ClientSeat {

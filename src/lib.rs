@@ -3,23 +3,23 @@
 
 //! Provides the core functionality for cosmic-panel
 
-use anyhow::Result;
-use calloop::{Interest, Mode, generic::Generic, PostAction};
-use shared_state::GlobalState;
-use smithay::{
-    reexports::wayland_server::{Display},
-};
-use space::{CachedBuffers, Visibility, WrapperSpace};
-use wrapper_client::state::DesktopClientState;
-use wrapper_server::state::EmbeddedServerState;
 use std::{
     cell::Cell,
     rc::Rc,
     thread,
     time::{Duration, Instant},
 };
+
+use anyhow::Result;
+use calloop::{generic::Generic, Interest, Mode, PostAction};
+use smithay::reexports::wayland_server::Display;
+
+use shared_state::GlobalState;
+use space::{CachedBuffers, Visibility, WrapperSpace};
 pub use wrapper_client::state as client_state;
+use wrapper_client::state::DesktopClientState;
 pub use wrapper_server::state as server_state;
+use wrapper_server::state::EmbeddedServerState;
 
 pub mod config;
 pub mod shared_state;

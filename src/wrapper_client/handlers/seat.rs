@@ -1,32 +1,33 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
+use std::{cell::RefCell, rc::Rc, time::Instant};
+
 use sctk::{
     reexports::client::{
         self,
-        protocol::{
+        Attached,
+        DispatchData, protocol::{
             wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat,
         },
-        Attached, DispatchData,
     },
     seat::SeatData,
 };
-use slog::{error, trace, Logger};
+use slog::{error, Logger, trace};
 use smithay::{
-    backend::{input::KeyState},
+    backend::input::KeyState,
+    desktop::WindowSurfaceType,
     reexports::wayland_server::{
-        protocol::{wl_pointer, wl_surface::WlSurface},
-        Display, DisplayHandle, Resource,
-    },
-    wayland::{
-        seat::{self, AxisFrame, FilterResult, PointerHandle, ButtonEvent, MotionEvent, },
+        Display,
+        DisplayHandle, protocol::{wl_pointer, wl_surface::WlSurface}, Resource,
+    }, wayland::{
+        seat::{self, AxisFrame, ButtonEvent, FilterResult, MotionEvent, PointerHandle, },
         SERIAL_COUNTER,
-    }, desktop::WindowSurfaceType
+    }
 };
-use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use crate::{
-    shared_state::{GlobalState},
-    space::{WrapperSpace}, client_state::{DesktopClientState, Focus, ClientSeat}, server_state::{EmbeddedServerState, SeatPair}
+    client_state::{ClientSeat, DesktopClientState, Focus},
+    server_state::{EmbeddedServerState, SeatPair}, shared_state::GlobalState, space::WrapperSpace
 };
 
 pub fn send_keyboard_event<W: WrapperSpace + 'static>(

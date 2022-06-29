@@ -2,26 +2,27 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{shared_state::{OutputGroup, GlobalState}, space::WrapperSpace};
-use super::super::state::Env;
-
 use sctk::{
     environment::Environment,
     output::{Mode as c_Mode, OutputInfo},
     reexports::{
-        client::protocol::wl_output::{Subpixel as c_Subpixel, self as c_WlOutput},
         client::{self, Attached, Display},
+        client::protocol::wl_output::{self as c_WlOutput, Subpixel as c_Subpixel},
         protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
     },
 };
 use slog::Logger;
 use smithay::{
     reexports::wayland_server::{
-        protocol::{wl_output::{Subpixel as s_Subpixel, Transform}, wl_surface::WlSurface},
-        DisplayHandle, backend::GlobalId,
+        backend::GlobalId,
+        DisplayHandle, protocol::{wl_output::{Subpixel as s_Subpixel, Transform}, wl_surface::WlSurface},
     },
     wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties, Scale},
 };
+
+use crate::{shared_state::{GlobalState, OutputGroup}, space::WrapperSpace};
+
+use super::super::state::Env;
 
 pub fn handle_output<W: WrapperSpace + 'static> (
     layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,

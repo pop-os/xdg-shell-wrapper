@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::{
-            os::unix::{net::UnixStream,},
+    os::unix::net::UnixStream,
     process::{Child, Command}, sync::Arc,
 };
 
 use shlex::Shlex;
-use slog::{trace, Logger};
-use smithay::{
-    reexports::wayland_server::{self, Client, backend::ClientData},
-};
+use slog::{Logger, trace};
+use smithay::reexports::wayland_server::{self, backend::ClientData, Client};
 
 /// utility function which maps a value [0, 1] -> [0, 1] using the smootherstep function
 pub fn smootherstep(t: f32) -> f32 {
