@@ -21,16 +21,8 @@ pub fn get_client_sock(
     display: &mut wayland_server::Display,
 ) -> (Client, (UnixStream, UnixStream)) {
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
-    let raw_fd = display_sock.as_raw_fd();
-    let fd_flags =
-        fcntl::FdFlag::from_bits(fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD).unwrap()).unwrap();
-    fcntl::fcntl(
-        raw_fd,
-        fcntl::FcntlArg::F_SETFD(fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC)),
-    )
-    .unwrap();
     (
-        unsafe { display.create_client(raw_fd, &mut ()) },
+        unsafe { display.create_client(display_sock.as_raw_fd(), &mut ()) },
         (display_sock, client_sock),
     )
 }
