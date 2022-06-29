@@ -166,10 +166,12 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
             } => {
                 space.update_pointer((surface_x as i32, surface_y as i32));
                 let focused_surface = focused_surface.clone();
+                let c_focused_surface = c_focused_surface.clone();
                 handle_motion(
                     &dh,
                     global_state,
                     &focused_surface,
+                    &c_focused_surface,
                     surface_x,
                     surface_y,
                     ptr,
@@ -286,10 +288,12 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     }
                 }
                 let focused_surface = focused_surface.clone();
+                let c_focused_surface = c_focused_surface.clone();
                 handle_motion(
                     &dh,
                     global_state,
                     &focused_surface,
+                    &c_focused_surface,
                     -1.0,
                     -1.0,
                     ptr,
@@ -415,24 +419,28 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
 pub(crate) fn handle_motion<W: WrapperSpace>(
     dh: &DisplayHandle,
     global_state: &mut GlobalState<W>,
-    focused_surface: &Rc<RefCell<Option<WlSurface>>>,
+    s_focused_surface: &Rc<RefCell<Option<WlSurface>>>,
+    c_focused_surface: &Focus,
     surface_x: f64,
     surface_y: f64,
     ptr: PointerHandle<GlobalState<W>>,
     time: u32,
 ) {
+
+    let motion_point = match c_focused_surface {
+        Focus::Current(s) => global_state.space.point_to_compositor_space(s, (surface_x as i32, surface_y as i32).into()),
+        Focus::LastFocus(_) => return,
+    };
+    
+    // TODO adjust surface_x & surface_y if focused_surface is a popup
     let space = global_state.space.space();
     if let Some((w, s, p)) = space.surface_under((surface_x, surface_y), WindowSurfaceType::ALL) {
-        focused_surface.borrow_mut().replace(s.clone());
+        s_focused_surface.replace(Some(s.clone()));
         ptr.motion(
             global_state,
             &dh,
             &MotionEvent {
-                location: (
-                    surface_x - w.geometry().loc.x as f64,
-                    surface_y - w.geometry().loc.y as f64,
-                )
-                    .into(),
+                location: motion_point.to_f64() + w.geometry().loc.to_f64(),
                 focus: Some((s, p)),
                 serial: SERIAL_COUNTER.next_serial(),
                 time,

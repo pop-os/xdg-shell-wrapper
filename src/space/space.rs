@@ -29,7 +29,7 @@ use smithay::{
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    wayland::shell::xdg::{PopupSurface, PositionerState},
+    wayland::shell::xdg::{PopupSurface, PositionerState}, utils::{Point, Logical},
 };
 
 use crate::{
@@ -166,4 +166,7 @@ pub trait WrapperSpace {
 
     /// gets the popup manager for this space
     fn popup_manager(&mut self) -> &mut PopupManager;
+
+    /// the position of a point relative to a client wl surface converted to compositor space
+    fn point_to_compositor_space(&self, c_wl_surface: &c_wl_surface::WlSurface, point: Point<i32, Logical>) -> Point<i32, Logical>;
 }
