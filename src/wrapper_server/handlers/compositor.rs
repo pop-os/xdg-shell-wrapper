@@ -1,7 +1,23 @@
 use std::cell::RefMut;
 
 use slog::trace;
-use smithay::{backend::renderer::{buffer_type, BufferType, utils::on_commit_buffer_handler}, delegate_compositor, delegate_shm, reexports::wayland_server::{DisplayHandle, protocol::{wl_buffer, wl_surface::WlSurface}}, wayland::{buffer::BufferHandler, compositor::{BufferAssignment, CompositorHandler, CompositorState, get_role, SurfaceAttributes, with_states}, SERIAL_COUNTER, shm::{ShmHandler, ShmState}}};
+use smithay::{
+    backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
+    delegate_compositor, delegate_shm,
+    reexports::wayland_server::{
+        protocol::{wl_buffer, wl_surface::WlSurface},
+        DisplayHandle,
+    },
+    wayland::{
+        buffer::BufferHandler,
+        compositor::{
+            get_role, with_states, BufferAssignment, CompositorHandler, CompositorState,
+            SurfaceAttributes,
+        },
+        shm::{ShmHandler, ShmState},
+        SERIAL_COUNTER,
+    },
+};
 
 use crate::{server_state::SeatPair, shared_state::GlobalState, space::WrapperSpace};
 
@@ -41,8 +57,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 if let Some(ptr) = client.ptr.as_ref() {
                     trace!(log, "updating cursor for pointer {:?}", &ptr);
                     let _ = with_states(&surface, |data| {
-                        let surface_attributes =
-                            data.cached_state.current::<SurfaceAttributes>();
+                        let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
                         let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
                             if let Some(BufferType::Shm) = buffer_type(&dh, buffer) {

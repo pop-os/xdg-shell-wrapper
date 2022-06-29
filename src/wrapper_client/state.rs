@@ -1,28 +1,56 @@
 use std::{rc::Rc, time::Instant};
 
-use sctk::{default_environment, environment::{Environment, SimpleGlobal}, output::{OutputStatusListener, with_output_info}, reexports::{client::{self, Attached, protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface}}, protocols::{wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1, xdg_shell::client::xdg_wm_base::XdgWmBase}}, seat::SeatHandling};
+use sctk::{
+    default_environment,
+    environment::{Environment, SimpleGlobal},
+    output::{with_output_info, OutputStatusListener},
+    reexports::{
+        client::{
+            self,
+            protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface},
+            Attached,
+        },
+        protocols::{
+            wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
+            xdg_shell::client::xdg_wm_base::XdgWmBase,
+        },
+    },
+    seat::SeatHandling,
+};
 use slog::Logger;
 use smithay::{reexports::wayland_server, wayland::seat};
 
-use crate::{config::WrapperConfig, server_state::{EmbeddedServerState, SeatPair}, shared_state::{AxisFrameData, GlobalState, OutputGroup}, space::{SpaceEvent, WrapperSpace}, wrapper_client::handlers::seat::send_keyboard_event};
+use crate::{
+    config::WrapperConfig,
+    server_state::{EmbeddedServerState, SeatPair},
+    shared_state::{AxisFrameData, GlobalState, OutputGroup},
+    space::{SpaceEvent, WrapperSpace},
+    wrapper_client::handlers::seat::send_keyboard_event,
+};
 
-use super::handlers::{output::{c_output_as_s_output, handle_output}, seat::{seat_handle_callback, send_pointer_event}};
+use super::handlers::{
+    output::{c_output_as_s_output, handle_output},
+    seat::{seat_handle_callback, send_pointer_event},
+};
 
 #[derive(Debug)]
-pub struct ClientSeat {
+pub(crate) struct ClientSeat {
     pub(crate) seat: Attached<wl_seat::WlSeat>,
     pub(crate) kbd: Option<wl_keyboard::WlKeyboard>,
     pub(crate) ptr: Option<wl_pointer::WlPointer>,
 }
 
+/// currently focused client surface
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Focus {
+    /// currently focused client surface
     Current(wl_surface::WlSurface),
+    /// last instant a client surface was focused
     LastFocus(Instant),
 }
 
 #[derive(Debug)]
-pub struct DesktopClientState {
+pub(crate) struct DesktopClientState {
     pub(crate) display: client::Display,
     pub(crate) cursor_surface: wl_surface::WlSurface,
     pub(crate) axis_frame: AxisFrameData,
@@ -49,13 +77,29 @@ default_environment!(Env,
 
 impl std::fmt::Debug for Env {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Env").field("sctk_compositor", &self.sctk_compositor).field("sctk_subcompositor", &self.sctk_subcompositor).field("sctk_shm", &self.sctk_shm).field("sctk_outputs", &self.sctk_outputs).field("sctk_seats", &self.sctk_seats).field("sctk_data_device_manager", &self.sctk_data_device_manager).field("sctk_primary_selection_manager", &self.sctk_primary_selection_manager).field("layer_shell", &self.layer_shell).field("xdg_wm_base", &self.xdg_wm_base).finish()
+        f.debug_struct("Env")
+            .field("sctk_compositor", &self.sctk_compositor)
+            .field("sctk_subcompositor", &self.sctk_subcompositor)
+            .field("sctk_shm", &self.sctk_shm)
+            .field("sctk_outputs", &self.sctk_outputs)
+            .field("sctk_seats", &self.sctk_seats)
+            .field("sctk_data_device_manager", &self.sctk_data_device_manager)
+            .field(
+                "sctk_primary_selection_manager",
+                &self.sctk_primary_selection_manager,
+            )
+            .field("layer_shell", &self.layer_shell)
+            .field("xdg_wm_base", &self.xdg_wm_base)
+            .finish()
     }
 }
 
 impl DesktopClientState {
     pub(crate) fn new<W: WrapperSpace + 'static>(
-        loop_handle: calloop::LoopHandle<'static, (GlobalState<W>, wayland_server::Display<GlobalState<W>>)>,
+        loop_handle: calloop::LoopHandle<
+            'static,
+            (GlobalState<W>, wayland_server::Display<GlobalState<W>>),
+        >,
         space: &mut W,
         log: Logger,
         dh: &mut wayland_server::DisplayHandle,
@@ -63,8 +107,8 @@ impl DesktopClientState {
     ) -> anyhow::Result<Self> {
         let config = space.config();
         /*
-        * Initial setup
-        */
+         * Initial setup
+         */
         let (mut env, display, queue) = sctk::new_default_environment!(
             Env,
             fields = [
@@ -94,7 +138,7 @@ impl DesktopClientState {
                     if let Some(info) = with_output_info(&o, Clone::clone) {
                         let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
                         space.space().map_output(&s_o, info.location);
-                    }   
+                    }
                 }
                 space
                     .add_output(
@@ -315,8 +359,8 @@ impl DesktopClientState {
         // });
 
         /*
-        * Keyboard initialization
-        */
+         * Keyboard initialization
+         */
 
         let mut seats = Vec::<SeatPair<W>>::new();
 
@@ -331,7 +375,6 @@ impl DesktopClientState {
                     seat_data.name.clone(),
                 )
             }) {
-
                 let mut new_seat = SeatPair {
                     name: name.clone(),
                     server: seat::Seat::new(dh, name.clone(), log.clone()),
@@ -410,7 +453,7 @@ impl DesktopClientState {
             last_input_serial: None,
             focused_surface: Focus::LastFocus(Instant::now()),
             _output_listener: output_listener,
-            _output_group: s_outputs
+            _output_group: s_outputs,
         })
     }
 }

@@ -5,14 +5,16 @@ use smithay::{
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
         wayland_server::{
-            DisplayHandle,
-            protocol::{wl_seat, wl_surface::WlSurface}, Resource,
+            protocol::{wl_seat, wl_surface::WlSurface},
+            DisplayHandle, Resource,
         },
     },
     wayland::{
         seat::{PointerGrabStartData, Seat},
-        Serial,
-        SERIAL_COUNTER, shell::xdg::{PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState},
+        shell::xdg::{
+            PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
+        },
+        Serial, SERIAL_COUNTER,
     },
 };
 
@@ -55,12 +57,16 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         surface.send_configure();
     }
 
-    fn new_popup(&mut self, _dh: &DisplayHandle, surface: PopupSurface, positioner_state: PositionerState) {
+    fn new_popup(
+        &mut self,
+        _dh: &DisplayHandle,
+        surface: PopupSurface,
+        positioner_state: PositionerState,
+    ) {
         let positioner = self.desktop_client_state.xdg_wm_base.create_positioner();
 
         // let wl_surface = self.desktop_client_state.env_handle.create_surface().detach();
         // let xdg_surface = self.desktop_client_state.xdg_wm_base.get_xdg_surface(&wl_surface);
-
 
         self.space.add_popup(
             &self.desktop_client_state.env_handle,
@@ -77,7 +83,8 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         surface: ToplevelSurface,
         seat: wl_seat::WlSeat,
         serial: Serial,
-    ) {}
+    ) {
+    }
 
     fn resize_request(
         &mut self,
@@ -86,9 +93,16 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         seat: wl_seat::WlSeat,
         serial: Serial,
         edges: xdg_toplevel::ResizeEdge,
-    ) {}
+    ) {
+    }
 
-    fn grab(&mut self, dh: &DisplayHandle, surface: PopupSurface, seat: wl_seat::WlSeat, _serial: Serial) {
+    fn grab(
+        &mut self,
+        dh: &DisplayHandle,
+        surface: PopupSurface,
+        seat: wl_seat::WlSeat,
+        _serial: Serial,
+    ) {
         if self.desktop_client_state.kbd_focus {
             for s in &self.embedded_server_state.seats {
                 if s.server.owns(&seat) {
@@ -107,22 +121,28 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
     }
 
     fn reposition_request(
-            &mut self,
-            dh: &smithay::reexports::wayland_server::DisplayHandle,
-            surface: PopupSurface,
-            positioner: PositionerState,
-            token: u32,
-        ) {
-            let new_positioner = self.desktop_client_state.xdg_wm_base.create_positioner();
+        &mut self,
+        dh: &smithay::reexports::wayland_server::DisplayHandle,
+        surface: PopupSurface,
+        positioner: PositionerState,
+        token: u32,
+    ) {
+        let new_positioner = self.desktop_client_state.xdg_wm_base.create_positioner();
 
-            let _ = self.space.reposition_popup(surface, new_positioner, positioner, token);
+        let _ = self
+            .space
+            .reposition_popup(surface, new_positioner, positioner, token);
     }
 }
 
 // Xdg Shell
 delegate_xdg_shell!(@<W: WrapperSpace + 'static> GlobalState<W>);
 
-fn check_grab<W: WrapperSpace>(seat: &Seat<GlobalState<W>>, surface: &WlSurface, serial: Serial) -> Option<PointerGrabStartData> {
+fn check_grab<W: WrapperSpace>(
+    seat: &Seat<GlobalState<W>>,
+    surface: &WlSurface,
+    serial: Serial,
+) -> Option<PointerGrabStartData> {
     let pointer = seat.get_pointer()?;
 
     // Check that this surface has a click grab.

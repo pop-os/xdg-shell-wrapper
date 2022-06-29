@@ -1,6 +1,12 @@
-use smithay::{delegate_data_device, delegate_output, delegate_seat, wayland::{seat::{SeatHandler, SeatState}, data_device::{DataDeviceHandler, ClientDndGrabHandler, ServerDndGrabHandler}}};
+use smithay::{
+    delegate_data_device, delegate_output, delegate_seat,
+    wayland::{
+        data_device::{ClientDndGrabHandler, DataDeviceHandler, ServerDndGrabHandler},
+        seat::{SeatHandler, SeatState},
+    },
+};
 
-use crate::{space::WrapperSpace, shared_state::GlobalState};
+use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 pub(crate) mod compositor;
 pub(crate) mod xdg_shell;

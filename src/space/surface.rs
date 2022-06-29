@@ -8,9 +8,9 @@ use sctk::reexports::client;
 use smithay::{
     backend::egl::{
         display::EGLDisplayHandle,
-        EGLError,
         ffi,
-        native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform}, wrap_egl_call,
+        native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
+        wrap_egl_call, EGLError,
     },
     egl_platform,
 };

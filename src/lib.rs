@@ -22,7 +22,7 @@ pub use wrapper_server::state as server_state;
 use wrapper_server::state::EmbeddedServerState;
 
 pub mod config;
-pub mod shared_state;
+mod shared_state;
 pub mod space;
 pub mod util;
 
@@ -32,23 +32,27 @@ mod wrapper_server;
 /// run the cosmic panel xdg wrapper with the provided config
 pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
     let log = space.log().unwrap();
-    let mut event_loop = calloop::EventLoop::<(GlobalState<W>, Display<GlobalState<W>>)>::try_new().unwrap();
+    let mut event_loop =
+        calloop::EventLoop::<(GlobalState<W>, Display<GlobalState<W>>)>::try_new().unwrap();
     let loop_handle = event_loop.handle();
-    
+
     let mut server_display = smithay::reexports::wayland_server::Display::new().unwrap();
     let s_dh = server_display.handle();
     loop_handle
-    .insert_source(
-        Generic::new(server_display.backend().poll_fd(), Interest::READ, Mode::Level),
-        |_, _, (state, display)| {
-            display.dispatch_clients(state).unwrap();
-            Ok(PostAction::Continue)
-        },
-    )
-    .expect("Failed to init wayland server source");
+        .insert_source(
+            Generic::new(
+                server_display.backend().poll_fd(),
+                Interest::READ,
+                Mode::Level,
+            ),
+            |_, _, (state, display)| {
+                display.dispatch_clients(state).unwrap();
+                Ok(PostAction::Continue)
+            },
+        )
+        .expect("Failed to init wayland server source");
 
-    let mut embedded_server_state =
-        EmbeddedServerState::new(&s_dh, log.clone());
+    let mut embedded_server_state = EmbeddedServerState::new(&s_dh, log.clone());
 
     let mut desktop_client_state = DesktopClientState::new(
         loop_handle.clone(),
@@ -57,9 +61,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
         &mut server_display.handle(),
         &mut embedded_server_state,
     )?;
-    let _sockets = space
-        .spawn_clients(&mut server_display.handle())
-        .unwrap();
+    let _sockets = space.spawn_clients(&mut server_display.handle()).unwrap();
 
     let global_state = GlobalState {
         desktop_client_state,
@@ -82,11 +84,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
         shared_data.0.space.space().refresh(&s_dh);
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
-            shared_data
-                .0
-                .space
-                .popup_manager()
-                .cleanup();
+            shared_data.0.space.popup_manager().cleanup();
             last_cleanup = Instant::now();
         }
 
@@ -120,9 +118,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
 
         // dispatch server events
         {
-            server_display
-                .dispatch_clients(shared_data)
-                .unwrap();
+            server_display.dispatch_clients(shared_data).unwrap();
             server_display.flush_clients();
         }
 
@@ -154,10 +150,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
         // }
 
         // sleep if not focused...
-        if matches!(
-            shared_data.space.visibility(),
-            Visibility::Hidden
-        ) {
+        if matches!(shared_data.space.visibility(), Visibility::Hidden) {
             thread::sleep(Duration::from_millis(100));
         }
     }

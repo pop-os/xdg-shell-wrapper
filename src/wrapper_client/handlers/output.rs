@@ -6,8 +6,8 @@ use sctk::{
     environment::Environment,
     output::{Mode as c_Mode, OutputInfo},
     reexports::{
+        client::protocol::wl_output::Subpixel as c_Subpixel,
         client::{self, Attached, Display},
-        client::protocol::wl_output::{self as c_WlOutput, Subpixel as c_Subpixel},
         protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
     },
 };
@@ -15,16 +15,23 @@ use slog::Logger;
 use smithay::{
     reexports::wayland_server::{
         backend::GlobalId,
-        DisplayHandle, protocol::{wl_output::{Subpixel as s_Subpixel, Transform}, wl_surface::WlSurface},
+        protocol::{
+            wl_output::{Subpixel as s_Subpixel, Transform},
+            wl_surface::WlSurface,
+        },
+        DisplayHandle,
     },
     wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties, Scale},
 };
 
-use crate::{shared_state::{GlobalState, OutputGroup}, space::WrapperSpace};
+use crate::{
+    shared_state::{GlobalState, OutputGroup},
+    space::WrapperSpace,
+};
 
 use super::super::state::Env;
 
-pub fn handle_output<W: WrapperSpace + 'static> (
+pub fn handle_output<W: WrapperSpace + 'static>(
     layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
     env_handle: Environment<Env>,
     logger: Logger,
@@ -70,7 +77,11 @@ pub fn handle_output<W: WrapperSpace + 'static> (
     // space.bind_wl_display(s_display);
 }
 
-pub fn c_output_as_s_output<W: WrapperSpace + 'static>(dh: &DisplayHandle, info: &OutputInfo, logger: Logger) -> (s_Output, GlobalId) {
+pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
+    dh: &DisplayHandle,
+    info: &OutputInfo,
+    logger: Logger,
+) -> (s_Output, GlobalId) {
     let s_output = s_Output::new(
         info.name.clone(), // the name of this output,
         PhysicalProperties {
@@ -103,7 +114,12 @@ pub fn c_output_as_s_output<W: WrapperSpace + 'static>(dh: &DisplayHandle, info:
             s_output.set_preferred(s_mode);
         }
         if *is_current {
-            s_output.change_current_state(Some(s_mode), Some(Transform::Normal), Some(Scale::Integer(1)), Some(info.location.into()))
+            s_output.change_current_state(
+                Some(s_mode),
+                Some(Transform::Normal),
+                Some(Scale::Integer(1)),
+                Some(info.location.into()),
+            )
         }
         s_output.add_mode(s_mode);
     }

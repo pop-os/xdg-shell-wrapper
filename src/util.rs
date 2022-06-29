@@ -2,11 +2,12 @@
 
 use std::{
     os::unix::net::UnixStream,
-    process::{Child, Command}, sync::Arc,
+    process::{Child, Command},
+    sync::Arc,
 };
 
 use shlex::Shlex;
-use slog::{Logger, trace};
+use slog::{trace, Logger};
 use smithay::reexports::wayland_server::{self, backend::ClientData, Client};
 
 /// utility function which maps a value [0, 1] -> [0, 1] using the smootherstep function
@@ -15,13 +16,13 @@ pub fn smootherstep(t: f32) -> f32 {
 }
 
 /// helper function for inserting a wrapped applet client
-pub fn get_client_sock(
-    display: &mut wayland_server::DisplayHandle,
-) -> (Client, UnixStream) {
+pub fn get_client_sock(display: &mut wayland_server::DisplayHandle) -> (Client, UnixStream) {
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
     (
-        display.insert_client(display_sock, Arc::new(WrapperClientData{})).unwrap(),
-        client_sock
+        display
+            .insert_client(display_sock, Arc::new(WrapperClientData {}))
+            .unwrap(),
+        client_sock,
     )
 }
 
@@ -31,7 +32,12 @@ pub struct WrapperClientData {}
 impl ClientData for WrapperClientData {
     fn initialized(&self, client_id: wayland_server::backend::ClientId) {}
 
-    fn disconnected(&self, client_id: wayland_server::backend::ClientId, reason: wayland_server::backend::DisconnectReason) {}
+    fn disconnected(
+        &self,
+        client_id: wayland_server::backend::ClientId,
+        reason: wayland_server::backend::DisconnectReason,
+    ) {
+    }
 }
 
 /// helper function for launching a wrapped applet

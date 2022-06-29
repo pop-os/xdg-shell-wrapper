@@ -6,37 +6,24 @@ use std::rc::Rc;
 use once_cell::sync::OnceCell;
 use sctk::{
     environment::Environment,
-    reexports::{
-        client::{
-            Attached,
-            protocol::{
-                wl_output as c_wl_output,
-                wl_seat as c_wl_seat,
-            },
-        },
+    reexports::client::{
+        protocol::{wl_output as c_wl_output, wl_seat as c_wl_seat},
+        Attached,
     },
 };
 use slog::Logger;
+use smithay::reexports::wayland_server::backend::GlobalId;
 use smithay::{
-    reexports::{
-        calloop,
-        wayland_server::protocol::wl_pointer::AxisSource,
-    },
+    reexports::{calloop, wayland_server::protocol::wl_pointer::AxisSource},
     wayland::{output::Output, seat},
 };
-use smithay::reexports::wayland_server::backend::GlobalId;
 
-use crate::CachedBuffers;
 use crate::client_state::{DesktopClientState, Env};
 use crate::server_state::EmbeddedServerState;
 use crate::space::WrapperSpace;
+use crate::CachedBuffers;
 
-pub type OutputGroup = (
-    Output,
-    GlobalId,
-    String,
-    c_wl_output::WlOutput,
-);
+pub type OutputGroup = (Output, GlobalId, String, c_wl_output::WlOutput);
 
 #[derive(Debug, Default)]
 pub struct AxisFrameData {
@@ -62,4 +49,3 @@ pub struct SelectedDataProvider {
     pub(crate) seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>>,
     pub(crate) env_handle: Rc<OnceCell<Environment<Env>>>,
 }
-

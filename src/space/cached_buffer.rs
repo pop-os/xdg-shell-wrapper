@@ -11,22 +11,23 @@ use std::{
 use anyhow::{bail, Result};
 use sctk::{
     reexports::client::{
-        Attached,
-        Main, protocol::{
+        protocol::{
             wl_buffer::{self, WlBuffer},
             wl_shm,
             wl_shm_pool::WlShmPool,
             wl_surface::WlSurface,
         },
+        Attached, Main,
     },
     shm,
 };
-use slog::{Logger, trace, warn};
+use slog::{trace, warn, Logger};
 use smithay::{
     backend::renderer::{buffer_type, BufferType},
-    reexports::wayland_server::DisplayHandle, wayland::{
+    reexports::wayland_server::DisplayHandle,
+    wayland::{
         compositor::BufferAssignment,
-        shm::{BufferData, with_buffer_contents},
+        shm::{with_buffer_contents, BufferData},
     },
 };
 use tempfile::tempfile;
@@ -53,15 +54,13 @@ impl CachedBuffers {
         surface: &WlSurface,
         shm: &Attached<wl_shm::WlShm>,
     ) -> Result<()> {
-        if let BufferAssignment::NewBuffer(source_buffer) = buffer_assignment
-        {
+        if let BufferAssignment::NewBuffer(source_buffer) = buffer_assignment {
             trace!(self.log, "checking buffer format...");
             if let Some(BufferType::Shm) = buffer_type(display_handle, source_buffer) {
                 with_buffer_contents(
                     source_buffer,
                     move |slice: &[u8], buffer_metadata: BufferData| {
-                        if let Some(format) = shm::Format::from_raw(buffer_metadata.format as u32)
-                        {
+                        if let Some(format) = shm::Format::from_raw(buffer_metadata.format as u32) {
                             let pos = self.index_of_pair_buffer(
                                 buffer_metadata.width,
                                 buffer_metadata.height,
@@ -231,7 +230,8 @@ impl Buffer {
             surface.offset(self.w, self.h);
         } else {
             surface.attach(Some(&self.buffer), self.w, self.h);
-        }        surface.damage(0, 0, self.w, self.h);
+        }
+        surface.damage(0, 0, self.w, self.h);
         surface.commit();
 
         trace!(

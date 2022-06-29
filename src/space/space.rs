@@ -13,25 +13,29 @@ use sctk::{
     reexports::{
         client::{
             self,
-            Attached,
-            Main, protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
+            protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
+            Attached, Main,
         },
         protocols::{
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
-            xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_surface::XdgSurface, xdg_wm_base::XdgWmBase},
+            xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
         },
-    }, shm::AutoMemPool,
+    },
+    shm::AutoMemPool,
 };
 use slog::Logger;
 use smithay::{
     desktop::{PopupManager, Space, Window},
     reexports::wayland_server::{
-        self, DisplayHandle, protocol::wl_surface::WlSurface as s_WlSurface,
+        self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
     wayland::shell::xdg::{PopupSurface, PositionerState},
 };
 
-use crate::{client_state::{Env, Focus}, config::WrapperConfig};
+use crate::{
+    client_state::{Env, Focus},
+    config::WrapperConfig,
+};
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum SpaceEvent {
@@ -72,7 +76,7 @@ impl Default for Visibility {
 /// Wrapper Space
 /// manages and renders xdg-shell-window(s) on a layer shell surface
 pub trait WrapperSpace {
-    /// Wrapper config type 
+    /// Wrapper config type
     type Config: WrapperConfig;
 
     /// add the configured output to the space
@@ -136,7 +140,9 @@ pub trait WrapperSpace {
     ) -> anyhow::Result<Vec<UnixStream>>;
 
     /// gets visibility of the wrapper
-    fn visibility(&self) -> Visibility { Visibility::Visible }
+    fn visibility(&self) -> Visibility {
+        Visibility::Visible
+    }
 
     /// gets the logger
     fn log(&self) -> Option<Logger>;
