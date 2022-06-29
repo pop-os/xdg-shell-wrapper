@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-mod cached_buffer;
+pub(crate) mod cached_buffer;
 mod space;
 mod surface;
 

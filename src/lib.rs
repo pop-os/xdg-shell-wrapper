@@ -15,7 +15,7 @@ use calloop::{generic::Generic, Interest, Mode, PostAction};
 use smithay::reexports::wayland_server::Display;
 
 use shared_state::GlobalState;
-use space::{CachedBuffers, Visibility, WrapperSpace};
+use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
 pub use wrapper_client::state as client_state;
 use wrapper_client::state::DesktopClientState;
 pub use wrapper_server::state as server_state;
