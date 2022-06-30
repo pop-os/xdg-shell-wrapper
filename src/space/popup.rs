@@ -8,7 +8,12 @@ use sctk::reexports::{
     client::Main,
     protocols::xdg_shell::client::{xdg_popup::XdgPopup, xdg_surface::XdgSurface},
 };
-use smithay::{backend::egl::surface::EGLSurface, wayland::shell::xdg::PopupSurface, desktop::PopupManager, utils::{Rectangle, Logical}};
+use smithay::{
+    backend::egl::surface::EGLSurface,
+    desktop::PopupManager,
+    utils::{Logical, Point, Rectangle},
+    wayland::shell::xdg::PopupSurface,
+};
 
 /// Popup events
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -32,7 +37,7 @@ pub enum PopupState {
     Closed,
 }
 
-/// Popup 
+/// Popup
 #[derive(Debug)]
 pub struct Popup {
     /// the popup on the layer shell surface
@@ -49,6 +54,8 @@ pub struct Popup {
     pub popup_state: Rc<Cell<Option<PopupState>>>,
     /// whether or not the popup needs to be rendered
     pub dirty: bool,
+    /// position of the popup
+    pub position: Point<i32, Logical>,
 }
 
 impl Popup {
@@ -61,15 +68,20 @@ impl Popup {
             } else {
                 match self.popup_state.take() {
                     Some(PopupState::Closed) => false,
-                    Some(PopupState::Configure { width, height, x, y }) => {
+                    Some(PopupState::Configure {
+                        width,
+                        height,
+                        x,
+                        y,
+                    }) => {
+                        self.position = (x, y).into();
                         popup_manager.commit(self.s_surface.wl_surface());
                         self.egl_surface.resize(width, height, 0, 0);
                         self.dirty = true;
                         true
                     }
                     Some(PopupState::WaitConfigure) => {
-                        self.popup_state
-                            .replace(Some(PopupState::WaitConfigure));
+                        self.popup_state.replace(Some(PopupState::WaitConfigure));
                         true
                     }
                     Some(PopupState::Repositioned(_)) => true,

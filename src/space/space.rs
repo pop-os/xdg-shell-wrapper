@@ -25,14 +25,17 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
+    backend::egl,
     desktop::{PopupManager, Space, Window},
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    wayland::shell::xdg::{PopupSurface, PositionerState}, utils::{Point, Logical},
+    utils::{Logical, Point},
+    wayland::shell::xdg::{PopupSurface, PositionerState},
 };
 
 use crate::{
+    space::Popup,
     client_state::{Env, Focus},
     config::WrapperConfig,
 };
@@ -91,6 +94,8 @@ pub trait WrapperSpace {
         c_surface: Attached<c_wl_surface::WlSurface>,
         focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
     ) -> anyhow::Result<()>;
+
+    fn bind_display(&mut self, dh: &DisplayHandle) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
     fn update_pointer(&mut self, dim: (i32, i32));
@@ -167,6 +172,13 @@ pub trait WrapperSpace {
     /// gets the popup manager for this space
     fn popup_manager(&mut self) -> &mut PopupManager;
 
+    /// gets the popups
+    fn popups(&self) -> &[Popup];
+
     /// the position of a point relative to a client wl surface converted to compositor space
-    fn point_to_compositor_space(&self, c_wl_surface: &c_wl_surface::WlSurface, point: Point<i32, Logical>) -> Point<i32, Logical>;
+    fn point_to_compositor_space(
+        &self,
+        c_wl_surface: &c_wl_surface::WlSurface,
+        point: Point<i32, Logical>,
+    ) -> Point<i32, Logical>;
 }

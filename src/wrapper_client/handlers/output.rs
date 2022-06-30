@@ -72,9 +72,9 @@ pub fn handle_output<W: WrapperSpace + 'static>(
             env_handle.create_surface(),
             focused_surface,
         )
-        .unwrap()
+        .unwrap();
     // FIXME causes crash
-    // space.bind_wl_display(s_display);
+    let _ = space.bind_display(dh);
 }
 
 pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
