@@ -432,10 +432,11 @@ pub(crate) fn handle_motion<W: WrapperSpace>(
         Focus::Current(s) => s,
         Focus::LastFocus(_) => return,
     };
-    let motion_point = global_state.space.point_to_compositor_space(&c_focused_surface, (surface_x as i32, surface_y as i32).into());
-    // let motion_point: Point<i32, Logical> = (surface_x as i32, surface_y as i32).into();
+    // let motion_point = global_state.space.point_to_compositor_space(&c_focused_surface, (surface_x as i32, surface_y as i32).into());
+    let mut motion_point: Point<i32, Logical> = (surface_x as i32, surface_y as i32).into();
 
     if let Some(p) = global_state.space.popups().iter().find(|p| &p.c_wl_surface == c_focused_surface) {
+        motion_point += p.position;
         s_focused_surface.replace(Some(p.s_surface.wl_surface().clone()));
         ptr.motion(
             global_state,

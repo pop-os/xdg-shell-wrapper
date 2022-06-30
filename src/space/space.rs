@@ -174,11 +174,4 @@ pub trait WrapperSpace {
 
     /// gets the popups
     fn popups(&self) -> &[Popup];
-
-    /// the position of a point relative to a client wl surface converted to compositor space
-    fn point_to_compositor_space(
-        &self,
-        c_wl_surface: &c_wl_surface::WlSurface,
-        point: Point<i32, Logical>,
-    ) -> Point<i32, Logical>;
 }
