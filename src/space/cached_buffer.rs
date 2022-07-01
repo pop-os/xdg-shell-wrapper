@@ -49,14 +49,13 @@ impl CachedBuffers {
 
     pub(crate) fn write_and_attach_buffer(
         &mut self,
-        display_handle: &DisplayHandle,
         buffer_assignment: &BufferAssignment,
         surface: &WlSurface,
         shm: &Attached<wl_shm::WlShm>,
     ) -> Result<()> {
         if let BufferAssignment::NewBuffer(source_buffer) = buffer_assignment {
             trace!(self.log, "checking buffer format...");
-            if let Some(BufferType::Shm) = buffer_type(display_handle, source_buffer) {
+            if let Some(BufferType::Shm) = buffer_type(source_buffer) {
                 with_buffer_contents(
                     source_buffer,
                     move |slice: &[u8], buffer_metadata: BufferData| {

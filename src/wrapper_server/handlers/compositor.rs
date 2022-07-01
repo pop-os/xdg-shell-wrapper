@@ -45,10 +45,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         let role = get_role(&surface);
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
         if role == "xdg_toplevel".into() {
-            on_commit_buffer_handler(&dh, &surface);
+            on_commit_buffer_handler(&surface);
             self.space.dirty_window(&surface)
         } else if role == "xdg_popup".into() {
-            on_commit_buffer_handler(&dh, &surface);
+            on_commit_buffer_handler(&surface);
             self.space.dirty_popup(&surface)
         } else if role == "cursor_image".into() {
             // pass cursor image to parent compositor
@@ -60,10 +60,9 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
                         let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
-                            if let Some(BufferType::Shm) = buffer_type(&dh, buffer) {
+                            if let Some(BufferType::Shm) = buffer_type(buffer) {
                                 trace!(log, "attaching buffer to cursor surface.");
                                 let _ = cached_buffers.write_and_attach_buffer(
-                                    &dh,
                                     buf.as_ref().unwrap(),
                                     &self.desktop_client_state.cursor_surface,
                                     &self.desktop_client_state.shm,

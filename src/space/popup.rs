@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::cell::Cell;
+use std::{cell::Cell, collections::VecDeque};
 use std::rc::Rc;
 
 use sctk::reexports::{
@@ -11,7 +11,7 @@ use sctk::reexports::{
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
-    utils::{Logical, Point, Rectangle},
+    utils::{Logical, Point, Rectangle, Physical},
     wayland::shell::xdg::PopupSurface,
 };
 
@@ -56,6 +56,8 @@ pub struct Popup {
     pub dirty: bool,
     /// position of the popup
     pub position: Point<i32, Logical>,
+    /// accumulated damage with age values
+    pub accumulated_damage: VecDeque<Vec<Rectangle<i32, Physical>>>,
 }
 
 impl Popup {
