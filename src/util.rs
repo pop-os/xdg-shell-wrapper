@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::{
-    os::unix::net::UnixStream,
+    os::unix::{net::UnixStream, prelude::AsRawFd},
     process::{Child, Command},
     sync::Arc,
 };
 
 use shlex::Shlex;
 use slog::{trace, Logger};
-use smithay::reexports::wayland_server::{self, backend::ClientData, Client};
+use smithay::{reexports::wayland_server::{self, backend::ClientData, Client}, nix::fcntl};
 
 /// utility function which maps a value [0, 1] -> [0, 1] using the smootherstep function
 pub fn smootherstep(t: f32) -> f32 {
@@ -18,6 +18,19 @@ pub fn smootherstep(t: f32) -> f32 {
 /// helper function for inserting a wrapped applet client
 pub fn get_client_sock(display: &mut wayland_server::DisplayHandle) -> (Client, UnixStream) {
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
+    let raw_fd = client_sock.as_raw_fd();
+    let fd_flags = fcntl::FdFlag::from_bits(
+        fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD).unwrap(),
+    )
+        .unwrap();
+    fcntl::fcntl(
+        raw_fd,
+        fcntl::FcntlArg::F_SETFD(
+            fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC),
+        ),
+    )
+        .unwrap();
+    
     (
         display
             .insert_client(display_sock, Arc::new(WrapperClientData {}))
@@ -72,6 +85,7 @@ pub fn exec_child(
     child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
         .env_remove("WAYLAND_DEBUG")
+        .env_remove("WAYLAND_DISPLAY")
         // .env("WAYLAND_DEBUG", "1")
         // .stderr(std::process::Stdio::piped())
         // .stdout(std::process::Stdio::piped())
