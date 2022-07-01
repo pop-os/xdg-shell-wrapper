@@ -25,7 +25,7 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
-    backend::egl,
+    backend::{egl, renderer::gles2::Gles2Renderer},
     desktop::{PopupManager, Space, Window},
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
@@ -94,8 +94,6 @@ pub trait WrapperSpace {
         c_surface: Attached<c_wl_surface::WlSurface>,
         focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
     ) -> anyhow::Result<()>;
-
-    fn bind_display(&mut self, dh: &DisplayHandle) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
     fn update_pointer(&mut self, dim: (i32, i32));
@@ -174,4 +172,6 @@ pub trait WrapperSpace {
 
     /// gets the popups
     fn popups(&self) -> &[Popup];
+
+    fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
 }

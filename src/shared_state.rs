@@ -12,7 +12,7 @@ use sctk::{
     },
 };
 use slog::Logger;
-use smithay::reexports::wayland_server::backend::GlobalId;
+use smithay::{reexports::wayland_server::{backend::GlobalId, DisplayHandle}, wayland::dmabuf::DmabufState, backend::renderer::{ImportEgl, ImportDma}};
 use smithay::{
     reexports::{calloop, wayland_server::protocol::wl_pointer::AxisSource},
     wayland::{output::Output, seat},
@@ -42,6 +42,20 @@ pub struct GlobalState<W: WrapperSpace + 'static> {
     pub(crate) log: Logger,
     pub(crate) start_time: std::time::Instant,
     pub(crate) cached_buffers: CachedBuffers,
+}
+
+impl<W: WrapperSpace + 'static> GlobalState<W> {
+    pub fn bind_display(&mut self, dh: &DisplayHandle) {
+        if let Some(renderer) = self.space.renderer() {
+            if renderer.bind_wl_display(dh).is_ok() {
+                let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
+            let mut state = DmabufState::new();
+            let global =
+                state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
+            self.embedded_server_state.dmabuf_state.replace((state, global)); 
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

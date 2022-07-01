@@ -54,7 +54,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
 
     let mut embedded_server_state = EmbeddedServerState::new(&s_dh, log.clone());
 
-    let mut desktop_client_state = DesktopClientState::new(
+    let desktop_client_state = DesktopClientState::new(
         loop_handle.clone(),
         &mut space,
         log.clone(),
@@ -63,7 +63,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
     )?;
     let _sockets = space.spawn_clients(&mut server_display.handle()).unwrap();
 
-    let global_state = GlobalState {
+    let mut global_state = GlobalState {
         desktop_client_state,
         embedded_server_state,
         _loop_signal: event_loop.get_signal(),
@@ -72,13 +72,14 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
         cached_buffers: CachedBuffers::new(log.clone()),
         space,
     };
+    global_state.bind_display(&s_dh);
 
     let mut shared_data = (global_state, server_display);
     let mut last_cleanup = Instant::now();
     let five_min = Duration::from_secs(300);
 
     // TODO find better place for this
-    let set_clipboard_once = Rc::new(Cell::new(false));
+    // let set_clipboard_once = Rc::new(Cell::new(false));
 
     loop {
         shared_data.0.space.space().refresh(&s_dh);
@@ -102,8 +103,6 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
 
             let space = &mut shared_data.space;
 
-            // FIXME
-            // space_manager.apply_display(server_display);
             let _ = space.handle_events(
                 &s_dh,
                 shared_data
@@ -119,7 +118,7 @@ pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
         // dispatch server events
         {
             server_display.dispatch_clients(shared_data).unwrap();
-            server_display.flush_clients();
+            server_display.flush_clients().unwrap();
         }
 
         // TODO find better place for this

@@ -152,7 +152,6 @@ impl DesktopClientState {
                         focused_surface,
                     )
                     .unwrap();
-                let _ = space.bind_display(dh);
             }
             Some(configured_output) => {
                 if let Some((o, info)) = outputs.iter().find_map(|o| {

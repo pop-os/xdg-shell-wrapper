@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::OnceCell;
 use sctk::reexports::client::Attached;
-use slog::Logger;
+use slog::{Logger, info};
 use smithay::{
     desktop::Window,
     reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
@@ -12,8 +12,8 @@ use smithay::{
         output::OutputManagerState,
         seat::{self, SeatState},
         shell::xdg::XdgShellState,
-        shm::ShmState,
-    },
+        shm::ShmState, dmabuf::{DmabufState, DmabufGlobal},
+    }, backend::renderer::{gles2::Gles2Renderer, ImportEgl, ImportDma},
 };
 
 use crate::{
@@ -37,6 +37,7 @@ pub(crate) struct EmbeddedServerState<W: WrapperSpace + 'static> {
     pub(crate) output_manager_state: OutputManagerState,
     pub(crate) seat_state: SeatState<GlobalState<W>>,
     pub(crate) data_device_state: DataDeviceState,
+    pub(crate) dmabuf_state: Option<(DmabufState, DmabufGlobal)>,
 }
 
 impl<W: WrapperSpace> EmbeddedServerState<W> {
@@ -92,7 +93,7 @@ impl<W: WrapperSpace> EmbeddedServerState<W> {
         //     },
         //     default_action_chooser,
         //     log.clone(),
-        // );S
+        // );
 
         EmbeddedServerState {
             root_window: Default::default(),
@@ -109,9 +110,12 @@ impl<W: WrapperSpace> EmbeddedServerState<W> {
             output_manager_state: OutputManagerState::new_with_xdg_output::<GlobalState<W>>(&dh),
             seat_state: SeatState::new(),
             data_device_state: DataDeviceState::new::<GlobalState<W>, _>(&dh, log.clone()),
+            dmabuf_state: None,
         }
     }
 }
+
+
 
 #[derive(Debug)]
 pub(crate) struct SeatPair<W: WrapperSpace + 'static> {

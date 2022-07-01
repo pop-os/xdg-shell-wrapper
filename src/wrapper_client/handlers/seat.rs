@@ -434,7 +434,7 @@ pub(crate) fn handle_motion<W: WrapperSpace>(
     };
     // let motion_point = global_state.space.point_to_compositor_space(&c_focused_surface, (surface_x as i32, surface_y as i32).into());
     let mut motion_point: Point<i32, Logical> = (surface_x as i32, surface_y as i32).into();
-
+    // dbg!(&motion_point);
     if let Some(p) = global_state.space.popups().iter().find(|p| &p.c_wl_surface == c_focused_surface) {
         motion_point += p.position;
         s_focused_surface.replace(Some(p.s_surface.wl_surface().clone()));
