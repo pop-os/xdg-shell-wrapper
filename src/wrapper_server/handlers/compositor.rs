@@ -46,14 +46,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
         if role == "xdg_toplevel".into() {
             on_commit_buffer_handler(&surface);
-            self.space.space().commit(&surface);
-            self.space.space().refresh(&dh);
-            self.space.dirty_window(&surface)
+            self.space.dirty_window(&dh, &surface)
         } else if role == "xdg_popup".into() {
             on_commit_buffer_handler(&surface);
-            self.space.space().commit(&surface);
-            self.space.space().refresh(&dh);
-            self.space.dirty_popup(&surface)
+            self.space.dirty_popup(&dh, &surface)
         } else if role == "cursor_image".into() {
             // FIXME pass cursor image to parent compositor
             trace!(log, "received surface with cursor image");

@@ -102,7 +102,7 @@ pub trait WrapperSpace {
     fn handle_button(&mut self, c_focused_surface: &c_wl_surface::WlSurface);
 
     /// add a top level window to the space
-    fn add_top_level(&mut self, s_top_level: Window);
+    fn add_window(&mut self, s_top_level: Window);
 
     /// add a popup to the space
     fn add_popup(
@@ -162,10 +162,10 @@ pub trait WrapperSpace {
     fn raise_window(&mut self, _: &Window, _: bool) {}
 
     /// marks the window as dirtied
-    fn dirty_window(&mut self, w: &s_WlSurface);
+    fn dirty_window(&mut self, dh: &DisplayHandle, w: &s_WlSurface);
 
     /// marks the popup as dirtied()
-    fn dirty_popup(&mut self, w: &s_WlSurface);
+    fn dirty_popup(&mut self, dh: &DisplayHandle, w: &s_WlSurface);
 
     /// gets the popup manager for this space
     fn popup_manager(&mut self) -> &mut PopupManager;

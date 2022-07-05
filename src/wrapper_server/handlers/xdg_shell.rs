@@ -53,7 +53,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             }
         }
 
-        self.space.add_top_level(window);
+        self.space.add_window(window);
         surface.send_configure();
     }
 
