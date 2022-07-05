@@ -25,7 +25,7 @@ use crate::{
     server_state::{EmbeddedServerState, SeatPair},
     shared_state::{AxisFrameData, GlobalState, OutputGroup},
     space::{SpaceEvent, WrapperSpace},
-    wrapper_client::handlers::seat::send_keyboard_event,
+    client::handlers::seat::send_keyboard_event,
 };
 
 use super::handlers::{

@@ -16,18 +16,18 @@ use smithay::reexports::wayland_server::Display;
 
 use shared_state::GlobalState;
 use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
-pub use wrapper_client::state as client_state;
-use wrapper_client::state::DesktopClientState;
-pub use wrapper_server::state as server_state;
-use wrapper_server::state::EmbeddedServerState;
+pub use client::state as client_state;
+use client::state::DesktopClientState;
+pub use server::state as server_state;
+use server::state::EmbeddedServerState;
 
 pub use xdg_shell_wrapper_config as config;
 mod shared_state;
 pub mod space;
 pub mod util;
 
-mod wrapper_client;
-mod wrapper_server;
+mod client;
+mod server;
 
 /// run the cosmic panel xdg wrapper with the provided config
 pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
