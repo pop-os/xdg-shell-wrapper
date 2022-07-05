@@ -21,7 +21,7 @@ use wrapper_client::state::DesktopClientState;
 pub use wrapper_server::state as server_state;
 use wrapper_server::state::EmbeddedServerState;
 
-pub mod config;
+pub use xdg_shell_wrapper_config as config;
 mod shared_state;
 pub mod space;
 pub mod util;
