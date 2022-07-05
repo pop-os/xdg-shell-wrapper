@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use sctk::reexports::protocols::wlr::unstable::layer_shell::v1::client::{
+use wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
 use serde::{Deserialize, Serialize};
