@@ -17,7 +17,7 @@ use sctk::{
             Attached, Main,
         },
         protocols::{
-            wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
+            wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1::{self, Layer},
             xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
         },
     },
@@ -33,6 +33,7 @@ use smithay::{
     utils::{Logical, Point},
     wayland::shell::xdg::{PopupSurface, PositionerState},
 };
+use smithay::desktop::space::RenderZindex;
 
 use crate::{
     space::Popup,
@@ -174,4 +175,14 @@ pub trait WrapperSpace {
     fn popups(&self) -> &[Popup];
 
     fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
+
+    fn z_index(&self) -> Option<RenderZindex> {
+        match self.config().layer() {
+            Layer::Background => Some(RenderZindex::Background),
+            Layer::Bottom => Some(RenderZindex::Bottom),
+            Layer::Top => Some(RenderZindex::Top),
+            Layer::Overlay => Some(RenderZindex::Overlay),
+            _ => None,
+        }
+    }
 }
