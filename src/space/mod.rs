@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-mod cached_buffer;
+pub(crate) mod cached_buffer;
+mod egl_surface;
 mod popup;
 mod space;
-mod surface;
-mod top_level;
 
-pub use cached_buffer::*;
+pub use egl_surface::*;
 pub use popup::*;
 pub use space::*;
-pub use surface::*;
-pub use top_level::*;

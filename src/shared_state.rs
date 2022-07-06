@@ -1,62 +1,29 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use once_cell::sync::OnceCell;
-use sctk::output::OutputStatusListener;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
 
-use crate::space::WrapperSpace;
-use crate::{client::Env, CachedBuffers};
-
+use once_cell::sync::OnceCell;
 use sctk::{
     environment::Environment,
-    reexports::{
-        client::{
-            self,
-            protocol::{
-                wl_keyboard as c_wl_keyboard, wl_output as c_wl_output, wl_pointer as c_wl_pointer,
-                wl_seat as c_wl_seat, wl_shm as c_wl_shm, wl_surface as c_wl_surface,
-            },
-            Attached,
-        },
-        protocols::xdg_shell::client::xdg_wm_base::XdgWmBase,
+    reexports::client::{
+        protocol::{wl_output as c_wl_output, wl_seat as c_wl_seat},
+        Attached,
     },
 };
 use slog::Logger;
+use smithay::{reexports::wayland_server::{backend::GlobalId, DisplayHandle}, wayland::dmabuf::DmabufState, backend::renderer::{ImportEgl, ImportDma}};
 use smithay::{
-    desktop::{PopupManager, Window},
-    reexports::{
-        calloop,
-        wayland_server::{
-            protocol::{wl_output, wl_pointer::AxisSource, wl_seat::WlSeat, wl_surface::WlSurface},
-            Global,
-        },
-    },
-    wayland::{output::Output, seat, shell::xdg::ShellState},
+    reexports::{calloop, wayland_server::protocol::wl_pointer::AxisSource},
+    wayland::{output::Output, seat},
 };
 
-#[derive(Debug)]
-pub struct Seat {
-    pub(crate) name: String,
-    pub(crate) client: ClientSeat,
-    pub(crate) server: (seat::Seat, Global<WlSeat>),
-}
+use crate::client_state::{DesktopClientState, Env};
+use crate::server_state::EmbeddedServerState;
+use crate::space::WrapperSpace;
+use crate::CachedBuffers;
 
-#[derive(Debug)]
-pub struct ClientSeat {
-    pub(crate) seat: Attached<c_wl_seat::WlSeat>,
-    pub(crate) kbd: Option<c_wl_keyboard::WlKeyboard>,
-    pub(crate) ptr: Option<c_wl_pointer::WlPointer>,
-}
-
-pub type OutputGroup = (
-    Output,
-    Global<wl_output::WlOutput>,
-    String,
-    c_wl_output::WlOutput,
-);
+pub type OutputGroup = (Output, GlobalId, String, c_wl_output::WlOutput);
 
 #[derive(Debug, Default)]
 pub struct AxisFrameData {
@@ -66,45 +33,33 @@ pub struct AxisFrameData {
     pub(crate) v_discrete: Option<i32>,
 }
 
+#[derive(Debug)]
 pub struct GlobalState<W: WrapperSpace + 'static> {
-    pub(crate) desktop_client_state: DesktopClientState<W>,
-    pub(crate) embedded_server_state: EmbeddedServerState,
+    pub(crate) space: W,
+    pub(crate) desktop_client_state: DesktopClientState,
+    pub(crate) embedded_server_state: EmbeddedServerState<W>,
     pub(crate) _loop_signal: calloop::LoopSignal,
     pub(crate) log: Logger,
     pub(crate) start_time: std::time::Instant,
     pub(crate) cached_buffers: CachedBuffers,
 }
+
+impl<W: WrapperSpace + 'static> GlobalState<W> {
+    pub fn bind_display(&mut self, dh: &DisplayHandle) {
+        if let Some(renderer) = self.space.renderer() {
+            if renderer.bind_wl_display(dh).is_ok() {
+                let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
+            let mut state = DmabufState::new();
+            let global =
+                state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
+            self.embedded_server_state.dmabuf_state.replace((state, global)); 
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct SelectedDataProvider {
     pub(crate) seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>>,
     pub(crate) env_handle: Rc<OnceCell<Environment<Env>>>,
-}
-
-pub struct EmbeddedServerState {
-    pub(crate) shell_state: Arc<Mutex<ShellState>>,
-    pub(crate) root_window: Option<Rc<RefCell<Window>>>,
-    pub(crate) focused_surface: Rc<RefCell<Option<WlSurface>>>,
-    pub(crate) popup_manager: Rc<RefCell<PopupManager>>,
-    pub(crate) selected_data_provider: SelectedDataProvider,
-    pub(crate) last_button: Option<u32>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Focus {
-    Current(c_wl_surface::WlSurface),
-    LastFocus(Instant),
-}
-
-pub struct DesktopClientState<W: WrapperSpace> {
-    pub(crate) display: client::Display,
-    pub(crate) seats: Vec<Seat>,
-    pub(crate) space: W,
-    pub(crate) cursor_surface: c_wl_surface::WlSurface,
-    pub(crate) axis_frame: AxisFrameData,
-    pub(crate) kbd_focus: bool,
-    pub(crate) shm: Attached<c_wl_shm::WlShm>,
-    pub(crate) xdg_wm_base: Attached<XdgWmBase>,
-    pub(crate) env_handle: Environment<Env>,
-    pub(crate) last_input_serial: Option<u32>,
-    pub(crate) focused_surface: Focus,
-    pub(crate) _output_listener: Option<OutputStatusListener>,
 }

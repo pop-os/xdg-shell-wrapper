@@ -7,42 +7,50 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::ServerSurface;
-use crate::{config::WrapperConfig, shared_state::Focus};
 use sctk::{
+    environment::Environment,
     output::OutputInfo,
     reexports::{
-        client::protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
-        client::{self, Attached, Main},
+        client::{
+            self,
+            protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
+            Attached, Main,
+        },
+        protocols::{
+            wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1::{self, Layer},
+            xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
+        },
     },
     shm::AutoMemPool,
 };
 use slog::Logger;
 use smithay::{
-    desktop::{PopupManager, Window},
-    reexports::{
-        wayland_protocols::{
-            wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
-            xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_surface::XdgSurface},
-        },
-        wayland_server::{
-            self, protocol::wl_surface::WlSurface as s_WlSurface, Display as s_Display,
-        },
+    backend::{egl, renderer::gles2::Gles2Renderer},
+    desktop::{PopupManager, Space, Window},
+    reexports::wayland_server::{
+        self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    utils::{Logical, Size},
+    utils::{Logical, Point},
     wayland::shell::xdg::{PopupSurface, PositionerState},
+};
+use smithay::desktop::space::RenderZindex;
+
+use crate::{
+    space::Popup,
+    client_state::{Env, Focus},
+    config::WrapperConfig,
 };
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum SpaceEvent {
     WaitConfigure {
-        width: u32,
-        height: u32,
+        width: i32,
+        height: i32,
     },
     Configure {
-        width: u32,
-        height: u32,
-        serial: u32,
+        width: i32,
+        height: i32,
+        serial: i32,
     },
     Quit,
 }
@@ -69,8 +77,13 @@ impl Default for Visibility {
     }
 }
 
+/// Wrapper Space
+/// manages and renders xdg-shell-window(s) on a layer shell surface
 pub trait WrapperSpace {
+    /// Wrapper config type
     type Config: WrapperConfig;
+
+    /// add the configured output to the space
     fn add_output(
         &mut self,
         output: Option<&c_wl_output::WlOutput>,
@@ -82,24 +95,33 @@ pub trait WrapperSpace {
         c_surface: Attached<c_wl_surface::WlSurface>,
         focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
     ) -> anyhow::Result<()>;
-    fn bind_wl_display(&mut self, s_display: &s_Display) -> anyhow::Result<()>;
+
+    /// handle pointer motion on the space
     fn update_pointer(&mut self, dim: (i32, i32));
+
+    /// handle a button press on a client surface
     fn handle_button(&mut self, c_focused_surface: &c_wl_surface::WlSurface);
-    fn add_top_level(&mut self, s_top_level: Rc<RefCell<Window>>);
+
+    /// add a top level window to the space
+    fn add_window(&mut self, s_top_level: Window);
+
+    /// add a popup to the space
     fn add_popup(
         &mut self,
-        c_surface: c_wl_surface::WlSurface,
-        c_xdg_surface: Main<XdgSurface>,
+        env: &Environment<Env>,
+        xdg_surface_state: &Attached<XdgWmBase>,
         s_surface: PopupSurface,
-        parent: s_WlSurface,
         positioner: Main<XdgPositioner>,
         positioner_state: PositionerState,
-        popup_manager: Rc<RefCell<PopupManager>>,
     );
+
+    /// close all popups for the wrapper space
     fn close_popups(&mut self);
-    fn dirty_toplevel(&mut self, dirty_top_level_surface: &s_WlSurface, dim: Size<i32, Logical>);
-    fn dirty_popup(&mut self, dirty_top_level_surface: &s_WlSurface, dirty_popup: PopupSurface);
-    fn next_render_event(&self) -> Rc<Cell<Option<SpaceEvent>>>;
+
+    /// accesses the next event for the space
+    fn next_space_event(&self) -> Rc<Cell<Option<SpaceEvent>>>;
+
+    /// repositions a popup
     fn reposition_popup(
         &mut self,
         popup: PopupSurface,
@@ -107,35 +129,60 @@ pub trait WrapperSpace {
         positioner_state: PositionerState,
         token: u32,
     ) -> anyhow::Result<()>;
-    fn server_surface_from_server_wl_surface(
-        &self,
-        active_surface: &s_WlSurface,
-    ) -> Option<ServerSurface>;
-    fn server_surface_from_client_wl_surface(
-        &self,
-        active_surface: &c_wl_surface::WlSurface,
-    ) -> Option<ServerSurface>;
-    fn handle_events(&mut self, time: u32, focus: &Focus) -> Instant;
+
+    /// called in a loop by xdg-shell-wrapper
+    /// handles events for the space
+    fn handle_events(&mut self, dh: &DisplayHandle, time: u32, focus: &Focus) -> Instant;
+
+    /// gets the config
     fn config(&self) -> Self::Config;
+
+    /// spawns the clients for the wrapper
     fn spawn_clients(
         &mut self,
-        display: &mut wayland_server::Display,
-    ) -> anyhow::Result<Vec<(UnixStream, UnixStream)>>;
-    fn visibility(&self) -> Visibility;
+        display: &mut wayland_server::DisplayHandle,
+    ) -> anyhow::Result<Vec<UnixStream>>;
+
+    /// gets visibility of the wrapper
+    fn visibility(&self) -> Visibility {
+        Visibility::Visible
+    }
+
+    /// gets the logger
     fn log(&self) -> Option<Logger>;
-}
 
-// TODO
-// impl Drop for Space {
-//     fn drop(&mut self) {
-//         self.layer_surface.as_mut().map(|ls| ls.destroy());
-//         self.layer_shell_wl_surface.as_mut().map(|wls| wls.destroy());
-//     }
-// }
+    /// cleanup
+    fn destroy(&mut self);
 
-#[derive(Debug)]
-pub enum Alignment {
-    Left,
-    Center,
-    Right,
+    /// gets the space
+    fn space(&mut self) -> &mut Space;
+
+    /// Moves an already mapped Window to top of the stack
+    /// This function does nothing for unmapped windows.
+    /// If activate is true it will set the new windows state to be activate and removes that state from every other mapped window.
+    fn raise_window(&mut self, _: &Window, _: bool) {}
+
+    /// marks the window as dirtied
+    fn dirty_window(&mut self, dh: &DisplayHandle, w: &s_WlSurface);
+
+    /// marks the popup as dirtied()
+    fn dirty_popup(&mut self, dh: &DisplayHandle, w: &s_WlSurface);
+
+    /// gets the popup manager for this space
+    fn popup_manager(&mut self) -> &mut PopupManager;
+
+    /// gets the popups
+    fn popups(&self) -> &[Popup];
+
+    fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
+
+    fn z_index(&self) -> Option<RenderZindex> {
+        match self.config().layer() {
+            Layer::Background => Some(RenderZindex::Background),
+            Layer::Bottom => Some(RenderZindex::Bottom),
+            Layer::Top => Some(RenderZindex::Top),
+            Layer::Overlay => Some(RenderZindex::Overlay),
+            _ => None,
+        }
+    }
 }

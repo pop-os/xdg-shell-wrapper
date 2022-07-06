@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use anyhow::Result;
+use std::{cell::RefCell, rc::Rc, time::Instant};
+
+use itertools::Itertools;
 use sctk::{
-    environment::Environment,
     reexports::client::{
         self,
-        protocol::{
-            wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat,
-            wl_surface as c_wl_surface,
-        },
-        Attached,
+        protocol::{wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat},
+        Attached, DispatchData,
     },
     seat::SeatData,
 };
 use slog::{error, trace, Logger};
 use smithay::{
     backend::input::KeyState,
-    desktop::{utils::bbox_from_surface_tree, PopupKind, WindowSurfaceType},
+    desktop::{WindowSurfaceType, utils::under_from_surface_tree},
     reexports::wayland_server::{
         protocol::{wl_pointer, wl_surface::WlSurface},
-        DispatchData, Display,
+        Display, DisplayHandle, Resource,
     },
+    utils::{Logical, Point},
     wayland::{
-        data_device::{set_data_device_focus, set_data_device_selection},
-        seat::{self, AxisFrame, FilterResult, PointerHandle},
+        seat::{self, AxisFrame, ButtonEvent, FilterResult, MotionEvent, PointerHandle},
         SERIAL_COUNTER,
     },
 };
-use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use crate::{
-    client::Env,
-    shared_state::{ClientSeat, DesktopClientState, EmbeddedServerState, Focus, GlobalState, Seat},
-    space::{ServerSurface, WrapperSpace},
+    client_state::{ClientSeat, DesktopClientState, Focus},
+    server_state::{EmbeddedServerState, SeatPair},
+    shared_state::GlobalState,
+    space::WrapperSpace,
 };
 
 pub fn send_keyboard_event<W: WrapperSpace + 'static>(
@@ -40,23 +38,24 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
     seat_name: &str,
     mut dispatch_data: DispatchData<'_>,
 ) {
-    let (state, _server_display) = dispatch_data.get::<(GlobalState<W>, Display)>().unwrap();
+    let (state, server_display) = dispatch_data
+        .get::<(GlobalState<W>, Display<GlobalState<W>>)>()
+        .unwrap();
+    let dh = server_display.handle();
+    let space = &mut state.space;
     let DesktopClientState {
-        env_handle,
-        seats,
         kbd_focus,
         last_input_serial,
-        space,
         ..
     } = &mut state.desktop_client_state;
     let EmbeddedServerState {
         focused_surface,
-        selected_data_provider,
+        seats,
         ..
     } = &mut state.embedded_server_state;
 
-    if let Some(seat) = seats.iter().find(|Seat { name, .. }| name == seat_name) {
-        let kbd = match seat.server.0.get_keyboard() {
+    if let Some(seat) = seats.iter().find(|SeatPair { name, .. }| name == seat_name) {
+        let kbd = match seat.server.get_keyboard() {
             Some(kbd) => kbd,
             None => {
                 error!(
@@ -80,6 +79,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     _ => return,
                 };
                 match kbd.input::<(), _>(
+                    &dh,
                     key,
                     state,
                     SERIAL_COUNTER.next_serial(),
@@ -99,23 +99,23 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
             wl_keyboard::Event::Enter { surface: _, .. } => {
                 // println!("kbd entered");
 
-                let _ = set_server_device_selection(
-                    env_handle,
-                    &seat.client.seat,
-                    &seat.server.0,
-                    &selected_data_provider.seat,
-                );
+                // TODO data device
+                // let _ = set_data_device_selection(
+                //     dh,
+                //     &seat.client.seat,
+                //     &seat.server,
+                //     &selected_data_provider.seat,
+                // );
                 let client = focused_surface
                     .borrow()
                     .as_ref()
-                    .and_then(|focused_surface| {
-                        let res = focused_surface.as_ref();
-                        res.client()
-                    });
+                    .and_then(|focused_surface| focused_surface.client_id());
 
-                set_data_device_focus(&seat.server.0, client);
+                // TODO data device
+                // set_data_device_focus(&seat.server.0, client);
                 *kbd_focus = true;
                 kbd.set_focus(
+                    &dh,
                     focused_surface.borrow().as_ref(),
                     SERIAL_COUNTER.next_serial(),
                 );
@@ -123,7 +123,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
             wl_keyboard::Event::Leave { .. } => {
                 *kbd_focus = false;
                 space.close_popups();
-                kbd.set_focus(None, SERIAL_COUNTER.next_serial());
+                kbd.set_focus(&dh, None, SERIAL_COUNTER.next_serial());
             }
             _ => (),
         };
@@ -135,27 +135,30 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
     seat_name: &str,
     mut dispatch_data: DispatchData<'_>,
 ) {
-    let (state, _server_display) = dispatch_data.get::<(GlobalState<W>, Display)>().unwrap();
+    let (global_state, server_display) = dispatch_data
+        .get::<(GlobalState<W>, Display<GlobalState<W>>)>()
+        .unwrap();
+    let dh = server_display.handle();
+    let space = &mut global_state.space;
     let DesktopClientState {
-        seats,
         axis_frame,
         last_input_serial,
         focused_surface: c_focused_surface,
-        space,
         ..
-    } = &mut state.desktop_client_state;
+    } = &mut global_state.desktop_client_state;
     let EmbeddedServerState {
+        seats,
         last_button,
         focused_surface,
         ..
-    } = &mut state.embedded_server_state;
-    let start_time = state.start_time;
+    } = &mut global_state.embedded_server_state;
+    let start_time = global_state.start_time;
     let time = start_time.elapsed().as_millis();
-    if let Some(Some(ptr)) = seats
+    if let Some((Some(ptr), kbd)) = seats
         .iter()
-        .position(|Seat { name, .. }| name == seat_name)
+        .position(|SeatPair { name, .. }| name == seat_name)
         .map(|idx| &seats[idx])
-        .map(|seat| seat.server.0.get_pointer())
+        .map(|seat| (seat.server.get_pointer(), seat.server.get_keyboard()))
     {
         match event {
             c_wl_pointer::Event::Motion {
@@ -164,12 +167,13 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 surface_y,
             } => {
                 space.update_pointer((surface_x as i32, surface_y as i32));
-                if let Focus::Current(surface) = c_focused_surface {
-                    set_focused_surface(focused_surface, space, surface, surface_x, surface_y);
-                }
+                let focused_surface = focused_surface.clone();
+                let c_focused_surface = c_focused_surface.clone();
                 handle_motion(
-                    space,
-                    focused_surface.borrow().clone(),
+                    &dh,
+                    global_state,
+                    &focused_surface,
+                    &c_focused_surface,
                     surface_x,
                     surface_y,
                     ptr,
@@ -189,12 +193,23 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 if let Focus::Current(c_focused_surface) = c_focused_surface {
                     space.handle_button(c_focused_surface);
                 }
-                if let Some(button_state) = wl_pointer::ButtonState::from_raw(state.to_raw()) {
-                    ptr.button(
-                        button,
-                        button_state,
+                if let Some(kbd) = kbd.as_ref() {
+                    kbd.set_focus(
+                        &dh,
+                        focused_surface.borrow().as_ref(),
                         SERIAL_COUNTER.next_serial(),
-                        time as u32,
+                    );
+                }
+                if let Ok(button_state) = wl_pointer::ButtonState::try_from(state as u32) {
+                    ptr.button(
+                        global_state,
+                        &dh,
+                        &ButtonEvent {
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time as u32,
+                            button,
+                            state: button_state,
+                        },
                     );
                 }
             }
@@ -206,7 +221,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 if let Some(axis_source) = axis_frame.source.take() {
                     af = af.source(axis_source);
                 }
-                if let Some(axis) = wl_pointer::Axis::from_raw(axis.to_raw()) {
+                if let Ok(axis) = wl_pointer::Axis::try_from(axis as u32) {
                     match axis {
                         wl_pointer::Axis::HorizontalScroll => {
                             if let Some(discrete) = axis_frame.h_discrete {
@@ -226,21 +241,21 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
             }
             c_wl_pointer::Event::Frame => {
                 if let Some(af) = axis_frame.frame.take() {
-                    ptr.axis(af);
+                    ptr.axis(global_state, &dh, af);
                 }
-                axis_frame.h_discrete = None;
-                axis_frame.v_discrete = None;
+                // axis_frame.h_discrete = None;
+                // axis_frame.v_discrete = None;
             }
             c_wl_pointer::Event::AxisSource { axis_source } => {
                 // add source to the current frame if it exists
-                let source = wl_pointer::AxisSource::from_raw(axis_source.to_raw());
+                let source = wl_pointer::AxisSource::try_from(axis_source as u32);
                 if let Some(af) = axis_frame.frame.as_mut() {
-                    if let Some(source) = source {
+                    if let Ok(source) = source {
                         *af = af.source(source);
                     }
                 } else {
                     // hold on to source and add to the next frame
-                    axis_frame.source = source;
+                    axis_frame.source = source.ok();
                 }
             }
             c_wl_pointer::Event::AxisStop { time, axis } => {
@@ -248,7 +263,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     .frame
                     .take()
                     .unwrap_or_else(|| AxisFrame::new(time));
-                if let Some(axis) = wl_pointer::Axis::from_raw(axis.to_raw()) {
+                if let Ok(axis) = wl_pointer::Axis::try_from(axis as u32) {
                     af = af.stop(axis);
                 }
                 axis_frame.frame = Some(af);
@@ -268,13 +283,24 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 *c_focused_surface = Focus::Current(surface);
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
-                handle_motion(space, None, -1.0, -1.0, ptr, time as u32);
                 if let Focus::Current(s) = c_focused_surface {
                     if s == &surface {
                         *c_focused_surface = Focus::LastFocus(Instant::now());
                         focused_surface.take();
                     }
                 }
+                let focused_surface = focused_surface.clone();
+                let c_focused_surface = c_focused_surface.clone();
+                handle_motion(
+                    &dh,
+                    global_state,
+                    &focused_surface,
+                    &c_focused_surface,
+                    -1.0,
+                    -1.0,
+                    ptr,
+                    time as u32,
+                );
             }
             _ => (),
         };
@@ -287,15 +313,14 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
     seat_data: &SeatData,
     mut dispatch_data: DispatchData<'_>,
 ) {
-    let (state, server_display) = dispatch_data.get::<(GlobalState<W>, Display)>().unwrap();
-    let DesktopClientState {
-        seats, env_handle, ..
-    } = &mut state.desktop_client_state;
-    let EmbeddedServerState {
-        selected_data_provider,
-        ..
-    } = &mut state.embedded_server_state;
-
+    let (state, server_display) = dispatch_data
+        .get::<(GlobalState<W>, Display<GlobalState<W>>)>()
+        .unwrap();
+    // let DesktopClientState {
+    //     env_handle, ..
+    // } = &mut state.desktop_client_state;
+    let EmbeddedServerState { seats, .. } = &mut state.embedded_server_state;
+    let dh = server_display.handle();
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown
     trace!(logger, "seat event: {:?} {:?}", seat, seat_data);
@@ -303,11 +328,11 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
     let seat_name = seat_data.name.clone();
     let idx = seats
         .iter()
-        .position(|Seat { name, .. }| name == &seat_name);
+        .position(|SeatPair { name, .. }| name == &seat_name);
     let idx = idx.unwrap_or_else(|| {
-        seats.push(Seat {
+        seats.push(SeatPair {
             name: seat_name.clone(),
-            server: seat::Seat::new(server_display, seat_name.clone(), log.clone()),
+            server: seat::Seat::new(&dh, seat_name.clone(), log.clone()),
             client: ClientSeat {
                 kbd: None,
                 ptr: None,
@@ -317,14 +342,14 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
         seats.len()
     });
 
-    let Seat {
+    let SeatPair {
         client:
             ClientSeat {
                 kbd: ref mut opt_kbd,
                 ptr: ref mut opt_ptr,
                 ..
             },
-        server: (ref mut server_seat, ref mut _server_seat_global),
+        server: ref mut server_seat,
         ..
     } = &mut seats[idx];
     // we should map a keyboard if the seat has the capability & is not defunct
@@ -353,12 +378,14 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
             server_seat.add_pointer(move |_new_status| {});
             *opt_ptr = Some(pointer.detach());
         }
-        let _ = set_server_device_selection(
-            env_handle,
-            &seat,
-            server_seat,
-            &selected_data_provider.seat,
-        );
+        // TODO data device
+        // let _ = set_data_device_selection(
+        //     &dh,
+        //     env_handle,
+        //     &seat,
+        //     server_seat,
+        //     &selected_data_provider.seat,
+        // );
     } else {
         //cleanup
         if let Some(kbd) = opt_kbd.take() {
@@ -372,115 +399,80 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
     }
 }
 
-pub(crate) fn set_server_device_selection(
-    env_handle: &Environment<Env>,
-    seat: &Attached<c_wl_seat::WlSeat>,
-    server_seat: &seat::Seat,
-    selected_data_provider: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>,
-) -> Result<()> {
-    env_handle.with_data_device(seat, |data_device| {
-        data_device.with_selection(|offer| {
-            if let Some(offer) = offer {
-                offer.with_mime_types(|types| {
-                    set_data_device_selection(server_seat, types.into());
-                })
-            }
-        })
-    })?;
-    selected_data_provider.replace(Some(seat.clone()));
-    Ok(())
-}
+// pub(crate) fn set_server_device_selection(
+//     env_handle: &Environment<Env>,
+//     seat: &Attached<c_wl_seat::WlSeat>,
+//     server_seat: &seat::Seat,
+//     selected_data_provider: &RefCell<Option<Attached<c_wl_seat::WlSeat>>>,
+// ) -> Result<()> {
+//     env_handle.with_data_device(seat, |data_device| {
+//         data_device.with_selection(|offer| {
+//             if let Some(offer) = offer {
+//                 offer.with_mime_types(|types| {
+//                     set_data_device_selection(server_seat, types.into());
+//                 })
+//             }
+//         })
+//     })?;
+//     selected_data_provider.replace(Some(seat.clone()));
+//     Ok(())
+// }
 
-// TODO revisit motion over popup
 pub(crate) fn handle_motion<W: WrapperSpace>(
-    space: &mut W,
-    focused_surface: Option<WlSurface>,
+    dh: &DisplayHandle,
+    global_state: &mut GlobalState<W>,
+    s_focused_surface: &Rc<RefCell<Option<WlSurface>>>,
+    c_focused_surface: &Focus,
     surface_x: f64,
     surface_y: f64,
-    ptr: PointerHandle,
+    ptr: PointerHandle<GlobalState<W>>,
     time: u32,
 ) {
-    let focused_surface = match focused_surface {
-        Some(s) => s,
-        _ => {
-            ptr.motion(
-                (surface_x, surface_y).into(),
-                None,
-                SERIAL_COUNTER.next_serial(),
-                time,
-            );
-            return;
-        }
+    let c_focused_surface = match c_focused_surface {
+        Focus::Current(s) => s,
+        Focus::LastFocus(_) => return,
     };
-    match space.server_surface_from_server_wl_surface(&focused_surface) {
-        Some(ServerSurface::TopLevel(loc_offset, toplevel)) => {
-            let surface_x = surface_x - loc_offset.x as f64;
-            let surface_y = surface_y - loc_offset.y as f64;
-            let toplevel = &*toplevel.borrow();
-            if let Some((cur_surface, location)) =
-                toplevel.surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
-            {
-                let adjusted_loc = toplevel.bbox().loc;
-                let offset = if toplevel.toplevel().get_surface() == Some(&cur_surface) {
-                    adjusted_loc
-                } else {
-                    adjusted_loc - location
-                };
-                ptr.motion(
-                    (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
-                    Some((cur_surface, (0, 0).into())),
-                    SERIAL_COUNTER.next_serial(),
+    // let motion_point = global_state.space.point_to_compositor_space(&c_focused_surface, (surface_x as i32, surface_y as i32).into());
+    let mut motion_point: Point<i32, Logical> = (surface_x as i32, surface_y as i32).into();
+    if let Some(p) = global_state.space.popups().iter().find(|p| &p.c_wl_surface == c_focused_surface) {
+        motion_point += p.position;
+        s_focused_surface.replace(Some(p.s_surface.wl_surface().clone()));
+        ptr.motion(
+            global_state,
+            &dh,
+            &MotionEvent {
+                location: motion_point.to_f64(),
+                focus: Some((p.s_surface.wl_surface().clone(), p.position)),
+                serial: SERIAL_COUNTER.next_serial(),
+                time,
+            },
+        );
+    } else {
+    match global_state.space.space().surface_under((surface_x, surface_y), WindowSurfaceType::ALL) {
+        Some((w, s, p)) => {
+            ptr.motion(
+                global_state,
+                &dh,
+                &MotionEvent {
+                    location: motion_point.to_f64() - w.geometry().loc.to_f64(),
+                    focus: Some((s, p)),
+                    serial: SERIAL_COUNTER.next_serial(),
                     time,
-                );
-            }
-        }
-        Some(ServerSurface::Popup(_, _toplevel, popup)) => {
-            let popup_surface = match popup.get_surface() {
-                Some(s) => s,
-                _ => return,
-            };
-            let bbox = bbox_from_surface_tree(popup_surface, (0, 0));
-            let offset = bbox.loc + PopupKind::Xdg(popup.clone()).geometry().loc;
-            ptr.motion(
-                (surface_x + offset.x as f64, surface_y + offset.y as f64).into(),
-                Some((popup_surface.clone(), (0, 0).into())),
-                SERIAL_COUNTER.next_serial(),
-                time,
+                },
             );
         }
-        _ => {
+        None => {
             ptr.motion(
-                (surface_x, surface_y).into(),
-                None,
-                SERIAL_COUNTER.next_serial(),
-                time,
+                global_state,
+                &dh,
+                &MotionEvent {
+                    location: (surface_x, surface_y).into(),
+                    focus: None,
+                    serial: SERIAL_COUNTER.next_serial(),
+                    time,
+                },
             );
         }
-    };
+    }
 }
-
-pub(crate) fn set_focused_surface<W: WrapperSpace>(
-    focused_surface: &Rc<RefCell<Option<WlSurface>>>,
-    space: &mut W,
-    surface: &c_wl_surface::WlSurface,
-    x: f64,
-    y: f64,
-) {
-    let new_focused = match space.server_surface_from_client_wl_surface(surface) {
-        Some(ServerSurface::TopLevel(loc_offset, toplevel)) => {
-            let toplevel = toplevel.borrow();
-            if let Some((cur_surface, _)) = toplevel.surface_under(
-                (x - loc_offset.x as f64, y - loc_offset.y as f64),
-                WindowSurfaceType::ALL,
-            ) {
-                Some(cur_surface)
-            } else {
-                toplevel.toplevel().get_surface().cloned()
-            }
-        }
-        Some(ServerSurface::Popup(_, _toplevel, popup)) => popup.get_surface().cloned(),
-        _ => None,
-    };
-    let mut focused_surface = focused_surface.borrow_mut();
-    *focused_surface = new_focused;
 }

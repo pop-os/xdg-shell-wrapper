@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use serde::{Deserialize, Serialize};
-use smithay::reexports::wayland_protocols::wlr::unstable::layer_shell::v1::client::{
+use std::fmt;
+
+use wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
-use std::fmt;
+use serde::{Deserialize, Serialize};
 
 /// Layer which the cosmic panel is on
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]

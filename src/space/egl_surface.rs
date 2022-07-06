@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -15,10 +13,9 @@ use smithay::{
         wrap_egl_call, EGLError,
     },
     egl_platform,
-    utils::{Logical, Point},
-    wayland::shell::xdg::PopupSurface,
 };
 
+/// Client Egl surface
 #[derive(Debug)]
 pub struct ClientEglSurface {
     pub wl_egl_surface: wayland_egl::WlEglSurface,
@@ -67,14 +64,4 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
         wayland_egl::WlEglSurface::resize(&self.wl_egl_surface, width, height, dx, dy);
         true
     }
-}
-
-#[derive(Debug)]
-pub enum ServerSurface {
-    TopLevel(Point<i32, Logical>, Rc<RefCell<smithay::desktop::Window>>),
-    Popup(
-        Point<i32, Logical>,
-        Rc<RefCell<smithay::desktop::Window>>,
-        PopupSurface,
-    ),
 }
