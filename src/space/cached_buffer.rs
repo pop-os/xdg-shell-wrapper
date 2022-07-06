@@ -223,7 +223,6 @@ impl Buffer {
         writer.flush()?;
 
         trace!(self.log, "attaching buffer to surface");
-        surface.attach(Some(&self.buffer), self.w, self.h);
         if surface.as_ref().version() >= 5 {
             surface.attach(Some(&self.buffer), 0, 0);
             surface.offset(self.w, self.h);
