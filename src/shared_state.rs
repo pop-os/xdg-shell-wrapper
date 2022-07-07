@@ -35,11 +35,11 @@ pub struct AxisFrameData {
 
 #[derive(Debug)]
 pub struct GlobalState<W: WrapperSpace + 'static> {
-    pub(crate) space: W,
+    pub space: W,
     pub(crate) desktop_client_state: DesktopClientState,
     pub(crate) embedded_server_state: EmbeddedServerState<W>,
     pub(crate) _loop_signal: calloop::LoopSignal,
-    pub(crate) log: Logger,
+    pub log: Logger,
     pub(crate) start_time: std::time::Instant,
     pub(crate) cached_buffers: CachedBuffers,
 }

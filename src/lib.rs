@@ -21,7 +21,7 @@ pub use server::state as server_state;
 use server::state::EmbeddedServerState;
 
 pub use xdg_shell_wrapper_config as config;
-mod shared_state;
+pub mod shared_state;
 pub mod space;
 pub mod util;
 
