@@ -11,8 +11,7 @@ use std::{
 };
 
 use anyhow::Result;
-use calloop::{generic::Generic, Interest, Mode, PostAction};
-use smithay::reexports::wayland_server::Display;
+use smithay::reexports::{wayland_server::Display, calloop::{self, generic::Generic, Interest, Mode, PostAction}};
 
 use shared_state::GlobalState;
 use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
@@ -30,10 +29,8 @@ mod client;
 mod server;
 
 /// run the cosmic panel xdg wrapper with the provided config
-pub fn run<W: WrapperSpace + 'static>(mut space: W) -> Result<()> {
+pub fn run<W: WrapperSpace + 'static>(mut space: W, mut event_loop: calloop::EventLoop::<'static, (GlobalState<W>, Display<GlobalState<W>>)>) -> Result<()> {
     let log = space.log().unwrap();
-    let mut event_loop =
-        calloop::EventLoop::<(GlobalState<W>, Display<GlobalState<W>>)>::try_new().unwrap();
     let loop_handle = event_loop.handle();
 
     let mut server_display = smithay::reexports::wayland_server::Display::new().unwrap();

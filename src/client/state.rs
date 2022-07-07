@@ -18,7 +18,7 @@ use sctk::{
     seat::SeatHandling,
 };
 use slog::Logger;
-use smithay::{reexports::wayland_server, wayland::seat};
+use smithay::{reexports::{wayland_server, calloop}, wayland::seat};
 
 use crate::{
     config::WrapperConfig,

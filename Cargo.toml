@@ -11,7 +11,6 @@ smithay = { git = "https://github.com/smithay/smithay", default-features = false
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
 sctk = { package = "smithay-client-toolkit", git = "https://github.com/wash2/client-toolkit.git", default-features = false, features = ["calloop"] }
 # sctk = { package = "smithay-client-toolkit", path = "../../client-toolkit", default-features = false, features = ["calloop"] }
-calloop = "0.10.0"
 anyhow = "1.0.53"
 ron = "0.7.0"
 serde = { version = "1.0.136", features = ["derive"] }
