@@ -450,6 +450,7 @@ pub(crate) fn handle_motion<W: WrapperSpace>(
     } else {
     match global_state.space.space().surface_under((surface_x, surface_y), WindowSurfaceType::ALL) {
         Some((w, s, p)) => {
+            s_focused_surface.replace(Some(s.clone()));
             ptr.motion(
                 global_state,
                 &dh,
@@ -462,6 +463,7 @@ pub(crate) fn handle_motion<W: WrapperSpace>(
             );
         }
         None => {
+            s_focused_surface.take();
             ptr.motion(
                 global_state,
                 &dh,

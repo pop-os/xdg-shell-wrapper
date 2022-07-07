@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::{cell::Cell, collections::VecDeque};
+use std::{cell::Cell};
 use std::rc::Rc;
 
 use sctk::reexports::{
@@ -57,7 +57,7 @@ pub struct Popup {
     /// position of the popup
     pub position: Point<i32, Logical>,
     /// accumulated damage with age values
-    pub accumulated_damage: VecDeque<Vec<Rectangle<i32, Physical>>>,
+    pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
 }
 
 impl Popup {
