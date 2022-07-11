@@ -3,12 +3,12 @@ use std::{rc::Rc, time::Instant};
 use sctk::{
     default_environment,
     environment::{Environment, SimpleGlobal},
-    output::{with_output_info, OutputStatusListener},
+    output::{OutputStatusListener, with_output_info},
     reexports::{
         client::{
             self,
-            protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface},
             Attached,
+            protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface},
         },
         protocols::{
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
@@ -18,14 +18,17 @@ use sctk::{
     seat::SeatHandling,
 };
 use slog::Logger;
-use smithay::{reexports::{wayland_server, calloop}, wayland::seat};
+use smithay::{
+    reexports::{calloop, wayland_server},
+    wayland::seat,
+};
 
 use crate::{
+    client::handlers::seat::send_keyboard_event,
     config::WrapperConfig,
     server_state::{EmbeddedServerState, SeatPair},
     shared_state::{AxisFrameData, GlobalState, OutputGroup},
     space::{SpaceEvent, WrapperSpace},
-    client::handlers::seat::send_keyboard_event,
 };
 
 use super::handlers::{

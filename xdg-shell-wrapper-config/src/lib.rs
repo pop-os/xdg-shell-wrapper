@@ -2,10 +2,10 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
 use wayland_protocols::wlr::unstable::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1,
 };
-use serde::{Deserialize, Serialize};
 
 /// Layer which the cosmic panel is on
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]
@@ -77,14 +77,6 @@ impl Into<zwlr_layer_surface_v1::KeyboardInteractivity> for KeyboardInteractivit
 
 pub trait WrapperConfig: Clone + fmt::Debug + Default {
     fn output(&self) -> Option<String>;
-
-    fn layer(&self) -> zwlr_layer_shell_v1::Layer;
-
-    fn keyboard_interactivity(&self) -> zwlr_layer_surface_v1::KeyboardInteractivity;
-
-    fn exclusive_zone(&self) -> bool {
-        false
-    }
 
     fn name(&self) -> &str;
 }

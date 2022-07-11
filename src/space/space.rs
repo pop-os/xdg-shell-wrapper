@@ -13,8 +13,8 @@ use sctk::{
     reexports::{
         client::{
             self,
-            protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
-            Attached, Main,
+            Attached,
+            Main, protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
         },
         protocols::{
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1::{self, Layer},
@@ -25,29 +25,29 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
-    backend::{egl, renderer::gles2::Gles2Renderer},
+    backend::renderer::gles2::Gles2Renderer,
     desktop::{PopupManager, Space, Window},
     reexports::wayland_server::{
-        self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
+        self, DisplayHandle, protocol::wl_surface::WlSurface as s_WlSurface,
     },
-    utils::{Logical, Point},
     wayland::shell::xdg::{PopupSurface, PositionerState},
 };
-use smithay::desktop::space::RenderZindex;
 
 use crate::{
-    space::Popup,
     client_state::{Env, Focus},
     config::WrapperConfig,
+    space::Popup,
 };
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum SpaceEvent {
     WaitConfigure {
+        first: bool,
         width: i32,
         height: i32,
     },
     Configure {
+        first: bool,
         width: i32,
         height: i32,
         serial: i32,
@@ -172,17 +172,19 @@ pub trait WrapperSpace {
     fn popup_manager(&mut self) -> &mut PopupManager;
 
     /// gets the popups
-    fn popups(&self) -> &[Popup];
+    fn popups(&self) -> Vec<&Popup>;
 
+    /// gets the renderer for the space
     fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
 
-    fn z_index(&self) -> Option<RenderZindex> {
-        match self.config().layer() {
-            Layer::Background => Some(RenderZindex::Background),
-            Layer::Bottom => Some(RenderZindex::Bottom),
-            Layer::Top => Some(RenderZindex::Top),
-            Layer::Overlay => Some(RenderZindex::Overlay),
-            _ => None,
-        }
-    }
+    // gets the z-index for the requested applet
+    // fn z_index(&self, applet: &str) -> Option<RenderZindex> {
+    //     match self.config().layer(applet) {
+    //         Layer::Background => Some(RenderZindex::Background),
+    //         Layer::Bottom => Some(RenderZindex::Bottom),
+    //         Layer::Top => Some(RenderZindex::Top),
+    //         Layer::Overlay => Some(RenderZindex::Overlay),
+    //         _ => None,
+    //     }
+    // }
 }

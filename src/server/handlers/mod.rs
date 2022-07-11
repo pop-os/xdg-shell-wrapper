@@ -1,10 +1,11 @@
 use smithay::{
-    delegate_data_device, delegate_output, delegate_seat,
+    backend::renderer::ImportDma,
+    delegate_data_device, delegate_dmabuf, delegate_output, delegate_seat,
     wayland::{
         data_device::{ClientDndGrabHandler, DataDeviceHandler, ServerDndGrabHandler},
-        seat::{SeatHandler, SeatState}, dmabuf::{DmabufHandler, ImportError},
-    }, delegate_dmabuf,
-    backend::renderer::{ImportDma, gles2::Gles2Error},
+        dmabuf::{DmabufHandler, ImportError},
+        seat::{SeatHandler, SeatState},
+    },
 };
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
@@ -45,7 +46,6 @@ delegate_data_device!(@<W: WrapperSpace + 'static> GlobalState<W>);
 
 delegate_output!(@<W: WrapperSpace + 'static> GlobalState<W>);
 
-
 //
 // Dmabuf
 //
@@ -60,13 +60,14 @@ impl<W: WrapperSpace> DmabufHandler for GlobalState<W> {
         _global: &smithay::wayland::dmabuf::DmabufGlobal,
         dmabuf: smithay::backend::allocator::dmabuf::Dmabuf,
     ) -> Result<(), ImportError> {
-            self.space.renderer()
-                .map(|renderer| renderer.import_dmabuf(&dmabuf, None))
-                .and_then(|r| match r {
-                    Ok(_) => Some(Ok(())),
-                    Err(e) => Some(Err(ImportError::Failed)),
-                })
-                .unwrap()
+        self.space
+            .renderer()
+            .map(|renderer| renderer.import_dmabuf(&dmabuf, None))
+            .and_then(|r| match r {
+                Ok(_) => Some(Ok(())),
+                Err(e) => Some(Err(ImportError::Failed)),
+            })
+            .unwrap()
     }
 }
 delegate_dmabuf!(@<W: WrapperSpace + 'static> GlobalState<W>);

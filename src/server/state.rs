@@ -2,18 +2,19 @@ use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::OnceCell;
 use sctk::reexports::client::Attached;
-use slog::{Logger, info};
+use slog::Logger;
 use smithay::{
     desktop::Window,
-    reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
+    reexports::wayland_server::{DisplayHandle, protocol::wl_surface::WlSurface},
     wayland::{
         compositor::CompositorState,
         data_device::DataDeviceState,
+        dmabuf::{DmabufGlobal, DmabufState},
         output::OutputManagerState,
         seat::{self, SeatState},
         shell::xdg::XdgShellState,
-        shm::ShmState, dmabuf::{DmabufState, DmabufGlobal},
-    }, backend::renderer::{gles2::Gles2Renderer, ImportEgl, ImportDma},
+        shm::ShmState,
+    },
 };
 
 use crate::{
@@ -114,8 +115,6 @@ impl<W: WrapperSpace> EmbeddedServerState<W> {
         }
     }
 }
-
-
 
 #[derive(Debug)]
 pub(crate) struct SeatPair<W: WrapperSpace + 'static> {

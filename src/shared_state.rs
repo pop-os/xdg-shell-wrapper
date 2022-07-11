@@ -7,21 +7,25 @@ use once_cell::sync::OnceCell;
 use sctk::{
     environment::Environment,
     reexports::client::{
-        protocol::{wl_output as c_wl_output, wl_seat as c_wl_seat},
         Attached,
+        protocol::{wl_output as c_wl_output, wl_seat as c_wl_seat},
     },
 };
 use slog::Logger;
-use smithay::{reexports::wayland_server::{backend::GlobalId, DisplayHandle}, wayland::dmabuf::DmabufState, backend::renderer::{ImportEgl, ImportDma}};
+use smithay::{
+    backend::renderer::{ImportDma, ImportEgl},
+    reexports::wayland_server::{backend::GlobalId, DisplayHandle},
+    wayland::dmabuf::DmabufState,
+};
 use smithay::{
     reexports::{calloop, wayland_server::protocol::wl_pointer::AxisSource},
     wayland::{output::Output, seat},
 };
 
+use crate::CachedBuffers;
 use crate::client_state::{DesktopClientState, Env};
 use crate::server_state::EmbeddedServerState;
 use crate::space::WrapperSpace;
-use crate::CachedBuffers;
 
 pub type OutputGroup = (Output, GlobalId, String, c_wl_output::WlOutput);
 
@@ -49,12 +53,18 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
         if let Some(renderer) = self.space.renderer() {
             if renderer.bind_wl_display(dh).is_ok() {
                 let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
-            let mut state = DmabufState::new();
-            let global =
-                state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
-            self.embedded_server_state.dmabuf_state.replace((state, global)); 
+                let mut state = DmabufState::new();
+                let global =
+                    state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
+                self.embedded_server_state
+                    .dmabuf_state
+                    .replace((state, global));
             }
         }
+    }
+
+    pub fn env_handle(&mut self) -> &Environment<Env> {
+        &self.desktop_client_state.env_handle
     }
 }
 

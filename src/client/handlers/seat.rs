@@ -2,22 +2,21 @@
 
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
-use itertools::Itertools;
 use sctk::{
     reexports::client::{
         self,
-        protocol::{wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat},
-        Attached, DispatchData,
+        Attached,
+        DispatchData, protocol::{wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat},
     },
     seat::SeatData,
 };
-use slog::{error, trace, Logger};
+use slog::{error, Logger, trace};
 use smithay::{
     backend::input::KeyState,
-    desktop::{WindowSurfaceType, utils::under_from_surface_tree},
+    desktop::WindowSurfaceType,
     reexports::wayland_server::{
-        protocol::{wl_pointer, wl_surface::WlSurface},
-        Display, DisplayHandle, Resource,
+        Display,
+        DisplayHandle, protocol::{wl_pointer, wl_surface::WlSurface}, Resource,
     },
     utils::{Logical, Point},
     wayland::{
@@ -434,7 +433,12 @@ pub(crate) fn handle_motion<W: WrapperSpace>(
     };
     // let motion_point = global_state.space.point_to_compositor_space(&c_focused_surface, (surface_x as i32, surface_y as i32).into());
     let mut motion_point: Point<i32, Logical> = (surface_x as i32, surface_y as i32).into();
-    if let Some(p) = global_state.space.popups().iter().find(|p| &p.c_wl_surface == c_focused_surface) {
+    if let Some(p) = global_state
+        .space
+        .popups()
+        .iter()
+        .find(|p| &p.c_wl_surface == c_focused_surface)
+    {
         motion_point += p.position;
         s_focused_surface.replace(Some(p.s_surface.wl_surface().clone()));
         ptr.motion(
@@ -448,33 +452,37 @@ pub(crate) fn handle_motion<W: WrapperSpace>(
             },
         );
     } else {
-    match global_state.space.space().surface_under((surface_x, surface_y), WindowSurfaceType::ALL) {
-        Some((w, s, p)) => {
-            s_focused_surface.replace(Some(s.clone()));
-            ptr.motion(
-                global_state,
-                &dh,
-                &MotionEvent {
-                    location: motion_point.to_f64() - w.geometry().loc.to_f64(),
-                    focus: Some((s, p)),
-                    serial: SERIAL_COUNTER.next_serial(),
-                    time,
-                },
-            );
-        }
-        None => {
-            s_focused_surface.take();
-            ptr.motion(
-                global_state,
-                &dh,
-                &MotionEvent {
-                    location: (surface_x, surface_y).into(),
-                    focus: None,
-                    serial: SERIAL_COUNTER.next_serial(),
-                    time,
-                },
-            );
+        match global_state
+            .space
+            .space()
+            .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
+        {
+            Some((w, s, p)) => {
+                s_focused_surface.replace(Some(s.clone()));
+                ptr.motion(
+                    global_state,
+                    &dh,
+                    &MotionEvent {
+                        location: motion_point.to_f64() - w.geometry().loc.to_f64(),
+                        focus: Some((s, p)),
+                        serial: SERIAL_COUNTER.next_serial(),
+                        time,
+                    },
+                );
+            }
+            None => {
+                s_focused_surface.take();
+                ptr.motion(
+                    global_state,
+                    &dh,
+                    &MotionEvent {
+                        location: (surface_x, surface_y).into(),
+                        focus: None,
+                        serial: SERIAL_COUNTER.next_serial(),
+                        time,
+                    },
+                );
+            }
         }
     }
-}
 }

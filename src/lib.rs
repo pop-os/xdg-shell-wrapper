@@ -4,23 +4,24 @@
 //! Provides the core functionality for cosmic-panel
 
 use std::{
-    cell::Cell,
-    rc::Rc,
     thread,
     time::{Duration, Instant},
 };
 
 use anyhow::Result;
-use smithay::reexports::{wayland_server::Display, calloop::{self, generic::Generic, Interest, Mode, PostAction}};
+use smithay::reexports::{
+    calloop::{self, generic::Generic, Interest, Mode, PostAction},
+    wayland_server::Display,
+};
 
-use shared_state::GlobalState;
-use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
 pub use client::state as client_state;
 use client::state::DesktopClientState;
 pub use server::state as server_state;
 use server::state::EmbeddedServerState;
-
+use shared_state::GlobalState;
+use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
 pub use xdg_shell_wrapper_config as config;
+
 pub mod shared_state;
 pub mod space;
 pub mod util;
@@ -29,7 +30,10 @@ mod client;
 mod server;
 
 /// run the cosmic panel xdg wrapper with the provided config
-pub fn run<W: WrapperSpace + 'static>(mut space: W, mut event_loop: calloop::EventLoop::<'static, (GlobalState<W>, Display<GlobalState<W>>)>) -> Result<()> {
+pub fn run<W: WrapperSpace + 'static>(
+    mut space: W,
+    mut event_loop: calloop::EventLoop<'static, (GlobalState<W>, Display<GlobalState<W>>)>,
+) -> Result<()> {
     let log = space.log().unwrap();
     let loop_handle = event_loop.handle();
 

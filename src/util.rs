@@ -7,8 +7,11 @@ use std::{
 };
 
 use shlex::Shlex;
-use slog::{trace, Logger};
-use smithay::{reexports::wayland_server::{self, backend::ClientData, Client}, nix::fcntl};
+use slog::{Logger, trace};
+use smithay::{
+    nix::fcntl,
+    reexports::wayland_server::{self, backend::ClientData, Client},
+};
 
 /// utility function which maps a value [0, 1] -> [0, 1] using the smootherstep function
 pub fn smootherstep(t: f32) -> f32 {
@@ -19,18 +22,14 @@ pub fn smootherstep(t: f32) -> f32 {
 pub fn get_client_sock(display: &mut wayland_server::DisplayHandle) -> (Client, UnixStream) {
     let (display_sock, client_sock) = UnixStream::pair().unwrap();
     let raw_fd = client_sock.as_raw_fd();
-    let fd_flags = fcntl::FdFlag::from_bits(
-        fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD).unwrap(),
-    )
-        .unwrap();
+    let fd_flags =
+        fcntl::FdFlag::from_bits(fcntl::fcntl(raw_fd, fcntl::FcntlArg::F_GETFD).unwrap()).unwrap();
     fcntl::fcntl(
         raw_fd,
-        fcntl::FcntlArg::F_SETFD(
-            fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC),
-        ),
+        fcntl::FcntlArg::F_SETFD(fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC)),
     )
         .unwrap();
-    
+
     (
         display
             .insert_client(display_sock, Arc::new(WrapperClientData {}))

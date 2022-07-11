@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::{cell::Cell};
+use std::cell::Cell;
 use std::rc::Rc;
 
 use sctk::reexports::{
-    client::protocol::wl_surface as c_wl_surface,
     client::Main,
+    client::protocol::wl_surface as c_wl_surface,
     protocols::xdg_shell::client::{xdg_popup::XdgPopup, xdg_surface::XdgSurface},
 };
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
-    utils::{Logical, Point, Rectangle, Physical},
+    utils::{Logical, Physical, Point, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
 
