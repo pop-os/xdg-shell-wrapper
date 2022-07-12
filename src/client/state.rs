@@ -398,11 +398,7 @@ impl DesktopClientState {
          * Keyboard initialization
          */
 
-        let mut seats = Vec::<SeatPair<W>>::new();
-
         // first process already existing seats
-        let env_handle = env.clone();
-        let event_loop = loop_handle.clone();
         for seat in env.get_all_seats() {
             if let Some((has_kbd, has_ptr, name)) = sctk::seat::with_seat_data(&seat, |seat_data| {
                 (
