@@ -51,7 +51,11 @@ pub struct GlobalState<W: WrapperSpace + 'static> {
 impl<W: WrapperSpace + 'static> GlobalState<W> {
     pub fn bind_display(&mut self, dh: &DisplayHandle) {
         if let Some(renderer) = self.space.renderer() {
-            if renderer.bind_wl_display(dh).is_ok() {
+            let res = renderer.bind_wl_display(dh);
+            if let Err(err) = res {
+                slog::error!(self.log.clone(), "{:?}", err);
+            } else
+            {
                 let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
                 let mut state = DmabufState::new();
                 let global =
