@@ -121,7 +121,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
             }
             wl_keyboard::Event::Leave { .. } => {
                 *kbd_focus = false;
-                space.close_popups();
+                space.keyboard_focus_lost();
                 kbd.set_focus(&dh, None, SERIAL_COUNTER.next_serial());
             }
             _ => (),

@@ -115,8 +115,8 @@ pub trait WrapperSpace {
         positioner_state: PositionerState,
     );
 
-    /// close all popups for the wrapper space
-    fn close_popups(&mut self);
+    /// keyboard focus lost handler
+    fn keyboard_focus_lost(&mut self);
 
     /// accesses the next event for the space
     fn next_space_event(&self) -> Rc<Cell<Option<SpaceEvent>>>;
