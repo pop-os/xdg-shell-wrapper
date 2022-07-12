@@ -3,16 +3,17 @@ use std::{rc::Rc, time::Instant};
 use sctk::{
     default_environment,
     environment::{Environment, SimpleGlobal},
-    output::{with_output_info, OutputStatusListener},
+    output::{with_output_info, OutputStatusListener, XdgOutputHandler},
     reexports::{
         client::{
             self,
             protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface},
-            Attached,
+            Attached, Display, Proxy
         },
         protocols::{
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
             xdg_shell::client::xdg_wm_base::XdgWmBase,
+            unstable::xdg_output::v1::client::zxdg_output_manager_v1,
         },
     },
     seat::SeatHandling,
@@ -68,9 +69,11 @@ default_environment!(Env,
     fields = [
         layer_shell: SimpleGlobal<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         xdg_wm_base: SimpleGlobal<XdgWmBase>,
+        sctk_xdg_out: XdgOutputHandler,
     ],
     singles = [
         zwlr_layer_shell_v1::ZwlrLayerShellV1 => layer_shell,
+        zxdg_output_manager_v1::ZxdgOutputManagerV1 => sctk_xdg_out,
         XdgWmBase => xdg_wm_base,
     ],
 );
@@ -82,6 +85,7 @@ impl std::fmt::Debug for Env {
             .field("sctk_subcompositor", &self.sctk_subcompositor)
             .field("sctk_shm", &self.sctk_shm)
             .field("sctk_outputs", &self.sctk_outputs)
+            .field("sctk_xdg_out", &self.sctk_xdg_out)
             .field("sctk_seats", &self.sctk_seats)
             .field("sctk_data_device_manager", &self.sctk_data_device_manager)
             .field(
@@ -109,14 +113,43 @@ impl DesktopClientState {
         /*
          * Initial setup
          */
-        let (mut env, display, queue) = sctk::new_default_environment!(
-            Env,
-            fields = [
+        let display = Display::connect_to_env()?;
+        let mut queue = display.create_event_queue();
+        let env = {
+            use sctk::{
+                data_device::DataDeviceHandler,
+                seat::SeatHandler,
+                shm::ShmHandler,
+                primary_selection::PrimarySelectionHandler,
+            };
+
+            let mut sctk_seats = SeatHandler::new();
+            let sctk_data_device_manager = DataDeviceHandler::init(&mut sctk_seats);
+            let sctk_primary_selection_manager = PrimarySelectionHandler::init(&mut sctk_seats);
+            let (sctk_outputs, sctk_xdg_out) = XdgOutputHandler::new_output_handlers();
+
+            let display = Proxy::clone(&display);
+            let env = Environment::new(&display.attach(queue.token()), &mut queue, Env {
+                sctk_compositor: SimpleGlobal::new(),
+                sctk_subcompositor: SimpleGlobal::new(),
+                sctk_shm: ShmHandler::new(),
+                sctk_outputs,
+                sctk_xdg_out,
+                sctk_seats,
+                sctk_data_device_manager,
+                sctk_primary_selection_manager,
                 layer_shell: SimpleGlobal::new(),
                 xdg_wm_base: SimpleGlobal::new(),
-            ]
-        )
-        .expect("Unable to connect to a Wayland compositor");
+            });
+
+            if let Ok(env) = env.as_ref() {
+                // Bind primary selection manager.
+                let _psm = env.get_primary_selection_manager();
+            }
+
+            env
+        }?;
+
         let _ = embedded_server_state
             .selected_data_provider
             .env_handle
