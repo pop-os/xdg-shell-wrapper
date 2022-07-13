@@ -50,21 +50,21 @@ pub struct GlobalState<W: WrapperSpace + 'static> {
 
 impl<W: WrapperSpace + 'static> GlobalState<W> {
     pub fn bind_display(&mut self, dh: &DisplayHandle) {
-        // if let Some(renderer) = self.space.renderer() {
-        //     let res = renderer.bind_wl_display(dh);
-        //     if let Err(err) = res {
-        //         slog::error!(self.log.clone(), "{:?}", err);
-        //     } else
-        //     {
-        //         let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
-        //         let mut state = DmabufState::new();
-        //         let global =
-        //             state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
-        //         self.embedded_server_state
-        //             .dmabuf_state
-        //             .replace((state, global));
-        //     }
-        // }
+        if let Some(renderer) = self.space.renderer() {
+            let res = renderer.bind_wl_display(dh);
+            if let Err(err) = res {
+                slog::error!(self.log.clone(), "{:?}", err);
+            } else
+            {
+                let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
+                let mut state = DmabufState::new();
+                let global =
+                    state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
+                self.embedded_server_state
+                    .dmabuf_state
+                    .replace((state, global));
+            }
+        }
     }
 
     pub fn env_handle(&mut self) -> &Environment<Env> {
