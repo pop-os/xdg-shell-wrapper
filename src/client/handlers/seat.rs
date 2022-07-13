@@ -10,6 +10,7 @@ use sctk::{
     },
     seat::SeatData,
 };
+use sctk::seat::keyboard::keysyms::XKB_KEY_Escape;
 use slog::{error, Logger, trace};
 use smithay::{
     backend::input::KeyState,
@@ -83,12 +84,17 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     state,
                     SERIAL_COUNTER.next_serial(),
                     time,
-                    move |_modifiers, _keysym| {
-                        // TODO load shortcuts and intercept them
-                        FilterResult::Forward // TODO intercept some key presses maybe
+                    move |_modifiers, keysym| {
+                        if keysym.modified_sym() == XKB_KEY_Escape && state == KeyState::Released {
+                            FilterResult::Intercept(())
+                        } else {
+                            FilterResult::Forward
+                        }
                     },
                 ) {
-                    Some(_) => {}
+                    Some(_) => {
+                        space.keyboard_focus_lost()
+                    }
                     None => {}
                 }
             }
