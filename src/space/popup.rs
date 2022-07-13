@@ -8,20 +8,26 @@ use sctk::reexports::{
     client::protocol::wl_surface as c_wl_surface,
     protocols::xdg_shell::client::{xdg_popup::XdgPopup, xdg_surface::XdgSurface},
 };
+use sctk::reexports::client::Display;
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
     utils::{Logical, Physical, Point, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
+use smithay::backend::egl::{EGLContext, EGLDisplay};
+use wayland_egl::WlEglSurface;
+use crate::space::ClientEglSurface;
 
 /// Popup events
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum PopupState {
     /// Waiting for the configure event for the popup surface
-    WaitConfigure,
+    WaitConfigure(bool),
     /// Configure Event
     Configure {
+        /// first configure event
+        first: bool,
         /// x position
         x: i32,
         /// y position
@@ -49,7 +55,7 @@ pub struct Popup {
     /// the embedded popup
     pub s_surface: PopupSurface,
     /// the egl surface
-    pub egl_surface: Rc<EGLSurface>,
+    pub egl_surface: Option<Rc<EGLSurface>>,
     /// the state of the popup
     pub popup_state: Rc<Cell<Option<PopupState>>>,
     /// whether or not the popup needs to be rendered
@@ -63,7 +69,7 @@ pub struct Popup {
 impl Popup {
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface is alive.
-    pub fn handle_events(&mut self, popup_manager: &mut PopupManager) -> bool {
+    pub fn handle_events(&mut self, popup_manager: &mut PopupManager, egl_context: &EGLContext, egl_display: &EGLDisplay, c_display: &Display, ) -> bool {
         let should_keep = {
             if !self.s_surface.alive() || !self.c_wl_surface.as_ref().is_alive() {
                 false
@@ -71,19 +77,46 @@ impl Popup {
                 match self.popup_state.take() {
                     Some(PopupState::Closed) => false,
                     Some(PopupState::Configure {
+                        first,
                         width,
                         height,
                         x,
                         y,
                     }) => {
-                        self.position = (x, y).into();
+                        if first {
+                            let client_egl_surface = ClientEglSurface {
+                                wl_egl_surface: WlEglSurface::new(
+                                    &self.c_wl_surface,
+                                    width,
+                                    height,
+                                ),
+                                display: c_display.clone(),
+                            };
+
+                            let egl_surface = Rc::new(
+                                EGLSurface::new(
+                                    &egl_display,
+                                        egl_context
+                                        .pixel_format()
+                                        .expect("Failed to get pixel format from EGL context "),
+                                    egl_context.config_id(),
+                                    client_egl_surface,
+                                    None,
+                                )
+                                    .expect("Failed to initialize EGL Surface"),
+                            );
+
+                            self.egl_surface.replace(egl_surface);
+                        } else {
+                            self.egl_surface.as_ref().unwrap().resize(width, height, 0, 0);
+                        }
                         popup_manager.commit(self.s_surface.wl_surface());
-                        self.egl_surface.resize(width, height, 0, 0);
                         self.dirty = true;
+                        self.position = (x, y).into();
                         true
                     }
-                    Some(PopupState::WaitConfigure) => {
-                        self.popup_state.replace(Some(PopupState::WaitConfigure));
+                    Some(PopupState::WaitConfigure(first)) => {
+                        self.popup_state.replace(Some(PopupState::WaitConfigure(first)));
                         true
                     }
                     Some(PopupState::Repositioned(_)) => true,
