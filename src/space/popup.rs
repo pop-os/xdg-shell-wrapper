@@ -64,6 +64,8 @@ pub struct Popup {
     pub position: Point<i32, Logical>,
     /// accumulated damage with age values
     pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
+    /// full clear
+    pub full_clear: u8,
 }
 
 impl Popup {
@@ -112,6 +114,7 @@ impl Popup {
                         }
                         popup_manager.commit(self.s_surface.wl_surface());
                         self.dirty = true;
+                        self.full_clear = 4;
                         self.position = (x, y).into();
                         true
                     }

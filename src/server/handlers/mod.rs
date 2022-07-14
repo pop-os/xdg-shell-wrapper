@@ -65,7 +65,7 @@ impl<W: WrapperSpace> DmabufHandler for GlobalState<W> {
             .map(|renderer| renderer.import_dmabuf(&dmabuf, None))
             .and_then(|r| match r {
                 Ok(_) => Some(Ok(())),
-                Err(e) => Some(Err(ImportError::Failed)),
+                Err(_) => Some(Err(ImportError::Failed)),
             })
             .unwrap()
     }
