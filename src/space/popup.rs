@@ -137,6 +137,7 @@ impl Drop for Popup {
         self.s_surface.send_popup_done();
         self.c_popup.destroy();
         self.c_xdg_surface.destroy();
-        self.c_wl_surface.destroy();
+        // XXX causes segfault when using nvidia
+        // self.c_wl_surface.destroy();
     }
 }
