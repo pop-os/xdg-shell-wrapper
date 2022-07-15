@@ -100,7 +100,7 @@ pub trait WrapperSpace {
     fn update_pointer(&mut self, dim: (i32, i32));
 
     /// handle a button press on a client surface
-    fn handle_button(&mut self, c_focused_surface: &c_wl_surface::WlSurface);
+    fn handle_button(&mut self, c_focused_surface: &c_wl_surface::WlSurface) -> bool;
 
     /// add a top level window to the space
     fn add_window(&mut self, s_top_level: Window);

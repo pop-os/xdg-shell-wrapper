@@ -53,7 +53,6 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
         seats,
         ..
     } = &mut state.embedded_server_state;
-
     if let Some(seat) = seats.iter().find(|SeatPair { name, .. }| name == seat_name) {
         let kbd = match seat.server.get_keyboard() {
             Some(kbd) => kbd,
@@ -195,9 +194,6 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 last_input_serial.replace(serial);
                 last_button.replace(button);
 
-                if let Focus::Current(c_focused_surface) = c_focused_surface {
-                    space.handle_button(c_focused_surface);
-                }
                 if let Some(kbd) = kbd.as_ref() {
                     kbd.set_focus(
                         &dh,
@@ -205,6 +201,13 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                         SERIAL_COUNTER.next_serial(),
                     );
                 }
+
+                if let Focus::Current(c_focused_surface) = c_focused_surface {
+                    if space.handle_button(c_focused_surface) {
+                        return;
+                    }
+                };
+
                 if let Ok(button_state) = wl_pointer::ButtonState::try_from(state as u32) {
                     ptr.button(
                         global_state,
