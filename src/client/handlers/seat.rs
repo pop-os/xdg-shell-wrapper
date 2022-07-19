@@ -92,7 +92,9 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     },
                 ) {
                     Some(_) => {
-                        space.keyboard_focus_lost()
+                        *kbd_focus = false;
+                        space.keyboard_focus_lost();
+                        kbd.set_focus(&dh, None, SERIAL_COUNTER.next_serial());
                     }
                     None => {}
                 }

@@ -77,14 +77,16 @@ pub fn exec_child(
 
     if requests_host_wayland_display {
         if let Ok(display) = std::env::var("WAYLAND_DISPLAY") {
-            child.env("HOST_WAYLAND_DISPLAY", display);
+            child.env("WAYLAND_DISPLAY", display);
         }
+    } else {
+        child.env_remove("WAYLAND_DISPLAY");
+
     }
 
     child
         .env("WAYLAND_SOCKET", raw_fd.to_string())
         .env_remove("WAYLAND_DEBUG")
-        .env_remove("WAYLAND_DISPLAY")
         // .env("WAYLAND_DEBUG", "1")
         // .stderr(std::process::Stdio::piped())
         // .stdout(std::process::Stdio::piped())
