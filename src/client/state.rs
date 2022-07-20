@@ -54,16 +54,16 @@ pub enum Focus {
 }
 
 #[derive(Debug)]
-pub(crate) struct DesktopClientState {
+pub struct DesktopClientState {
+    pub env_handle: Environment<Env>,
+    pub kbd_focus: bool,
+    pub last_input_serial: Option<u32>,
+    pub focused_surface: Focus,
     pub(crate) display: client::Display,
     pub(crate) cursor_surface: wl_surface::WlSurface,
     pub(crate) axis_frame: AxisFrameData,
-    pub(crate) kbd_focus: bool,
     pub(crate) shm: Attached<wl_shm::WlShm>,
     pub(crate) xdg_wm_base: Attached<XdgWmBase>,
-    pub(crate) env_handle: Environment<Env>,
-    pub(crate) last_input_serial: Option<u32>,
-    pub(crate) focused_surface: Focus,
     pub(crate) _output_listener: Option<OutputStatusListener>,
     pub(crate) _output_group: Vec<OutputGroup>,
 }

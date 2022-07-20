@@ -40,11 +40,12 @@ pub struct AxisFrameData {
 #[derive(Debug)]
 pub struct GlobalState<W: WrapperSpace + 'static> {
     pub space: W,
-    pub(crate) desktop_client_state: DesktopClientState,
-    pub(crate) embedded_server_state: EmbeddedServerState<W>,
-    pub(crate) _loop_signal: calloop::LoopSignal,
+    pub desktop_client_state: DesktopClientState,
+    pub embedded_server_state: EmbeddedServerState<W>,
+    pub start_time: std::time::Instant,
     pub log: Logger,
-    pub(crate) start_time: std::time::Instant,
+
+    pub(crate) _loop_signal: calloop::LoopSignal,
     pub(crate) cached_buffers: CachedBuffers,
 }
 
@@ -65,10 +66,6 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
                     .replace((state, global));
             }
         }
-    }
-
-    pub fn env_handle(&mut self) -> &Environment<Env> {
-        &self.desktop_client_state.env_handle
     }
 }
 

@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(crate) struct EmbeddedServerState<W: WrapperSpace + 'static> {
+pub struct EmbeddedServerState<W: WrapperSpace + 'static> {
     pub(crate) root_window: Option<Rc<RefCell<Window>>>,
     pub(crate) focused_surface: Rc<RefCell<Option<WlSurface>>>,
     pub(crate) selected_data_provider: SelectedDataProvider,
