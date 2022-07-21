@@ -5,7 +5,7 @@ use sctk::reexports::client::Attached;
 use slog::Logger;
 use smithay::{
     desktop::Window,
-    reexports::wayland_server::{DisplayHandle, protocol::wl_surface::WlSurface},
+    reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
     wayland::{
         compositor::CompositorState,
         data_device::DataDeviceState,

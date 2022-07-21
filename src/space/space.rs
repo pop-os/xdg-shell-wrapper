@@ -13,22 +13,18 @@ use sctk::{
     reexports::{
         client::{
             self,
-            Attached,
-            Main, protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
+            protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
+            Attached, Main,
         },
-        protocols::{
-            wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1::{self, Layer},
-            xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
-        },
+        protocols::xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
     },
-    shm::AutoMemPool,
 };
 use slog::Logger;
 use smithay::{
     backend::renderer::gles2::Gles2Renderer,
     desktop::{PopupManager, Space, Window},
     reexports::wayland_server::{
-        self, DisplayHandle, protocol::wl_surface::WlSurface as s_WlSurface,
+        self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
     wayland::shell::xdg::{PopupSurface, PositionerState},
 };
@@ -39,34 +35,56 @@ use crate::{
     space::Popup,
 };
 
+/// Space events
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum SpaceEvent {
+    /// waiting for the next configure event
     WaitConfigure {
+        /// whether it is waiting for the first configure event
         first: bool,
+        /// width
         width: i32,
+        /// height
         height: i32,
     },
+    /// the next configure event
     Configure {
+        /// whether it is the first configure event
         first: bool,
+        /// width
         width: i32,
+        /// height
         height: i32,
+        /// serial
         serial: i32,
     },
+    /// the space has been scheduled to cleanup and exit
     Quit,
 }
 
+/// Visibility of the space
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Visibility {
+    /// hidden
     Hidden,
+    /// visible
     Visible,
+    /// transitioning to hidden
     TransitionToHidden {
+        /// previous instant that was processed
         last_instant: Instant,
+        /// duration of the transition progressed
         progress: Duration,
+        /// previously calculated value
         prev_margin: i32,
     },
+    /// transitioning to visible
     TransitionToVisible {
+        /// previous instant that was processed
         last_instant: Instant,
+        /// duration of the transition progressed
         progress: Duration,
+        /// previously calculated value
         prev_margin: i32,
     },
 }
@@ -83,17 +101,21 @@ pub trait WrapperSpace {
     /// Wrapper config type
     type Config: WrapperConfig;
 
-    /// add the configured output to the space
-    fn add_output(
+    /// initial setup of the space
+    fn setup(
         &mut self,
+        env: &Environment<Env>,
+        c_display: client::Display,
+        log: Logger,
+        focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
+    );
+
+    /// add the configured output to the space
+    fn handle_output(
+        &mut self,
+        env: &Environment<Env>,
         output: Option<&c_wl_output::WlOutput>,
         output_info: Option<&OutputInfo>,
-        pool: AutoMemPool,
-        c_display: client::Display,
-        layer_shell: Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
-        log: Logger,
-        c_surface: Attached<c_wl_surface::WlSurface>,
-        focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space

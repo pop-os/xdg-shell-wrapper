@@ -2,22 +2,22 @@
 
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
+use sctk::seat::keyboard::keysyms::XKB_KEY_Escape;
 use sctk::{
     reexports::client::{
         self,
-        Attached,
-        DispatchData, protocol::{wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat},
+        protocol::{wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat},
+        Attached, DispatchData,
     },
     seat::SeatData,
 };
-use sctk::seat::keyboard::keysyms::XKB_KEY_Escape;
-use slog::{error, Logger, trace};
+use slog::{error, trace, Logger};
 use smithay::{
     backend::input::KeyState,
     desktop::WindowSurfaceType,
     reexports::wayland_server::{
-        Display,
-        DisplayHandle, protocol::{wl_pointer, wl_surface::WlSurface}, Resource,
+        protocol::{wl_pointer, wl_surface::WlSurface},
+        Display, DisplayHandle, Resource,
     },
     utils::{Logical, Point},
     wayland::{
@@ -112,7 +112,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                 //     &seat.server,
                 //     &selected_data_provider.seat,
                 // );
-                let client = focused_surface
+                let _client = focused_surface
                     .borrow()
                     .as_ref()
                     .and_then(|focused_surface| focused_surface.client_id());

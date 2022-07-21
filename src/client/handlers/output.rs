@@ -1,24 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::{cell::RefCell, rc::Rc};
-
 use sctk::{
     environment::Environment,
     output::{Mode as c_Mode, OutputInfo},
     reexports::{
         client::protocol::wl_output::Subpixel as c_Subpixel,
-        client::{self, Attached, Display},
-        protocols::wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
+        client::{self},
     },
 };
 use slog::Logger;
 use smithay::{
     reexports::wayland_server::{
         backend::GlobalId,
-        protocol::{
-            wl_output::{Subpixel as s_Subpixel, Transform},
-            wl_surface::WlSurface,
-        },
+        protocol::wl_output::{Subpixel as s_Subpixel, Transform},
         DisplayHandle,
     },
     wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties, Scale},
@@ -32,15 +26,12 @@ use crate::{
 use super::super::state::Env;
 
 pub fn handle_output<W: WrapperSpace + 'static>(
-    layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
-    env_handle: Environment<Env>,
+    env_handle: &Environment<Env>,
     logger: Logger,
-    c_display: Display,
     output: &client::protocol::wl_output::WlOutput,
     info: &OutputInfo,
     dh: &mut DisplayHandle,
     s_outputs: &mut Vec<OutputGroup>,
-    focused_surface: Rc<RefCell<Option<WlSurface>>>,
     space: &mut W,
 ) {
     // remove output with id if obsolete
@@ -50,7 +41,6 @@ pub fn handle_output<W: WrapperSpace + 'static>(
         // an output has been removed, release it
         // this should not be reached
         output.release();
-        std::process::exit(1);
     } else {
         // Create the Output for the server with given name and physical properties
         let (s_output, s_output_global) = c_output_as_s_output::<W>(dh, info, logger.clone());
@@ -58,20 +48,8 @@ pub fn handle_output<W: WrapperSpace + 'static>(
     }
 
     // construct a surface for an output if possible
-    let pool = env_handle
-        .create_auto_pool()
-        .expect("Failed to create a memory pool!");
     space
-        .add_output(
-            Some(output),
-            Some(info),
-            pool,
-            c_display,
-            layer_shell.clone(),
-            logger.clone(),
-            env_handle.create_surface(),
-            focused_surface,
-        )
+        .handle_output(env_handle, Some(output), Some(info))
         .unwrap();
 }
 

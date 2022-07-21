@@ -3,21 +3,21 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use crate::space::ClientEglSurface;
+use sctk::reexports::client::Display;
 use sctk::reexports::{
-    client::Main,
     client::protocol::wl_surface as c_wl_surface,
+    client::Main,
     protocols::xdg_shell::client::{xdg_popup::XdgPopup, xdg_surface::XdgSurface},
 };
-use sctk::reexports::client::Display;
+use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
     utils::{Logical, Physical, Point, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
-use smithay::backend::egl::{EGLContext, EGLDisplay};
 use wayland_egl::WlEglSurface;
-use crate::space::ClientEglSurface;
 
 /// Popup events
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -71,7 +71,13 @@ pub struct Popup {
 impl Popup {
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface is alive.
-    pub fn handle_events(&mut self, popup_manager: &mut PopupManager, egl_context: &EGLContext, egl_display: &EGLDisplay, c_display: &Display, ) -> bool {
+    pub fn handle_events(
+        &mut self,
+        popup_manager: &mut PopupManager,
+        egl_context: &EGLContext,
+        egl_display: &EGLDisplay,
+        c_display: &Display,
+    ) -> bool {
         let should_keep = {
             if !self.s_surface.alive() || !self.c_wl_surface.as_ref().is_alive() {
                 false
@@ -98,19 +104,22 @@ impl Popup {
                             let egl_surface = Rc::new(
                                 EGLSurface::new(
                                     &egl_display,
-                                        egl_context
+                                    egl_context
                                         .pixel_format()
                                         .expect("Failed to get pixel format from EGL context "),
                                     egl_context.config_id(),
                                     client_egl_surface,
                                     None,
                                 )
-                                    .expect("Failed to initialize EGL Surface"),
+                                .expect("Failed to initialize EGL Surface"),
                             );
 
                             self.egl_surface.replace(egl_surface);
                         } else {
-                            self.egl_surface.as_ref().unwrap().resize(width, height, 0, 0);
+                            self.egl_surface
+                                .as_ref()
+                                .unwrap()
+                                .resize(width, height, 0, 0);
                         }
                         popup_manager.commit(self.s_surface.wl_surface());
                         self.dirty = true;
@@ -119,7 +128,8 @@ impl Popup {
                         true
                     }
                     Some(PopupState::WaitConfigure(first)) => {
-                        self.popup_state.replace(Some(PopupState::WaitConfigure(first)));
+                        self.popup_state
+                            .replace(Some(PopupState::WaitConfigure(first)));
                         true
                     }
                     Some(PopupState::Repositioned(_)) => true,

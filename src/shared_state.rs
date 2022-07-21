@@ -7,8 +7,8 @@ use once_cell::sync::OnceCell;
 use sctk::{
     environment::Environment,
     reexports::client::{
-        Attached,
         protocol::{wl_output as c_wl_output, wl_seat as c_wl_seat},
+        Attached,
     },
 };
 use slog::Logger;
@@ -22,27 +22,35 @@ use smithay::{
     wayland::{output::Output, seat},
 };
 
-use crate::CachedBuffers;
 use crate::client_state::{DesktopClientState, Env};
 use crate::server_state::EmbeddedServerState;
 use crate::space::WrapperSpace;
+use crate::CachedBuffers;
 
+/// group of info for an output
 pub type OutputGroup = (Output, GlobalId, String, c_wl_output::WlOutput);
 
+/// axis frame date
 #[derive(Debug, Default)]
-pub struct AxisFrameData {
+pub(crate) struct AxisFrameData {
     pub(crate) frame: Option<seat::AxisFrame>,
     pub(crate) source: Option<AxisSource>,
     pub(crate) h_discrete: Option<i32>,
     pub(crate) v_discrete: Option<i32>,
 }
 
+/// the  global state for the embedded server state
 #[derive(Debug)]
 pub struct GlobalState<W: WrapperSpace + 'static> {
+    /// the implemented space
     pub space: W,
+    /// desktop client state
     pub desktop_client_state: DesktopClientState,
+    /// embedded server state
     pub embedded_server_state: EmbeddedServerState<W>,
+    /// instant that the panel was started
     pub start_time: std::time::Instant,
+    /// panel logger
     pub log: Logger,
 
     pub(crate) _loop_signal: calloop::LoopSignal,
@@ -50,13 +58,13 @@ pub struct GlobalState<W: WrapperSpace + 'static> {
 }
 
 impl<W: WrapperSpace + 'static> GlobalState<W> {
+    /// bind the display for the space
     pub fn bind_display(&mut self, dh: &DisplayHandle) {
         if let Some(renderer) = self.space.renderer() {
             let res = renderer.bind_wl_display(dh);
             if let Err(err) = res {
                 slog::error!(self.log.clone(), "{:?}", err);
-            } else
-            {
+            } else {
                 let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
                 let mut state = DmabufState::new();
                 let global =
@@ -70,7 +78,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
 }
 
 #[derive(Debug)]
-pub struct SelectedDataProvider {
+pub(crate) struct SelectedDataProvider {
     pub(crate) seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>>,
     pub(crate) env_handle: Rc<OnceCell<Environment<Env>>>,
 }

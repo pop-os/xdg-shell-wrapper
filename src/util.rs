@@ -7,7 +7,7 @@ use std::{
 };
 
 use shlex::Shlex;
-use slog::{Logger, trace};
+use slog::{trace, Logger};
 use smithay::{
     nix::fcntl,
     reexports::wayland_server::{self, backend::ClientData, Client},
@@ -28,7 +28,7 @@ pub fn get_client_sock(display: &mut wayland_server::DisplayHandle) -> (Client, 
         raw_fd,
         fcntl::FcntlArg::F_SETFD(fd_flags.difference(fcntl::FdFlag::FD_CLOEXEC)),
     )
-        .unwrap();
+    .unwrap();
 
     (
         display
@@ -42,12 +42,12 @@ pub fn get_client_sock(display: &mut wayland_server::DisplayHandle) -> (Client, 
 #[derive(Debug)]
 pub struct WrapperClientData {}
 impl ClientData for WrapperClientData {
-    fn initialized(&self, client_id: wayland_server::backend::ClientId) {}
+    fn initialized(&self, _client_id: wayland_server::backend::ClientId) {}
 
     fn disconnected(
         &self,
-        client_id: wayland_server::backend::ClientId,
-        reason: wayland_server::backend::DisconnectReason,
+        _client_id: wayland_server::backend::ClientId,
+        _reason: wayland_server::backend::DisconnectReason,
     ) {
     }
 }
@@ -81,7 +81,6 @@ pub fn exec_child(
         }
     } else {
         child.env_remove("WAYLAND_DISPLAY");
-
     }
 
     child

@@ -8,12 +8,12 @@ use sctk::{
         client::{
             self,
             protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface},
-            Attached, Display, Proxy
+            Attached, Display, Proxy,
         },
         protocols::{
+            unstable::xdg_output::v1::client::zxdg_output_manager_v1,
             wlr::unstable::layer_shell::v1::client::zwlr_layer_shell_v1,
             xdg_shell::client::xdg_wm_base::XdgWmBase,
-            unstable::xdg_output::v1::client::zxdg_output_manager_v1,
         },
     },
     seat::SeatHandling,
@@ -25,11 +25,11 @@ use smithay::{
 };
 
 use crate::{
+    client::handlers::seat::send_keyboard_event,
     config::WrapperConfig,
     server_state::{EmbeddedServerState, SeatPair},
     shared_state::{AxisFrameData, GlobalState, OutputGroup},
-    space::{SpaceEvent, WrapperSpace},
-    client::handlers::seat::send_keyboard_event,
+    space::WrapperSpace,
 };
 
 use super::handlers::{
@@ -53,11 +53,16 @@ pub enum Focus {
     LastFocus(Instant),
 }
 
+/// Wrapper client state
 #[derive(Debug)]
 pub struct DesktopClientState {
+    /// the sctk environment
     pub env_handle: Environment<Env>,
+    /// whether the wrapper has keyboard focus
     pub kbd_focus: bool,
+    /// the last input serial
     pub last_input_serial: Option<u32>,
+    /// state regarding the last focused embedded client surface
     pub focused_surface: Focus,
     pub(crate) display: client::Display,
     pub(crate) cursor_surface: wl_surface::WlSurface,
@@ -120,10 +125,8 @@ impl DesktopClientState {
         let mut queue = display.create_event_queue();
         let env = {
             use sctk::{
-                data_device::DataDeviceHandler,
-                seat::SeatHandler,
-                shm::ShmHandler,
-                primary_selection::PrimarySelectionHandler,
+                data_device::DataDeviceHandler, primary_selection::PrimarySelectionHandler,
+                seat::SeatHandler, shm::ShmHandler,
             };
 
             let mut sctk_seats = SeatHandler::new();
@@ -132,18 +135,22 @@ impl DesktopClientState {
             let (sctk_outputs, sctk_xdg_out) = XdgOutputHandler::new_output_handlers();
 
             let display = Proxy::clone(&display);
-            let env = Environment::new(&display.attach(queue.token()), &mut queue, Env {
-                sctk_compositor: SimpleGlobal::new(),
-                sctk_subcompositor: SimpleGlobal::new(),
-                sctk_shm: ShmHandler::new(),
-                sctk_outputs,
-                sctk_xdg_out,
-                sctk_seats,
-                sctk_data_device_manager,
-                sctk_primary_selection_manager,
-                layer_shell: SimpleGlobal::new(),
-                xdg_wm_base: SimpleGlobal::new(),
-            });
+            let env = Environment::new(
+                &display.attach(queue.token()),
+                &mut queue,
+                Env {
+                    sctk_compositor: SimpleGlobal::new(),
+                    sctk_subcompositor: SimpleGlobal::new(),
+                    sctk_shm: ShmHandler::new(),
+                    sctk_outputs,
+                    sctk_xdg_out,
+                    sctk_seats,
+                    sctk_data_device_manager,
+                    sctk_primary_selection_manager,
+                    layer_shell: SimpleGlobal::new(),
+                    xdg_wm_base: SimpleGlobal::new(),
+                },
+            );
 
             if let Ok(env) = env.as_ref() {
                 // Bind primary selection manager.
@@ -160,11 +167,12 @@ impl DesktopClientState {
         let focused_surface = Rc::clone(&embedded_server_state.focused_surface);
         let _attached_display = (*display).clone().attach(queue.token());
 
-        let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
         let mut s_outputs = Vec::new();
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         let outputs = env.get_all_outputs();
+
+        space.setup(&env, display.clone(), log.clone(), focused_surface);
 
         for o in &outputs {
             if let Some(info) = with_output_info(&o, Clone::clone) {
@@ -172,78 +180,68 @@ impl DesktopClientState {
                 space.space().map_output(&s_o, info.location);
             }
         }
-
-        match config.output() {
-            None => {
-                let pool = env
-                    .create_auto_pool()
-                    .expect("Failed to create a memory pool!");
-
-                space
-                    .add_output(
-                        None,
-                        None,
-                        pool,
-                        display.clone(),
-                        layer_shell,
-                        log.clone(),
-                        env.create_surface(),
-                        focused_surface,
-                    )
-                    .unwrap();
-            }
-            Some(configured_output) => {
-                if let Some((o, info)) = outputs.iter().find_map(|o| {
-                    with_output_info(o, Clone::clone).and_then(|info| {
-                        if info.name == *configured_output {
-                            Some((o, info))
+        let configured_outputs = config.outputs();
+        if configured_outputs.is_empty() {
+            space.handle_output(&env, None, None).unwrap();
+        } else {
+            for o in &outputs {
+                if let Some((configured_output, info)) = with_output_info(&o, Clone::clone)
+                    .and_then(|info| {
+                        if let Some(configured) = configured_outputs
+                            .iter()
+                            .find(|configured| *configured == &info.name)
+                        {
+                            Some((configured, info))
                         } else {
                             None
                         }
                     })
-                }) {
-                    let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
-
-                    let layer_shell = env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
+                {
                     let env_handle = env.clone();
                     let logger = log.clone();
-                    let display_ = display.clone();
-                    handle_output(
-                        &layer_shell,
-                        env_handle,
-                        logger,
-                        display_,
-                        o,
-                        &info,
-                        dh,
-                        &mut s_outputs,
-                        Rc::clone(&focused_surface),
-                        space,
-                    )
-                } else {
-                    eprintln!(
-                        "Could not attach to configured output: {}",
-                        configured_output
-                    );
-                    std::process::exit(1);
+                    handle_output(&env_handle, logger, o, &info, dh, &mut s_outputs, space);
                 }
             }
-        };
+        }
 
-        let output_listener = config.output().map(|configured_output| {
-            env.listen_for_outputs(move |o, info, mut dispatch_data| {
-                let (state, _server_display) = dispatch_data
+        let output_listener = if configured_outputs.is_empty() {
+            None
+        } else {
+            Some(env.listen_for_outputs(move |o, info, mut dispatch_data| {
+                let (state, sd) = dispatch_data
                     .get::<(GlobalState<W>, wayland_server::Display<GlobalState<W>>)>()
                     .unwrap();
-                if info.name == configured_output && info.obsolete {
-                    state
-                        .space
-                        .next_space_event()
-                        .replace(Some(SpaceEvent::Quit));
-                    o.release();
+                if !info.obsolete {
+                    return;
                 }
-            })
-        });
+
+                if configured_outputs
+                    .iter()
+                    .any(|configured| configured == &info.name)
+                {
+                    let GlobalState {
+                        desktop_client_state:
+                            DesktopClientState {
+                                env_handle,
+                                _output_group,
+                                ..
+                            },
+                        space,
+                        log,
+                        ..
+                    } = state;
+                    handle_output(
+                        env_handle,
+                        log.clone(),
+                        &o,
+                        &info,
+                        &mut sd.handle(),
+                        _output_group,
+                        space,
+                    );
+                }
+            }))
+        };
 
         // // TODO logging
         // // FIXME focus lost after drop from source outside xdg-shell-wrapper

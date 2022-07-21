@@ -76,7 +76,7 @@ impl Into<zwlr_layer_surface_v1::KeyboardInteractivity> for KeyboardInteractivit
 }
 
 pub trait WrapperConfig: Clone + fmt::Debug + Default {
-    fn output(&self) -> Option<String>;
+    fn outputs(&self) -> Vec<String>;
 
     fn name(&self) -> &str;
 }
