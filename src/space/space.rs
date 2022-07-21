@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::{RefCell},
     os::unix::net::UnixStream,
     rc::Rc,
     time::{Duration, Instant},
@@ -139,9 +139,6 @@ pub trait WrapperSpace {
 
     /// keyboard focus lost handler
     fn keyboard_focus_lost(&mut self);
-
-    /// accesses the next event for the space
-    fn next_space_event(&self) -> Rc<Cell<Option<SpaceEvent>>>;
 
     /// repositions a popup
     fn reposition_popup(

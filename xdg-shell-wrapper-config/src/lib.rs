@@ -75,8 +75,14 @@ impl Into<zwlr_layer_surface_v1::KeyboardInteractivity> for KeyboardInteractivit
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum WrapperOutput {
+    All,
+    Name(Vec<String>),
+}
+
 pub trait WrapperConfig: Clone + fmt::Debug + Default {
-    fn outputs(&self) -> Vec<String>;
+    fn outputs(&self) -> WrapperOutput;
 
     fn name(&self) -> &str;
 }

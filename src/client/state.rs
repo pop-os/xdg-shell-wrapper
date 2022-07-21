@@ -180,18 +180,25 @@ impl DesktopClientState {
                 space.space().map_output(&s_o, info.location);
             }
         }
-        let configured_outputs = config.outputs();
+        let configured_outputs = match config.outputs() {
+            xdg_shell_wrapper_config::WrapperOutput::All => outputs
+                .iter()
+                .filter_map(|o| with_output_info(o, Clone::clone).map(|info| info.name))
+                .collect(),
+            xdg_shell_wrapper_config::WrapperOutput::Name(list) => list,
+        };
+
         if configured_outputs.is_empty() {
             space.handle_output(&env, None, None).unwrap();
         } else {
             for o in &outputs {
-                if let Some((configured_output, info)) = with_output_info(&o, Clone::clone)
+                if let Some(info) = with_output_info(&o, Clone::clone)
                     .and_then(|info| {
-                        if let Some(configured) = configured_outputs
+                        if configured_outputs
                             .iter()
-                            .find(|configured| *configured == &info.name)
+                            .find(|configured| *configured == &info.name).is_some()
                         {
-                            Some((configured, info))
+                            Some(info)
                         } else {
                             None
                         }
@@ -243,7 +250,7 @@ impl DesktopClientState {
             }))
         };
 
-        // // TODO logging
+        // // TODO reimplement when sctk 0.30 is ready
         // // FIXME focus lost after drop from source outside xdg-shell-wrapper
         // // dnd listener
         // let last_motion = Rc::new(RefCell::new(None));
