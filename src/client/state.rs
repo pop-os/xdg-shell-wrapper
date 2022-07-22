@@ -1,4 +1,4 @@
-use std::{rc::Rc, time::Instant};
+use std::{rc::Rc, cell::RefCell};
 
 use sctk::{
     default_environment,
@@ -7,7 +7,7 @@ use sctk::{
     reexports::{
         client::{
             self,
-            protocol::{wl_keyboard, wl_pointer, wl_seat, wl_shm, wl_surface},
+            protocol::{wl_keyboard, wl_pointer, wl_seat::{WlSeat}, wl_shm, wl_surface},
             Attached, Display, Proxy,
         },
         protocols::{
@@ -27,7 +27,7 @@ use smithay::{
 use crate::{
     client::handlers::seat::send_keyboard_event,
     config::WrapperConfig,
-    server_state::{EmbeddedServerState, SeatPair},
+    server_state::{ServerState, SeatPair},
     shared_state::{AxisFrameData, GlobalState, OutputGroup},
     space::WrapperSpace,
 };
@@ -39,34 +39,28 @@ use super::handlers::{
 
 #[derive(Debug)]
 pub(crate) struct ClientSeat {
-    pub(crate) seat: Attached<wl_seat::WlSeat>,
+    pub(crate) _seat: Attached<WlSeat>,
     pub(crate) kbd: Option<wl_keyboard::WlKeyboard>,
     pub(crate) ptr: Option<wl_pointer::WlPointer>,
 }
 
-/// currently focused client surface
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Focus {
-    /// currently focused client surface
-    Current(wl_surface::WlSurface),
-    /// last instant a client surface was focused
-    LastFocus(Instant),
-}
+/// list of focused surfaces and the seats that focus them
+pub type ClientFocus = Rc<RefCell<Vec<(wl_surface::WlSurface, String)>>>;
 
 /// Wrapper client state
 #[derive(Debug)]
-pub struct DesktopClientState {
+pub struct ClientState {
     /// the sctk environment
     pub env_handle: Environment<Env>,
-    /// whether the wrapper has keyboard focus
-    pub kbd_focus: bool,
     /// the last input serial
     pub last_input_serial: Option<u32>,
-    /// state regarding the last focused embedded client surface
-    pub focused_surface: Focus,
+    /// state regarding the last embedded client surface with keyboard focus
+    pub focused_surface: ClientFocus,
+    /// state regarding the last embedded client surface with keyboard focus
+    pub hovered_surface: ClientFocus,
     pub(crate) display: client::Display,
     pub(crate) cursor_surface: wl_surface::WlSurface,
-    pub(crate) axis_frame: AxisFrameData,
+    pub(crate) axis_frame: Vec<AxisFrameData>,
     pub(crate) shm: Attached<wl_shm::WlShm>,
     pub(crate) xdg_wm_base: Attached<XdgWmBase>,
     pub(crate) _output_listener: Option<OutputStatusListener>,
@@ -106,7 +100,7 @@ impl std::fmt::Debug for Env {
     }
 }
 
-impl DesktopClientState {
+impl ClientState {
     pub(crate) fn new<W: WrapperSpace + 'static>(
         loop_handle: calloop::LoopHandle<
             'static,
@@ -115,7 +109,7 @@ impl DesktopClientState {
         space: &mut W,
         log: Logger,
         dh: &mut wayland_server::DisplayHandle,
-        embedded_server_state: &mut EmbeddedServerState<W>,
+        embedded_server_state: &mut ServerState<W>,
     ) -> anyhow::Result<Self> {
         let config = space.config();
         /*
@@ -164,15 +158,16 @@ impl DesktopClientState {
             .selected_data_provider
             .env_handle
             .set(env.clone());
-        let focused_surface = Rc::clone(&embedded_server_state.focused_surface);
         let _attached_display = (*display).clone().attach(queue.token());
 
         let mut s_outputs = Vec::new();
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         let outputs = env.get_all_outputs();
-
-        space.setup(&env, display.clone(), log.clone(), focused_surface);
+        let s_focused_surface = embedded_server_state.focused_surface.clone();
+        let c_focused_surface: ClientFocus = Default::default();
+        let c_hovered_surface: ClientFocus = Default::default();
+        space.setup(&env, display.clone(), c_focused_surface.clone(), c_hovered_surface.clone(), s_focused_surface.clone(), s_focused_surface.clone());
 
         for o in &outputs {
             if let Some(info) = with_output_info(&o, Clone::clone) {
@@ -228,7 +223,7 @@ impl DesktopClientState {
                 {
                     let GlobalState {
                         desktop_client_state:
-                            DesktopClientState {
+                            ClientState {
                                 env_handle,
                                 _output_group,
                                 ..
@@ -420,7 +415,7 @@ impl DesktopClientState {
                     client: ClientSeat {
                         kbd: None,
                         ptr: None,
-                        seat: seat.clone(),
+                        _seat: seat.clone(),
                     },
                 };
                 if has_kbd || has_ptr {
@@ -481,16 +476,16 @@ impl DesktopClientState {
         let shm = env.require_global::<wl_shm::WlShm>();
         let xdg_wm_base = env.require_global::<XdgWmBase>();
 
-        Ok(DesktopClientState {
+        Ok(ClientState {
             display,
-            kbd_focus: false,
             axis_frame: Default::default(),
             cursor_surface,
             shm,
             xdg_wm_base,
             env_handle: env,
             last_input_serial: None,
-            focused_surface: Focus::LastFocus(Instant::now()),
+            focused_surface: c_focused_surface,
+            hovered_surface: c_hovered_surface,
             _output_listener: output_listener,
             _output_group: s_outputs,
         })

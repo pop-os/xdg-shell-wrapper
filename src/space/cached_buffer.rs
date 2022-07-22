@@ -24,7 +24,6 @@ use sctk::{
 use slog::{trace, warn, Logger};
 use smithay::{
     backend::renderer::{buffer_type, BufferType},
-    reexports::wayland_server::DisplayHandle,
     wayland::{
         compositor::BufferAssignment,
         shm::{with_buffer_contents, BufferData},

@@ -5,12 +5,11 @@ use smithay::{
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
         wayland_server::{
-            protocol::{wl_seat, wl_surface::WlSurface},
-            DisplayHandle, Resource,
+            protocol::{wl_seat},
+            DisplayHandle,
         },
     },
     wayland::{
-        seat::{PointerGrabStartData, Seat},
         shell::xdg::{
             PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
         },
@@ -40,18 +39,19 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         &mut self.embedded_server_state.xdg_shell_state
     }
 
-    fn new_toplevel(&mut self, dh: &DisplayHandle, surface: ToplevelSurface) {
+    fn new_toplevel(&mut self, _dh: &DisplayHandle, surface: ToplevelSurface) {
         let window = Window::new(Kind::Xdg(surface.clone()));
         // window.refresh();
 
-        let wl_surface = surface.wl_surface();
-        if self.desktop_client_state.kbd_focus {
-            for s in &self.embedded_server_state.seats {
-                if let Some(kbd) = s.server.get_keyboard() {
-                    kbd.set_focus(dh, Some(wl_surface), SERIAL_COUNTER.next_serial());
-                }
-            }
-        }
+        // TODO move to space implementation
+        // let wl_surface = surface.wl_surface();
+        // if self.desktop_client_state.kbd_focus {
+        //     for s in &self.embedded_server_state.seats {
+        //         if let Some(kbd) = s.server.get_keyboard() {
+        //             kbd.set_focus(dh, Some(wl_surface), SERIAL_COUNTER.next_serial());
+        //         }
+        //     }
+        // }
 
         self.space.add_window(window);
         surface.send_configure();
@@ -80,19 +80,19 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
     fn move_request(
         &mut self,
         _dh: &DisplayHandle,
-        surface: ToplevelSurface,
-        seat: wl_seat::WlSeat,
-        serial: Serial,
+        _surface: ToplevelSurface,
+        _seat: wl_seat::WlSeat,
+        _serial: Serial,
     ) {
     }
 
     fn resize_request(
         &mut self,
         _dh: &DisplayHandle,
-        surface: ToplevelSurface,
-        seat: wl_seat::WlSeat,
-        serial: Serial,
-        edges: xdg_toplevel::ResizeEdge,
+        _surface: ToplevelSurface,
+        _seat: wl_seat::WlSeat,
+        _serial: Serial,
+        _edges: xdg_toplevel::ResizeEdge,
     ) {
     }
 
@@ -103,26 +103,24 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         seat: wl_seat::WlSeat,
         _serial: Serial,
     ) {
-        if self.desktop_client_state.kbd_focus {
-            for s in &self.embedded_server_state.seats {
-                if s.server.owns(&seat) {
-                    if let Err(e) = self.space.popup_manager().grab_popup(
-                        dh,
-                        PopupKind::Xdg(surface),
-                        &s.server,
-                        SERIAL_COUNTER.next_serial(),
-                    ) {
-                        error!(self.log.clone(), "{}", e);
-                    }
-                    break;
+        for s in &self.embedded_server_state.seats {
+            if s.server.owns(&seat) {
+                if let Err(e) = self.space.popup_manager().grab_popup(
+                    dh,
+                    PopupKind::Xdg(surface),
+                    &s.server,
+                    SERIAL_COUNTER.next_serial(),
+                ) {
+                    error!(self.log.clone(), "{}", e);
                 }
+                break;
             }
         }
     }
 
     fn reposition_request(
         &mut self,
-        dh: &smithay::reexports::wayland_server::DisplayHandle,
+        _dh: &smithay::reexports::wayland_server::DisplayHandle,
         surface: PopupSurface,
         positioner: PositionerState,
         token: u32,
@@ -137,26 +135,3 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 
 // Xdg Shell
 delegate_xdg_shell!(@<W: WrapperSpace + 'static> GlobalState<W>);
-
-fn check_grab<W: WrapperSpace>(
-    seat: &Seat<GlobalState<W>>,
-    surface: &WlSurface,
-    serial: Serial,
-) -> Option<PointerGrabStartData> {
-    let pointer = seat.get_pointer()?;
-
-    // Check that this surface has a click grab.
-    if !pointer.has_grab(serial) {
-        return None;
-    }
-
-    let start_data = pointer.grab_start_data()?;
-
-    let (focus, _) = start_data.focus.as_ref()?;
-    // If the focus was for a different surface, ignore the request.
-    if !focus.id().same_client_as(&surface.id()) {
-        return None;
-    }
-
-    Some(start_data)
-}

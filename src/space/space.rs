@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::{
-    cell::{RefCell},
     os::unix::net::UnixStream,
-    rc::Rc,
     time::{Duration, Instant},
 };
 
@@ -13,7 +11,7 @@ use sctk::{
     reexports::{
         client::{
             self,
-            protocol::{wl_output as c_wl_output, wl_surface as c_wl_surface},
+            protocol::{wl_output as c_wl_output},
             Attached, Main,
         },
         protocols::xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
@@ -30,9 +28,9 @@ use smithay::{
 };
 
 use crate::{
-    client_state::{Env, Focus},
+    client_state::{Env, ClientFocus},
     config::WrapperConfig,
-    space::Popup,
+    space::Popup, server_state::ServerFocus,
 };
 
 /// Space events
@@ -106,8 +104,11 @@ pub trait WrapperSpace {
         &mut self,
         env: &Environment<Env>,
         c_display: client::Display,
-        log: Logger,
-        focused_surface: Rc<RefCell<Option<s_WlSurface>>>,
+        c_focused_surface: ClientFocus,
+        c_hovered_surface: ClientFocus,
+        s_focused_surface: ServerFocus,
+        s_hovered_surface: ServerFocus,
+
     );
 
     /// add the configured output to the space
@@ -119,10 +120,10 @@ pub trait WrapperSpace {
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
-    fn update_pointer(&mut self, dim: (i32, i32));
+    fn update_pointer(&mut self, dim: (i32, i32), seat_name: &str);
 
     /// handle a button press on a client surface
-    fn handle_button(&mut self, c_focused_surface: &c_wl_surface::WlSurface) -> bool;
+    fn handle_button(&mut self, seat_name: &str) -> bool;
 
     /// add a top level window to the space
     fn add_window(&mut self, s_top_level: Window);
@@ -138,7 +139,17 @@ pub trait WrapperSpace {
     );
 
     /// keyboard focus lost handler
-    fn keyboard_focus_lost(&mut self);
+    fn keyboard_leave(&mut self, seat_name: &str);
+
+    /// keyboard focus gained handler
+    fn keyboard_enter(&mut self, seat_name: &str);
+
+    /// pointer focus lost handler
+    fn pointer_leave(&mut self, seat_name: &str);
+
+    /// pointer focus gained handler
+    fn pointer_enter(&mut self, seat_name: &str);
+
 
     /// repositions a popup
     fn reposition_popup(
@@ -151,7 +162,7 @@ pub trait WrapperSpace {
 
     /// called in a loop by xdg-shell-wrapper
     /// handles events for the space
-    fn handle_events(&mut self, dh: &DisplayHandle, time: u32, focus: &Focus) -> Instant;
+    fn handle_events(&mut self, dh: &DisplayHandle, time: u32, focus: &ClientFocus) -> Instant;
 
     /// gets the config
     fn config(&self) -> Self::Config;

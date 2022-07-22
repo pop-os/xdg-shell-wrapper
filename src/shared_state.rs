@@ -22,8 +22,8 @@ use smithay::{
     wayland::{output::Output, seat},
 };
 
-use crate::client_state::{DesktopClientState, Env};
-use crate::server_state::EmbeddedServerState;
+use crate::client_state::{ClientState, Env};
+use crate::server_state::ServerState;
 use crate::space::WrapperSpace;
 use crate::CachedBuffers;
 
@@ -33,6 +33,7 @@ pub type OutputGroup = (Output, GlobalId, String, c_wl_output::WlOutput);
 /// axis frame date
 #[derive(Debug, Default)]
 pub(crate) struct AxisFrameData {
+    pub(crate) seat_name: String,
     pub(crate) frame: Option<seat::AxisFrame>,
     pub(crate) source: Option<AxisSource>,
     pub(crate) h_discrete: Option<i32>,
@@ -40,14 +41,14 @@ pub(crate) struct AxisFrameData {
 }
 
 /// the  global state for the embedded server state
-#[derive(Debug)]
+#[allow(missing_debug_implementations)]
 pub struct GlobalState<W: WrapperSpace + 'static> {
     /// the implemented space
     pub space: W,
     /// desktop client state
-    pub desktop_client_state: DesktopClientState,
+    pub desktop_client_state: ClientState,
     /// embedded server state
-    pub embedded_server_state: EmbeddedServerState<W>,
+    pub embedded_server_state: ServerState<W>,
     /// instant that the panel was started
     pub start_time: std::time::Instant,
     /// panel logger
@@ -79,6 +80,6 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
 
 #[derive(Debug)]
 pub(crate) struct SelectedDataProvider {
-    pub(crate) seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>>,
+    pub(crate) _seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>>,
     pub(crate) env_handle: Rc<OnceCell<Environment<Env>>>,
 }

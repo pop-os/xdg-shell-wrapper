@@ -4,7 +4,6 @@ use once_cell::sync::OnceCell;
 use sctk::reexports::client::Attached;
 use slog::Logger;
 use smithay::{
-    desktop::Window,
     reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
     wayland::{
         compositor::CompositorState,
@@ -14,7 +13,7 @@ use smithay::{
         seat::{self, SeatState},
         shell::xdg::XdgShellState,
         shm::ShmState,
-    },
+    }, utils::{Logical, Point},
 };
 
 use crate::{
@@ -23,10 +22,32 @@ use crate::{
     space::WrapperSpace,
 };
 
-#[derive(Debug)]
-pub struct EmbeddedServerState<W: WrapperSpace + 'static> {
-    pub(crate) root_window: Option<Rc<RefCell<Window>>>,
-    pub(crate) focused_surface: Rc<RefCell<Option<WlSurface>>>,
+
+/// list of focused surfaces and the seats that focus them
+
+pub type ServerFocus = Rc<RefCell<Vec<(WlSurface, String)>>>;
+#[allow(missing_debug_implementations)]
+
+/// Information for tracking the server pointer focus
+pub struct ServerPointerFocus {
+    /// focused wl surface
+    pub surface: WlSurface,
+    /// name of the seat which is focusing
+    pub seat_name: String, 
+    /// location in compositor space for the layer shell surface or popup
+    pub c_pos: Point<i32, Logical>,
+    /// location of the focused embedded surface in compositor space
+    pub s_pos: Point<i32, Logical>,
+}
+
+/// helper type for focus
+pub type ServerPtrFocus = Rc<RefCell<Vec<ServerPointerFocus>>>;
+
+#[allow(missing_debug_implementations)]
+/// internal server state
+pub struct ServerState<W: WrapperSpace + 'static> {
+    pub(crate) focused_surface: ServerFocus,
+    pub(crate) hovered_surface: ServerPtrFocus,
     pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,
@@ -35,21 +56,21 @@ pub struct EmbeddedServerState<W: WrapperSpace + 'static> {
     pub(crate) compositor_state: CompositorState,
     pub(crate) xdg_shell_state: XdgShellState,
     pub(crate) shm_state: ShmState,
-    pub(crate) output_manager_state: OutputManagerState,
+    pub(crate) _output_manager_state: OutputManagerState,
     pub(crate) seat_state: SeatState<GlobalState<W>>,
     pub(crate) data_device_state: DataDeviceState,
     pub(crate) dmabuf_state: Option<(DmabufState, DmabufGlobal)>,
 }
 
-impl<W: WrapperSpace> EmbeddedServerState<W> {
-    pub(crate) fn new(dh: &DisplayHandle, log: Logger) -> EmbeddedServerState<W> {
+impl<W: WrapperSpace> ServerState<W> {
+    pub(crate) fn new(dh: &DisplayHandle, log: Logger) -> ServerState<W> {
         let selected_seat: Rc<
             RefCell<Option<Attached<sctk::reexports::client::protocol::wl_seat::WlSeat>>>,
         > = Rc::new(RefCell::new(None));
         let env: Rc<OnceCell<sctk::environment::Environment<Env>>> = Rc::new(OnceCell::new());
-        let selected_data_provider = selected_seat.clone();
-        let env_handle = env.clone();
-        let logger = log.clone();
+        // let selected_data_provider = selected_seat.clone();
+        // let env_handle = env.clone();
+        // let logger = log.clone();
         // init_data_device(
         //     &mut display,
         //     move |event| {
@@ -96,11 +117,9 @@ impl<W: WrapperSpace> EmbeddedServerState<W> {
         //     log.clone(),
         // );
 
-        EmbeddedServerState {
-            root_window: Default::default(),
-            focused_surface: Default::default(),
+        ServerState {
             selected_data_provider: SelectedDataProvider {
-                seat: selected_seat,
+                _seat: selected_seat,
                 env_handle: env,
             },
             last_button: None,
@@ -108,15 +127,16 @@ impl<W: WrapperSpace> EmbeddedServerState<W> {
             compositor_state: CompositorState::new::<GlobalState<W>, _>(&dh, log.clone()),
             xdg_shell_state: XdgShellState::new::<GlobalState<W>, _>(&dh, log.clone()),
             shm_state: ShmState::new::<GlobalState<W>, _>(&dh, vec![], log.clone()),
-            output_manager_state: OutputManagerState::new_with_xdg_output::<GlobalState<W>>(&dh),
+            _output_manager_state: OutputManagerState::new_with_xdg_output::<GlobalState<W>>(&dh),
             seat_state: SeatState::new(),
             data_device_state: DataDeviceState::new::<GlobalState<W>, _>(&dh, log.clone()),
             dmabuf_state: None,
+            focused_surface: Default::default(),
+            hovered_surface: Default::default(),
         }
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct SeatPair<W: WrapperSpace + 'static> {
     pub(crate) name: String,
     pub(crate) client: ClientSeat,

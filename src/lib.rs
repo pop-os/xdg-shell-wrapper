@@ -15,15 +15,18 @@ use smithay::reexports::{
 };
 
 pub use client::state as client_state;
-use client::state::DesktopClientState;
+use client::state::ClientState;
 pub use server::state as server_state;
-use server::state::EmbeddedServerState;
+use server::state::ServerState;
 use shared_state::GlobalState;
 use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
 pub use xdg_shell_wrapper_config as config;
 
+/// shared state
 pub mod shared_state;
+/// wrapper space abstraction
 pub mod space;
+/// utilities
 pub mod util;
 
 mod client;
@@ -53,9 +56,9 @@ pub fn run<W: WrapperSpace + 'static>(
         )
         .expect("Failed to init wayland server source");
 
-    let mut embedded_server_state = EmbeddedServerState::new(&s_dh, log.clone());
+    let mut embedded_server_state = ServerState::new(&s_dh, log.clone());
 
-    let desktop_client_state = DesktopClientState::new(
+    let desktop_client_state = ClientState::new(
         loop_handle.clone(),
         &mut space,
         log.clone(),

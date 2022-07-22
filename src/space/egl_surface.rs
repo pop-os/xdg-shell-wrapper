@@ -18,7 +18,9 @@ use smithay::{
 /// Client Egl surface
 #[derive(Debug)]
 pub struct ClientEglSurface {
+    /// egl surface
     pub wl_egl_surface: wayland_egl::WlEglSurface,
+    /// client display
     pub display: client::Display,
 }
 
