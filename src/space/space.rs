@@ -9,11 +9,7 @@ use sctk::{
     environment::Environment,
     output::OutputInfo,
     reexports::{
-        client::{
-            self,
-            protocol::{wl_output as c_wl_output},
-            Attached, Main,
-        },
+        client::{self, protocol::wl_output as c_wl_output, Attached, Main},
         protocols::xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
     },
 };
@@ -28,9 +24,10 @@ use smithay::{
 };
 
 use crate::{
-    client_state::{Env, ClientFocus},
+    client_state::{ClientFocus, Env},
     config::WrapperConfig,
-    space::Popup, server_state::ServerFocus,
+    server_state::ServerFocus,
+    space::Popup,
 };
 
 /// Space events
@@ -108,7 +105,6 @@ pub trait WrapperSpace {
         c_hovered_surface: ClientFocus,
         s_focused_surface: ServerFocus,
         s_hovered_surface: ServerFocus,
-
     );
 
     /// add the configured output to the space
@@ -149,7 +145,6 @@ pub trait WrapperSpace {
 
     /// pointer focus gained handler
     fn pointer_enter(&mut self, seat_name: &str);
-
 
     /// repositions a popup
     fn reposition_popup(

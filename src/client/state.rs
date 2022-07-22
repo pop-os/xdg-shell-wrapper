@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell};
+use std::{cell::RefCell, rc::Rc};
 
 use sctk::{
     default_environment,
@@ -7,7 +7,7 @@ use sctk::{
     reexports::{
         client::{
             self,
-            protocol::{wl_keyboard, wl_pointer, wl_seat::{WlSeat}, wl_shm, wl_surface},
+            protocol::{wl_keyboard, wl_pointer, wl_seat::WlSeat, wl_shm, wl_surface},
             Attached, Display, Proxy,
         },
         protocols::{
@@ -27,7 +27,7 @@ use smithay::{
 use crate::{
     client::handlers::seat::send_keyboard_event,
     config::WrapperConfig,
-    server_state::{ServerState, SeatPair},
+    server_state::{SeatPair, ServerState},
     shared_state::{AxisFrameData, GlobalState, OutputGroup},
     space::WrapperSpace,
 };
@@ -167,7 +167,14 @@ impl ClientState {
         let s_focused_surface = embedded_server_state.focused_surface.clone();
         let c_focused_surface: ClientFocus = Default::default();
         let c_hovered_surface: ClientFocus = Default::default();
-        space.setup(&env, display.clone(), c_focused_surface.clone(), c_hovered_surface.clone(), s_focused_surface.clone(), s_focused_surface.clone());
+        space.setup(
+            &env,
+            display.clone(),
+            c_focused_surface.clone(),
+            c_hovered_surface.clone(),
+            s_focused_surface.clone(),
+            s_focused_surface.clone(),
+        );
 
         for o in &outputs {
             if let Some(info) = with_output_info(&o, Clone::clone) {
@@ -187,18 +194,17 @@ impl ClientState {
             space.handle_output(&env, None, None).unwrap();
         } else {
             for o in &outputs {
-                if let Some(info) = with_output_info(&o, Clone::clone)
-                    .and_then(|info| {
-                        if configured_outputs
-                            .iter()
-                            .find(|configured| *configured == &info.name).is_some()
-                        {
-                            Some(info)
-                        } else {
-                            None
-                        }
-                    })
-                {
+                if let Some(info) = with_output_info(&o, Clone::clone).and_then(|info| {
+                    if configured_outputs
+                        .iter()
+                        .find(|configured| *configured == &info.name)
+                        .is_some()
+                    {
+                        Some(info)
+                    } else {
+                        None
+                    }
+                }) {
                     let env_handle = env.clone();
                     let logger = log.clone();
                     handle_output(&env_handle, logger, o, &info, dh, &mut s_outputs, space);

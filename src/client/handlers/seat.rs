@@ -14,10 +14,7 @@ use smithay::utils::Point;
 use smithay::wayland::seat::MotionEvent;
 use smithay::{
     backend::input::KeyState,
-    reexports::wayland_server::{
-        protocol::{wl_pointer},
-        Display
-    },
+    reexports::wayland_server::{protocol::wl_pointer, Display},
     wayland::{
         seat::{self, AxisFrame, ButtonEvent, FilterResult},
         SERIAL_COUNTER,
@@ -28,7 +25,7 @@ use crate::server_state::ServerPointerFocus;
 use crate::shared_state::AxisFrameData;
 use crate::{
     client_state::{ClientSeat, ClientState},
-    server_state::{ServerState, SeatPair},
+    server_state::{SeatPair, ServerState},
     shared_state::GlobalState,
     space::WrapperSpace,
 };
@@ -121,13 +118,16 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
 
                 {
                     let mut c_focused_surface = c_focused_surface.borrow_mut();
-                    if c_focused_surface.iter().position(|f| f.0 == surface).is_none() {
+                    if c_focused_surface
+                        .iter()
+                        .position(|f| f.0 == surface)
+                        .is_none()
+                    {
                         c_focused_surface.push((surface.clone(), seat_name.to_string()));
                     }
                 }
 
                 space.keyboard_enter(seat_name);
-
 
                 kbd.set_focus(
                     &dh,
@@ -203,9 +203,12 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     c_pos,
                     s_pos,
                     ..
-                }) = s_hovered_surface.borrow().iter().find(|f| f.seat_name == seat_name) {
+                }) = s_hovered_surface
+                    .borrow()
+                    .iter()
+                    .find(|f| f.seat_name == seat_name)
+                {
                     (surface.clone(), c_pos.clone(), s_pos.clone())
-                    
                 } else {
                     return;
                 };
@@ -262,16 +265,15 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 }
             }
             c_wl_pointer::Event::Axis { time, axis, value } => {
-                let axis_frame = if let Some(af) = axis_frame.iter_mut().find(|af| 
-                    af.seat_name == seat_name
-                ) {
-                    af
-                } else {
-                    let mut new_afd = AxisFrameData::default();
-                    new_afd.seat_name = seat_name.to_string();
-                    axis_frame.push(new_afd);
-                    axis_frame.last_mut().unwrap()
-                };
+                let axis_frame =
+                    if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
+                        af
+                    } else {
+                        let mut new_afd = AxisFrameData::default();
+                        new_afd.seat_name = seat_name.to_string();
+                        axis_frame.push(new_afd);
+                        axis_frame.last_mut().unwrap()
+                    };
 
                 let af = if let Some(af) = &mut axis_frame.frame {
                     af
@@ -279,7 +281,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     axis_frame.frame.replace(AxisFrame::new(time));
                     axis_frame.frame.as_mut().unwrap()
                 };
-                
+
                 if let Some(axis_source) = axis_frame.source.take() {
                     *af = af.source(axis_source);
                 }
@@ -302,13 +304,12 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
             }
             c_wl_pointer::Event::Frame => {
                 // return if no matching axis frame
-                let axis_frame = if let Some(af) = axis_frame.iter_mut().find(|af| 
-                    af.seat_name == seat_name
-                ) {
-                    af
-                } else {
-                    return;
-                };
+                let axis_frame =
+                    if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
+                        af
+                    } else {
+                        return;
+                    };
                 if let Some(af) = axis_frame.frame.take() {
                     ptr.axis(global_state, &dh, af);
                 }
@@ -317,16 +318,15 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
             }
             c_wl_pointer::Event::AxisSource { axis_source } => {
                 // add source to the current frame if it exists
-                let mut axis_frame = if let Some(af) = axis_frame.iter_mut().find(|af| 
-                    af.seat_name == seat_name
-                ) {
-                    af
-                } else {
-                    let mut new_afd = AxisFrameData::default();
-                    new_afd.seat_name = seat_name.to_string();
-                    axis_frame.push(new_afd);
-                    axis_frame.last_mut().unwrap()
-                };
+                let mut axis_frame =
+                    if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
+                        af
+                    } else {
+                        let mut new_afd = AxisFrameData::default();
+                        new_afd.seat_name = seat_name.to_string();
+                        axis_frame.push(new_afd);
+                        axis_frame.last_mut().unwrap()
+                    };
                 let source = wl_pointer::AxisSource::try_from(axis_source as u32);
                 if let Some(af) = axis_frame.frame.as_mut() {
                     if let Ok(source) = source {
@@ -338,16 +338,15 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 }
             }
             c_wl_pointer::Event::AxisStop { time, axis } => {
-                let axis_frame = if let Some(af) = axis_frame.iter_mut().find(|af| 
-                    af.seat_name == seat_name
-                ) {
-                    af
-                } else {
-                    let mut new_afd = AxisFrameData::default();
-                    new_afd.seat_name = seat_name.to_string();
-                    axis_frame.push(new_afd);
-                    axis_frame.last_mut().unwrap()
-                };
+                let axis_frame =
+                    if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
+                        af
+                    } else {
+                        let mut new_afd = AxisFrameData::default();
+                        new_afd.seat_name = seat_name.to_string();
+                        axis_frame.push(new_afd);
+                        axis_frame.last_mut().unwrap()
+                    };
 
                 let af = if let Some(af) = &mut axis_frame.frame {
                     af
@@ -361,16 +360,15 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 }
             }
             c_wl_pointer::Event::AxisDiscrete { axis, discrete } => {
-                let axis_frame = if let Some(af) = axis_frame.iter_mut().find(|af| 
-                    af.seat_name == seat_name
-                ) {
-                    af
-                } else {
-                    let mut new_afd = AxisFrameData::default();
-                    new_afd.seat_name = seat_name.to_string();
-                    axis_frame.push(new_afd);
-                    axis_frame.last_mut().unwrap()
-                };
+                let axis_frame =
+                    if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
+                        af
+                    } else {
+                        let mut new_afd = AxisFrameData::default();
+                        new_afd.seat_name = seat_name.to_string();
+                        axis_frame.push(new_afd);
+                        axis_frame.last_mut().unwrap()
+                    };
                 match axis {
                     c_wl_pointer::Axis::HorizontalScroll => {
                         axis_frame.h_discrete.replace(discrete);
@@ -380,13 +378,17 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     }
                     _ => (),
                 }
-            },
+            }
             c_wl_pointer::Event::Enter { surface, .. } => {
                 // if not popup, then must be a panel layer shell surface
                 // TODO better handling of subsurfaces?
                 {
                     let mut c_hovered_surface = c_hovered_surface.borrow_mut();
-                    if c_hovered_surface.iter().position(|f| f.0 == surface).is_none() {
+                    if c_hovered_surface
+                        .iter()
+                        .position(|f| f.0 == surface)
+                        .is_none()
+                    {
                         c_hovered_surface.push((surface.clone(), seat_name.to_string()));
                     }
                 }
@@ -401,7 +403,6 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     }
                 }
                 space.pointer_leave(seat_name);
-
             }
             _ => (),
         };

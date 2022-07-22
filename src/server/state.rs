@@ -5,6 +5,7 @@ use sctk::reexports::client::Attached;
 use slog::Logger;
 use smithay::{
     reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
+    utils::{Logical, Point},
     wayland::{
         compositor::CompositorState,
         data_device::DataDeviceState,
@@ -13,7 +14,7 @@ use smithay::{
         seat::{self, SeatState},
         shell::xdg::XdgShellState,
         shm::ShmState,
-    }, utils::{Logical, Point},
+    },
 };
 
 use crate::{
@@ -21,7 +22,6 @@ use crate::{
     shared_state::{GlobalState, SelectedDataProvider},
     space::WrapperSpace,
 };
-
 
 /// list of focused surfaces and the seats that focus them
 
@@ -33,7 +33,7 @@ pub struct ServerPointerFocus {
     /// focused wl surface
     pub surface: WlSurface,
     /// name of the seat which is focusing
-    pub seat_name: String, 
+    pub seat_name: String,
     /// location in compositor space for the layer shell surface or popup
     pub c_pos: Point<i32, Logical>,
     /// location of the focused embedded surface in compositor space

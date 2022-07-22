@@ -4,10 +4,7 @@ use smithay::{
     desktop::{Kind, PopupKind, Window},
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
-        wayland_server::{
-            protocol::{wl_seat},
-            DisplayHandle,
-        },
+        wayland_server::{protocol::wl_seat, DisplayHandle},
     },
     wayland::{
         shell::xdg::{
