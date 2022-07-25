@@ -192,9 +192,6 @@ pub trait WrapperSpace {
     /// marks the popup as dirtied()
     fn dirty_popup(&mut self, dh: &DisplayHandle, w: &s_WlSurface);
 
-    /// gets the popups
-    fn popups(&self) -> Vec<&Popup>;
-
     /// gets the renderer for the space
     fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
 
