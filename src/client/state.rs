@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use sctk::{
     default_environment,
@@ -44,8 +44,13 @@ pub(crate) struct ClientSeat {
     pub(crate) ptr: Option<wl_pointer::WlPointer>,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum FocusStatus {
+    Focused,
+    LastFocused(Instant),
+}
 /// list of focused surfaces and the seats that focus them
-pub type ClientFocus = Rc<RefCell<Vec<(wl_surface::WlSurface, String)>>>;
+pub type ClientFocus = Rc<RefCell<Vec<(wl_surface::WlSurface, String, FocusStatus)>>>;
 
 /// Wrapper client state
 #[derive(Debug)]

@@ -115,7 +115,6 @@ pub fn run<W: WrapperSpace + 'static>(
                     .as_millis()
                     .try_into()
                     .unwrap(),
-                &shared_data.desktop_client_state.focused_surface,
             );
         }
 

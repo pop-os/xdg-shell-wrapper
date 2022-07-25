@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
+use std::time::Instant;
+
 use sctk::seat::keyboard::keysyms::XKB_KEY_Escape;
 use sctk::{
     reexports::client::{
@@ -21,6 +23,7 @@ use smithay::{
     },
 };
 
+use crate::client_state::FocusStatus;
 use crate::server_state::ServerPointerFocus;
 use crate::shared_state::AxisFrameData;
 use crate::{
@@ -118,12 +121,14 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
 
                 {
                     let mut c_focused_surface = c_focused_surface.borrow_mut();
-                    if c_focused_surface
+                    if let Some(i) = c_focused_surface
                         .iter()
                         .position(|f| f.0 == surface)
-                        .is_none()
                     {
-                        c_focused_surface.push((surface.clone(), seat_name.to_string()));
+                        c_focused_surface[i].2 = FocusStatus::Focused;
+                    }  else {
+                        c_focused_surface.push((surface.clone(), seat_name.to_string(), FocusStatus::Focused));
+
                     }
                 }
 
@@ -145,7 +150,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                 let kbd_focus = {
                     let mut c_focused_surface = c_focused_surface.borrow_mut();
                     if let Some(i) = c_focused_surface.iter().position(|f| f.0 == surface) {
-                        c_focused_surface.swap_remove(i);
+                        c_focused_surface[i].2 = FocusStatus::LastFocused(Instant::now());
                         true
                     } else {
                         false
@@ -384,12 +389,13 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 // TODO better handling of subsurfaces?
                 {
                     let mut c_hovered_surface = c_hovered_surface.borrow_mut();
-                    if c_hovered_surface
+                    if let Some(i) = c_hovered_surface
                         .iter()
                         .position(|f| f.0 == surface)
-                        .is_none()
                     {
-                        c_hovered_surface.push((surface.clone(), seat_name.to_string()));
+                        c_hovered_surface[i].2 = FocusStatus::Focused;
+                    } else {
+                        c_hovered_surface.push((surface.clone(), seat_name.to_string(), FocusStatus::Focused));
                     }
                 }
 
@@ -399,7 +405,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 {
                     let mut c_hovered_surface = c_hovered_surface.borrow_mut();
                     if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == surface) {
-                        c_hovered_surface.swap_remove(i);
+                        c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
                     }
                 }
                 space.pointer_leave(seat_name);

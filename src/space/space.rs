@@ -157,7 +157,7 @@ pub trait WrapperSpace {
 
     /// called in a loop by xdg-shell-wrapper
     /// handles events for the space
-    fn handle_events(&mut self, dh: &DisplayHandle, time: u32, focus: &ClientFocus) -> Instant;
+    fn handle_events(&mut self, dh: &DisplayHandle, time: u32) -> Instant;
 
     /// gets the config
     fn config(&self) -> Self::Config;
