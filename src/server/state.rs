@@ -25,10 +25,11 @@ use crate::{
 
 /// list of focused surfaces and the seats that focus them
 
-pub type ServerFocus = Rc<RefCell<Vec<(WlSurface, String)>>>;
+pub type ServerFocus = Vec<(WlSurface, String)>;
 #[allow(missing_debug_implementations)]
 
 /// Information for tracking the server pointer focus
+#[derive(Debug, Clone)]
 pub struct ServerPointerFocus {
     /// focused wl surface
     pub surface: WlSurface,
@@ -41,13 +42,13 @@ pub struct ServerPointerFocus {
 }
 
 /// helper type for focus
-pub type ServerPtrFocus = Rc<RefCell<Vec<ServerPointerFocus>>>;
+pub type ServerPtrFocus = Vec<ServerPointerFocus>;
 
 #[allow(missing_debug_implementations)]
 /// internal server state
 pub struct ServerState<W: WrapperSpace + 'static> {
-    pub(crate) focused_surface: ServerFocus,
-    pub(crate) hovered_surface: ServerPtrFocus,
+    // pub(crate) focused_surface: ServerFocus,
+    // pub(crate) hovered_surface: ServerPtrFocus,
     pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,
@@ -131,8 +132,8 @@ impl<W: WrapperSpace> ServerState<W> {
             seat_state: SeatState::new(),
             data_device_state: DataDeviceState::new::<GlobalState<W>, _>(&dh, log.clone()),
             dmabuf_state: None,
-            focused_surface: Default::default(),
-            hovered_surface: Default::default(),
+            // focused_surface: Default::default(),
+            // hovered_surface: Default::default(),
         }
     }
 }

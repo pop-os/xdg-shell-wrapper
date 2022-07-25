@@ -49,7 +49,6 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
         ..
     } = &mut state.desktop_client_state;
     let ServerState {
-        focused_surface: s_focused_surface,
         seats,
         ..
     } = &mut state.embedded_server_state;
@@ -92,7 +91,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     },
                 ) {
                     Some(_) => {
-                        space.keyboard_leave(seat_name);
+                        space.keyboard_leave(seat_name, None);
                         kbd.set_focus(&dh, None, SERIAL_COUNTER.next_serial());
                     }
                     None => {}
@@ -132,17 +131,11 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     }
                 }
 
-                space.keyboard_enter(seat_name);
+                let s = space.keyboard_enter(seat_name, Some(surface));
 
                 kbd.set_focus(
                     &dh,
-                    s_focused_surface.borrow().iter().find_map(|f| {
-                        if &f.1 == seat_name {
-                            Some(&f.0)
-                        } else {
-                            None
-                        }
-                    }),
+                    s.as_ref(),
                     SERIAL_COUNTER.next_serial(),
                 );
             }
@@ -157,7 +150,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     }
                 };
                 if kbd_focus {
-                    space.keyboard_leave(seat_name);
+                    space.keyboard_leave(seat_name, Some(surface));
                     kbd.set_focus(&dh, None, SERIAL_COUNTER.next_serial());
                 }
             }
@@ -185,7 +178,6 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
     let ServerState {
         seats,
         last_button,
-        hovered_surface: s_hovered_surface,
         ..
     } = &mut global_state.embedded_server_state;
     let start_time = global_state.start_time;
@@ -202,16 +194,12 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 surface_x,
                 surface_y,
             } => {
-                space.update_pointer((surface_x as i32, surface_y as i32), seat_name);
                 let (surface, c_pos, s_pos) = if let Some(ServerPointerFocus {
                     surface,
                     c_pos,
                     s_pos,
                     ..
-                }) = s_hovered_surface
-                    .borrow()
-                    .iter()
-                    .find(|f| f.seat_name == seat_name)
+                }) = space.update_pointer((surface_x as i32, surface_y as i32), seat_name)
                 {
                     (surface.clone(), c_pos.clone(), s_pos.clone())
                 } else {
@@ -238,22 +226,14 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 last_input_serial.replace(serial);
                 last_button.replace(button);
 
+                let s = space.handle_press(seat_name);
+
                 if let Some(kbd) = kbd.as_ref() {
                     kbd.set_focus(
                         &dh,
-                        s_hovered_surface.borrow().iter().find_map(|f| {
-                            if &f.seat_name == seat_name {
-                                Some(&f.surface)
-                            } else {
-                                None
-                            }
-                        }),
+                        s.as_ref(),
                         SERIAL_COUNTER.next_serial(),
                     );
-                }
-
-                if space.handle_button(seat_name) {
-                    return;
                 }
 
                 if let Ok(button_state) = wl_pointer::ButtonState::try_from(state as u32) {
@@ -399,7 +379,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     }
                 }
 
-                space.pointer_enter(seat_name);
+                space.pointer_enter(seat_name, Some(surface));
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
                 {
@@ -408,7 +388,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                         c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
                     }
                 }
-                space.pointer_leave(seat_name);
+                space.pointer_leave(seat_name, Some(surface));
             }
             _ => (),
         };

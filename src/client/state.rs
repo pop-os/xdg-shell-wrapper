@@ -49,6 +49,7 @@ pub enum FocusStatus {
     Focused,
     LastFocused(Instant),
 }
+// TODO remove refcell if possible
 /// list of focused surfaces and the seats that focus them
 pub type ClientFocus = Rc<RefCell<Vec<(wl_surface::WlSurface, String, FocusStatus)>>>;
 
@@ -169,7 +170,6 @@ impl ClientState {
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         let outputs = env.get_all_outputs();
-        let s_focused_surface = embedded_server_state.focused_surface.clone();
         let c_focused_surface: ClientFocus = Default::default();
         let c_hovered_surface: ClientFocus = Default::default();
         space.setup(
@@ -177,8 +177,6 @@ impl ClientState {
             display.clone(),
             c_focused_surface.clone(),
             c_hovered_surface.clone(),
-            s_focused_surface.clone(),
-            s_focused_surface.clone(),
         );
 
         for o in &outputs {

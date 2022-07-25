@@ -9,7 +9,7 @@ use sctk::{
     environment::Environment,
     output::OutputInfo,
     reexports::{
-        client::{self, protocol::wl_output as c_wl_output, Attached, Main},
+        client::{self, protocol::{wl_output as c_wl_output, wl_surface}, Attached, Main},
         protocols::xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
     },
 };
@@ -26,7 +26,7 @@ use smithay::{
 use crate::{
     client_state::{ClientFocus, Env},
     config::WrapperConfig,
-    server_state::ServerFocus,
+    server_state::{ServerFocus, ServerPointerFocus},
     space::Popup,
 };
 
@@ -103,8 +103,6 @@ pub trait WrapperSpace {
         c_display: client::Display,
         c_focused_surface: ClientFocus,
         c_hovered_surface: ClientFocus,
-        s_focused_surface: ServerFocus,
-        s_hovered_surface: ServerFocus,
     );
 
     /// add the configured output to the space
@@ -116,10 +114,7 @@ pub trait WrapperSpace {
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
-    fn update_pointer(&mut self, dim: (i32, i32), seat_name: &str);
-
-    /// handle a button press on a client surface
-    fn handle_button(&mut self, seat_name: &str) -> bool;
+    fn update_pointer(&mut self, dim: (i32, i32), seat_name: &str) -> Option<ServerPointerFocus>;
 
     /// add a top level window to the space
     fn add_window(&mut self, s_top_level: Window);
@@ -134,17 +129,22 @@ pub trait WrapperSpace {
         positioner_state: PositionerState,
     );
 
+    /// handle a button press on a client surface
+    /// optionally returns a pressed server wl surface
+    fn handle_press(&mut self, seat_name: &str) -> Option<s_WlSurface>;
+
     /// keyboard focus lost handler
-    fn keyboard_leave(&mut self, seat_name: &str);
+    fn keyboard_leave(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
 
     /// keyboard focus gained handler
-    fn keyboard_enter(&mut self, seat_name: &str);
+    /// optionally returns a focused server wl surface
+    fn keyboard_enter(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>)  -> Option<s_WlSurface>;
 
     /// pointer focus lost handler
-    fn pointer_leave(&mut self, seat_name: &str);
+    fn pointer_leave(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
 
     /// pointer focus gained handler
-    fn pointer_enter(&mut self, seat_name: &str);
+    fn pointer_enter(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
 
     /// repositions a popup
     fn reposition_popup(
