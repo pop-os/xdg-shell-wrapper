@@ -35,7 +35,7 @@ use crate::{server_state::SeatPair, shared_state::GlobalState, space::WrapperSpa
 // } = &mut state.embedded_server_state;
 impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
     fn compositor_state(&mut self) -> &mut CompositorState {
-        &mut self.embedded_server_state.compositor_state
+        &mut self.server_state.compositor_state
     }
 
     fn commit(&mut self, dh: &DisplayHandle, surface: &WlSurface) {
@@ -49,11 +49,12 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             self.space.dirty_window(&dh, &surface)
         } else if role == "xdg_popup".into() {
             on_commit_buffer_handler(&surface);
-            self.space.dirty_popup(&dh, &surface)
+            self.space.dirty_popup(&dh, &surface);
+            self.server_state.popup_manager.commit(&surface);
         } else if role == "cursor_image".into() {
             // FIXME pass cursor image to parent compositor
             trace!(log, "received surface with cursor image");
-            for SeatPair { client, .. } in &self.embedded_server_state.seats {
+            for SeatPair { client, .. } in &self.server_state.seats {
                 if let Some(ptr) = client.ptr.as_ref() {
                     trace!(log, "updating cursor for pointer {:?}", &ptr);
                     let _ = with_states(&surface, |data| {
@@ -64,14 +65,14 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                                 trace!(log, "attaching buffer to cursor surface.");
                                 let _ = cached_buffers.write_and_attach_buffer(
                                     buf.as_ref().unwrap(),
-                                    &self.desktop_client_state.cursor_surface,
-                                    &self.desktop_client_state.shm,
+                                    &self.client_state.cursor_surface,
+                                    &self.client_state.shm,
                                 );
 
                                 trace!(log, "requesting update");
                                 ptr.set_cursor(
                                     SERIAL_COUNTER.next_serial().into(),
-                                    Some(&self.desktop_client_state.cursor_surface),
+                                    Some(&self.client_state.cursor_surface),
                                     0,
                                     0,
                                 );
@@ -94,7 +95,7 @@ impl<W: WrapperSpace> BufferHandler for GlobalState<W> {
 
 impl<W: WrapperSpace> ShmHandler for GlobalState<W> {
     fn shm_state(&self) -> &ShmState {
-        &self.embedded_server_state.shm_state
+        &self.server_state.shm_state
     }
 }
 

@@ -47,11 +47,11 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
         last_input_serial,
         focused_surface: c_focused_surface,
         ..
-    } = &mut state.desktop_client_state;
+    } = &mut state.client_state;
     let ServerState {
         seats,
         ..
-    } = &mut state.embedded_server_state;
+    } = &mut state.server_state;
     if let Some(seat) = seats.iter().find(|SeatPair { name, .. }| name == seat_name) {
         let kbd = match seat.server.get_keyboard() {
             Some(kbd) => kbd,
@@ -174,12 +174,12 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
         last_input_serial,
         hovered_surface: c_hovered_surface,
         ..
-    } = &mut global_state.desktop_client_state;
+    } = &mut global_state.client_state;
     let ServerState {
         seats,
         last_button,
         ..
-    } = &mut global_state.embedded_server_state;
+    } = &mut global_state.server_state;
     let start_time = global_state.start_time;
     let time = start_time.elapsed().as_millis();
     if let Some((Some(ptr), kbd)) = seats
@@ -407,7 +407,7 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
     // let DesktopClientState {
     //     env_handle, ..
     // } = &mut state.desktop_client_state;
-    let ServerState { seats, .. } = &mut state.embedded_server_state;
+    let ServerState { seats, .. } = &mut state.server_state;
     let dh = server_display.handle();
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown

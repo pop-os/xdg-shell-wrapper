@@ -13,7 +13,7 @@ use smithay::{
     reexports::wayland_server::{
         backend::GlobalId,
         protocol::wl_output::{Subpixel as s_Subpixel, Transform},
-        DisplayHandle,
+        DisplayHandle, self,
     },
     wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties, Scale},
 };
@@ -49,7 +49,7 @@ pub fn handle_output<W: WrapperSpace + 'static>(
 
     // construct a surface for an output if possible
     space
-        .handle_output(env_handle, Some(output), Some(info))
+        .handle_output(dh.clone(), env_handle, Some(output), Some(info))
         .unwrap();
 }
 

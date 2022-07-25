@@ -14,7 +14,7 @@ use smithay::reexports::{
     wayland_server::Display,
 };
 
-pub use client::state as client_state;
+pub use client::{state as client_state, handlers::output};
 use client::state::ClientState;
 pub use server::state as server_state;
 use server::state::ServerState;
@@ -28,7 +28,6 @@ pub mod shared_state;
 pub mod space;
 /// utilities
 pub mod util;
-
 mod client;
 mod server;
 
@@ -65,11 +64,11 @@ pub fn run<W: WrapperSpace + 'static>(
         &mut server_display.handle(),
         &mut embedded_server_state,
     )?;
-    let _sockets = space.spawn_clients(&mut server_display.handle()).unwrap();
+    let _sockets = space.spawn_clients(server_display.handle()).unwrap();
 
     let mut global_state = GlobalState {
-        desktop_client_state,
-        embedded_server_state,
+        client_state: desktop_client_state,
+        server_state: embedded_server_state,
         _loop_signal: event_loop.get_signal(),
         log: log.clone(),
         start_time: std::time::Instant::now(),
@@ -86,10 +85,9 @@ pub fn run<W: WrapperSpace + 'static>(
     // let set_clipboard_once = Rc::new(Cell::new(false));
 
     loop {
-        shared_data.0.space.space().refresh(&s_dh);
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
-            shared_data.0.space.popup_manager().cleanup();
+            shared_data.0.server_state.popup_manager.cleanup();
             last_cleanup = Instant::now();
         }
 
@@ -102,13 +100,14 @@ pub fn run<W: WrapperSpace + 'static>(
 
         // rendering
         {
-            let display = &mut shared_data.desktop_client_state.display;
+            let display = &mut shared_data.client_state.display;
             display.flush().unwrap();
 
             let space = &mut shared_data.space;
 
             let _ = space.handle_events(
                 &s_dh,
+                &mut shared_data.server_state.popup_manager,
                 shared_data
                     .start_time
                     .elapsed()

@@ -46,9 +46,9 @@ pub struct GlobalState<W: WrapperSpace + 'static> {
     /// the implemented space
     pub space: W,
     /// desktop client state
-    pub desktop_client_state: ClientState,
+    pub client_state: ClientState,
     /// embedded server state
-    pub embedded_server_state: ServerState<W>,
+    pub server_state: ServerState<W>,
     /// instant that the panel was started
     pub start_time: std::time::Instant,
     /// panel logger
@@ -70,7 +70,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
                 let mut state = DmabufState::new();
                 let global =
                     state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
-                self.embedded_server_state
+                self.server_state
                     .dmabuf_state
                     .replace((state, global));
             }

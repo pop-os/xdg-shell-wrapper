@@ -21,7 +21,7 @@ use sctk::{
 use slog::Logger;
 use smithay::{
     reexports::{calloop, wayland_server},
-    wayland::seat,
+    wayland::seat, desktop::PopupManager,
 };
 
 use crate::{
@@ -173,18 +173,13 @@ impl ClientState {
         let c_focused_surface: ClientFocus = Default::default();
         let c_hovered_surface: ClientFocus = Default::default();
         space.setup(
+            dh.clone(),
             &env,
             display.clone(),
             c_focused_surface.clone(),
             c_hovered_surface.clone(),
         );
 
-        for o in &outputs {
-            if let Some(info) = with_output_info(&o, Clone::clone) {
-                let (s_o, _) = c_output_as_s_output::<W>(dh, &info, log.clone());
-                space.space().map_output(&s_o, info.location);
-            }
-        }
         let configured_outputs = match config.outputs() {
             xdg_shell_wrapper_config::WrapperOutput::All => outputs
                 .iter()
@@ -194,7 +189,7 @@ impl ClientState {
         };
 
         if configured_outputs.is_empty() {
-            space.handle_output(&env, None, None).unwrap();
+            space.handle_output(dh.clone(), &env, None, None).unwrap();
         } else {
             for o in &outputs {
                 if let Some(info) = with_output_info(&o, Clone::clone).and_then(|info| {
@@ -210,7 +205,7 @@ impl ClientState {
                 }) {
                     let env_handle = env.clone();
                     let logger = log.clone();
-                    handle_output(&env_handle, logger, o, &info, dh, &mut s_outputs, space);
+                    handle_output( &env_handle, logger, o, &info, dh, &mut s_outputs, space);
                 }
             }
         }
@@ -231,7 +226,7 @@ impl ClientState {
                     .any(|configured| configured == &info.name)
                 {
                     let GlobalState {
-                        desktop_client_state:
+                        client_state:
                             ClientState {
                                 env_handle,
                                 _output_group,

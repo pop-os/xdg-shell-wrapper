@@ -14,7 +14,7 @@ use smithay::{
         seat::{self, SeatState},
         shell::xdg::XdgShellState,
         shm::ShmState,
-    },
+    }, desktop::PopupManager,
 };
 
 use crate::{
@@ -47,6 +47,8 @@ pub type ServerPtrFocus = Vec<ServerPointerFocus>;
 #[allow(missing_debug_implementations)]
 /// internal server state
 pub struct ServerState<W: WrapperSpace + 'static> {
+    /// popup manager
+    pub popup_manager: PopupManager,
     // pub(crate) focused_surface: ServerFocus,
     // pub(crate) hovered_surface: ServerPtrFocus,
     pub(crate) selected_data_provider: SelectedDataProvider,
@@ -119,6 +121,7 @@ impl<W: WrapperSpace> ServerState<W> {
         // );
 
         ServerState {
+            popup_manager: PopupManager::new(log.clone()),
             selected_data_provider: SelectedDataProvider {
                 _seat: selected_seat,
                 env_handle: env,

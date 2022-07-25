@@ -33,7 +33,7 @@ use crate::{shared_state::GlobalState, space::WrapperSpace};
 // } = &mut state.embedded_server_state;
 impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
-        &mut self.embedded_server_state.xdg_shell_state
+        &mut self.server_state.xdg_shell_state
     }
 
     fn new_toplevel(&mut self, _dh: &DisplayHandle, surface: ToplevelSurface) {
@@ -60,18 +60,22 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         surface: PopupSurface,
         positioner_state: PositionerState,
     ) {
-        let positioner = self.desktop_client_state.xdg_wm_base.create_positioner();
+        let positioner = self.client_state.xdg_wm_base.create_positioner();
 
         // let wl_surface = self.desktop_client_state.env_handle.create_surface().detach();
         // let xdg_surface = self.desktop_client_state.xdg_wm_base.get_xdg_surface(&wl_surface);
 
         self.space.add_popup(
-            &self.desktop_client_state.env_handle,
-            &self.desktop_client_state.xdg_wm_base,
-            surface,
+            &self.client_state.env_handle,
+            &self.client_state.xdg_wm_base,
+            surface.clone(),
             positioner,
             positioner_state,
         );
+        self.server_state.popup_manager
+        .track_popup(PopupKind::Xdg(surface.clone()))
+        .unwrap();
+        self.server_state.popup_manager.commit(surface.wl_surface());
     }
 
     fn move_request(
@@ -100,9 +104,9 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         seat: wl_seat::WlSeat,
         _serial: Serial,
     ) {
-        for s in &self.embedded_server_state.seats {
+        for s in &self.server_state.seats {
             if s.server.owns(&seat) {
-                if let Err(e) = self.space.popup_manager().grab_popup(
+                if let Err(e) = self.server_state.popup_manager.grab_popup(
                     dh,
                     PopupKind::Xdg(surface),
                     &s.server,
@@ -122,11 +126,13 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         positioner: PositionerState,
         token: u32,
     ) {
-        let new_positioner = self.desktop_client_state.xdg_wm_base.create_positioner();
+        let new_positioner = self.client_state.xdg_wm_base.create_positioner();
 
         let _ = self
             .space
-            .reposition_popup(surface, new_positioner, positioner, token);
+            .reposition_popup(surface.clone(), new_positioner, positioner, token);
+        self.server_state.popup_manager.commit(surface.wl_surface());
+
     }
 }
 

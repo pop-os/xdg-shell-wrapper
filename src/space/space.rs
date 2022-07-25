@@ -99,6 +99,7 @@ pub trait WrapperSpace {
     /// initial setup of the space
     fn setup(
         &mut self,
+        display: wayland_server::DisplayHandle,
         env: &Environment<Env>,
         c_display: client::Display,
         c_focused_surface: ClientFocus,
@@ -108,6 +109,7 @@ pub trait WrapperSpace {
     /// add the configured output to the space
     fn handle_output(
         &mut self,
+        display: wayland_server::DisplayHandle,
         env: &Environment<Env>,
         output: Option<&c_wl_output::WlOutput>,
         output_info: Option<&OutputInfo>,
@@ -157,7 +159,7 @@ pub trait WrapperSpace {
 
     /// called in a loop by xdg-shell-wrapper
     /// handles events for the space
-    fn handle_events(&mut self, dh: &DisplayHandle, time: u32) -> Instant;
+    fn handle_events(&mut self, dh: &DisplayHandle, popup_manager: &mut PopupManager, time: u32) -> Instant;
 
     /// gets the config
     fn config(&self) -> Self::Config;
@@ -165,7 +167,7 @@ pub trait WrapperSpace {
     /// spawns the clients for the wrapper
     fn spawn_clients(
         &mut self,
-        display: &mut wayland_server::DisplayHandle,
+        display: wayland_server::DisplayHandle,
     ) -> anyhow::Result<Vec<UnixStream>>;
 
     /// gets visibility of the wrapper
@@ -179,9 +181,6 @@ pub trait WrapperSpace {
     /// cleanup
     fn destroy(&mut self);
 
-    /// gets the space
-    fn space(&mut self) -> &mut Space;
-
     /// Moves an already mapped Window to top of the stack
     /// This function does nothing for unmapped windows.
     /// If activate is true it will set the new windows state to be activate and removes that state from every other mapped window.
@@ -192,9 +191,6 @@ pub trait WrapperSpace {
 
     /// marks the popup as dirtied()
     fn dirty_popup(&mut self, dh: &DisplayHandle, w: &s_WlSurface);
-
-    /// gets the popup manager for this space
-    fn popup_manager(&mut self) -> &mut PopupManager;
 
     /// gets the popups
     fn popups(&self) -> Vec<&Popup>;
