@@ -26,7 +26,7 @@ use smithay::{
 use crate::{
     client_state::{ClientFocus, Env},
     config::WrapperConfig,
-    server_state::{ServerFocus, ServerPointerFocus},
+    server_state::ServerPointerFocus,
     space::Popup,
 };
 
@@ -138,13 +138,13 @@ pub trait WrapperSpace {
 
     /// keyboard focus gained handler
     /// optionally returns a focused server wl surface
-    fn keyboard_enter(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>)  -> Option<s_WlSurface>;
+    fn keyboard_enter(&mut self, seat_name: &str, surface: wl_surface::WlSurface)  -> Option<s_WlSurface>;
 
     /// pointer focus lost handler
     fn pointer_leave(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
 
     /// pointer focus gained handler
-    fn pointer_enter(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
+    fn pointer_enter(&mut self, seat_name: &str, surface: wl_surface::WlSurface);
 
     /// repositions a popup
     fn reposition_popup(

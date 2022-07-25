@@ -131,7 +131,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     }
                 }
 
-                let s = space.keyboard_enter(seat_name, Some(surface));
+                let s = space.keyboard_enter(seat_name, surface);
 
                 kbd.set_focus(
                     &dh,
@@ -379,7 +379,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     }
                 }
 
-                space.pointer_enter(seat_name, Some(surface));
+                space.pointer_enter(seat_name, surface);
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
                 {
