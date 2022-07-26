@@ -58,7 +58,8 @@ pub fn exec_child(
     config_name: Option<&str>,
     log: Logger,
     raw_fd: i32,
-    requests_host_wayland_display: bool,
+    env_vars: Vec<(&str, &str)>,
+    requests_wayland_display: bool,
 ) -> Child {
     let mut exec_iter = Shlex::new(c);
     let exec = exec_iter
@@ -75,11 +76,12 @@ pub fn exec_child(
         child.env("COSMIC_DOCK_CONFIG", config_name);
     }
 
-    if requests_host_wayland_display {
-        if let Ok(display) = std::env::var("WAYLAND_DISPLAY") {
-            child.env("WAYLAND_DISPLAY", display);
-        }
-    } else {
+    for (key, val) in &env_vars {
+        child.env(key, val);
+    }
+
+    if !requests_wayland_display
+    {
         child.env_remove("WAYLAND_DISPLAY");
     }
 
