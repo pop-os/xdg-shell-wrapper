@@ -122,8 +122,9 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                     let mut c_focused_surface = c_focused_surface.borrow_mut();
                     if let Some(i) = c_focused_surface
                         .iter()
-                        .position(|f| f.0 == surface)
+                        .position(|f| f.1 == seat_name)
                     {
+                        c_focused_surface[i].0 = surface.clone();
                         c_focused_surface[i].2 = FocusStatus::Focused;
                     }  else {
                         c_focused_surface.push((surface.clone(), seat_name.to_string(), FocusStatus::Focused));
@@ -194,17 +195,22 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 surface_x,
                 surface_y,
             } => {
+                let c_focused_surface = match c_hovered_surface.borrow().iter().find(|f| f.1.as_str() == seat_name) {
+                    Some(f) => f.0.clone(),
+                    None => return 
+                };
                 let (surface, c_pos, s_pos) = if let Some(ServerPointerFocus {
                     surface,
                     c_pos,
                     s_pos,
                     ..
-                }) = space.update_pointer((surface_x as i32, surface_y as i32), seat_name)
+                }) = space.update_pointer((surface_x as i32, surface_y as i32), seat_name, c_focused_surface)
                 {
-                    (surface.clone(), c_pos.clone(), s_pos.clone())
+                    (surface, c_pos.clone(), s_pos.clone())
                 } else {
                     return;
                 };
+                
                 ptr.motion(
                     global_state,
                     &dh,
@@ -364,22 +370,44 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     _ => (),
                 }
             }
-            c_wl_pointer::Event::Enter { surface, .. } => {
+            c_wl_pointer::Event::Enter { surface, surface_x, surface_y, .. } => {
                 // if not popup, then must be a panel layer shell surface
                 // TODO better handling of subsurfaces?
                 {
                     let mut c_hovered_surface = c_hovered_surface.borrow_mut();
                     if let Some(i) = c_hovered_surface
                         .iter()
-                        .position(|f| f.0 == surface)
+                        .position(|f| f.1 == seat_name)
                     {
+                        c_hovered_surface[i].0 = surface.clone();
                         c_hovered_surface[i].2 = FocusStatus::Focused;
                     } else {
                         c_hovered_surface.push((surface.clone(), seat_name.to_string(), FocusStatus::Focused));
                     }
                 }
 
-                space.pointer_enter(seat_name, surface);
+                let (surface, c_pos, s_pos) = if let Some(ServerPointerFocus {
+                    surface,
+                    c_pos,
+                    s_pos,
+                    ..
+                }) = space.pointer_enter((surface_x as i32, surface_y as i32), seat_name, surface)
+                {
+                    (surface, c_pos.clone(), s_pos.clone())
+                } else {
+                    return;
+                };
+                
+                ptr.motion(
+                    global_state,
+                    &dh,
+                    &MotionEvent {
+                        location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
+                        focus: Some((surface.clone(), s_pos)),
+                        serial: SERIAL_COUNTER.next_serial(),
+                        time: time.try_into().unwrap(),
+                    },
+                );
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
                 {
@@ -388,7 +416,19 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                         c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
                     }
                 }
+
                 space.pointer_leave(seat_name, Some(surface));
+
+                ptr.motion(
+                    global_state,
+                    &dh,
+                    &MotionEvent {
+                        location: (0.0, 0.0).into(),
+                        focus: None,
+                        serial: SERIAL_COUNTER.next_serial(),
+                        time: time.try_into().unwrap(),
+                    },
+                );
             }
             _ => (),
         };

@@ -116,7 +116,7 @@ pub trait WrapperSpace {
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
-    fn update_pointer(&mut self, dim: (i32, i32), seat_name: &str) -> Option<ServerPointerFocus>;
+    fn update_pointer(&mut self, dim: (i32, i32), seat_name: &str, surface: wl_surface::WlSurface) -> Option<ServerPointerFocus>;
 
     /// add a top level window to the space
     fn add_window(&mut self, s_top_level: Window);
@@ -146,7 +146,7 @@ pub trait WrapperSpace {
     fn pointer_leave(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
 
     /// pointer focus gained handler
-    fn pointer_enter(&mut self, seat_name: &str, surface: wl_surface::WlSurface);
+    fn pointer_enter(&mut self, dim: (i32, i32), seat_name: &str, surface: wl_surface::WlSurface) -> Option<ServerPointerFocus>;
 
     /// repositions a popup
     fn reposition_popup(
