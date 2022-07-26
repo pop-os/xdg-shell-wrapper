@@ -55,7 +55,6 @@ impl ClientData for WrapperClientData {
 /// helper function for launching a wrapped applet
 pub fn exec_child(
     c: &str,
-    config_name: Option<&str>,
     log: Logger,
     raw_fd: i32,
     env_vars: Vec<(&str, &str)>,
@@ -71,9 +70,6 @@ pub fn exec_child(
     for arg in exec_iter {
         trace!(log, "child argument: {}", &arg);
         child.arg(arg);
-    }
-    if let Some(config_name) = config_name {
-        child.env("COSMIC_DOCK_CONFIG", config_name);
     }
 
     for (key, val) in &env_vars {
