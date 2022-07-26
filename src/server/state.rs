@@ -50,8 +50,6 @@ pub type ServerPtrFocus = Vec<ServerPointerFocus>;
 pub struct ServerState<W: WrapperSpace + 'static> {
     /// popup manager
     pub popup_manager: PopupManager,
-    // pub(crate) focused_surface: ServerFocus,
-    // pub(crate) hovered_surface: ServerPtrFocus,
     pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,

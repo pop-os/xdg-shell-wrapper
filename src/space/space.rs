@@ -94,6 +94,10 @@ impl Default for Visibility {
     }
 }
 
+// TODO break this trait into several traits so that it can be better organized
+// not all "space" implementations really need all of these exact methods as long as they are wrapped by a space that does
+// see cosmic-panel for an example
+
 /// Wrapper Space
 /// manages and renders xdg-shell-window(s) on a layer shell surface
 pub trait WrapperSpace {
@@ -217,15 +221,4 @@ pub trait WrapperSpace {
 
     /// gets the renderer for the space
     fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
-
-    // gets the z-index for the requested applet
-    // fn z_index(&self, applet: &str) -> Option<RenderZindex> {
-    //     match self.config().layer(applet) {
-    //         Layer::Background => Some(RenderZindex::Background),
-    //         Layer::Bottom => Some(RenderZindex::Bottom),
-    //         Layer::Top => Some(RenderZindex::Top),
-    //         Layer::Overlay => Some(RenderZindex::Overlay),
-    //         _ => None,
-    //     }
-    // }
 }
