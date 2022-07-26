@@ -98,8 +98,6 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
                 kbd.change_repeat_info(rate, delay);
             }
             wl_keyboard::Event::Enter { surface, .. } => {
-                // println!("kbd entered");
-
                 // TODO data device
                 // let _ = set_data_device_selection(
                 //     dh,
@@ -181,53 +179,6 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
         .map(|seat| (seat.server.get_pointer(), seat.server.get_keyboard()))
     {
         match event {
-            c_wl_pointer::Event::Motion {
-                time: _time,
-                surface_x,
-                surface_y,
-            } => {
-                let c_focused_surface = match c_hovered_surface
-                    .borrow()
-                    .iter()
-                    .find(|f| f.1.as_str() == seat_name)
-                {
-                    Some(f) => f.0.clone(),
-                    None => return,
-                };
-                
-                if let Some(ServerPointerFocus {
-                    surface,
-                    c_pos,
-                    s_pos,
-                    ..
-                }) = space.update_pointer(
-                    (surface_x as i32, surface_y as i32),
-                    seat_name,
-                    c_focused_surface,
-                ) {
-                    ptr.motion(
-                        global_state,
-                        &dh,
-                        &MotionEvent {
-                            location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
-                            focus: Some((surface.clone(), s_pos)),
-                            serial: SERIAL_COUNTER.next_serial(),
-                            time: time.try_into().unwrap(),
-                        },
-                    );
-                } else {
-                    ptr.motion(
-                        global_state,
-                        &dh,
-                        &MotionEvent {
-                            location: Point::from((surface_x, surface_y)),
-                            focus: None,
-                            serial: SERIAL_COUNTER.next_serial(),
-                            time: time.try_into().unwrap(),
-                        },
-                    );
-                }
-            }
             c_wl_pointer::Event::Button {
                 time: _time,
                 button,
@@ -399,10 +350,56 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     c_pos,
                     s_pos,
                     ..
+                }) =
+                    space.update_pointer((surface_x as i32, surface_y as i32), seat_name, surface)
+                {
+                    ptr.motion(
+                        global_state,
+                        &dh,
+                        &MotionEvent {
+                            location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
+                            focus: Some((surface.clone(), s_pos)),
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
+                } else {
+                    ptr.motion(
+                        global_state,
+                        &dh,
+                        &MotionEvent {
+                            location: Point::from((surface_x, surface_y)),
+                            focus: None,
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
+                }
+            }
+            c_wl_pointer::Event::Motion {
+                time: _time,
+                surface_x,
+                surface_y,
+            } => {
+                let c_focused_surface = match c_hovered_surface
+                    .borrow()
+                    .iter()
+                    .find(|f| f.1.as_str() == seat_name)
+                {
+                    Some(f) => f.0.clone(),
+                    None => return,
+                };
+                // dbg!(&c_focused_surface, surface_x, surface_y);
+
+                if let Some(ServerPointerFocus {
+                    surface,
+                    c_pos,
+                    s_pos,
+                    ..
                 }) = space.update_pointer(
                     (surface_x as i32, surface_y as i32),
                     seat_name,
-                    surface,
+                    c_focused_surface,
                 ) {
                     ptr.motion(
                         global_state,
