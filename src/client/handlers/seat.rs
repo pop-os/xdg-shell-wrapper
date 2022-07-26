@@ -194,7 +194,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     Some(f) => f.0.clone(),
                     None => return,
                 };
-                let (surface, c_pos, s_pos) = if let Some(ServerPointerFocus {
+                if let Some(ServerPointerFocus {
                     surface,
                     c_pos,
                     s_pos,
@@ -204,21 +204,28 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     seat_name,
                     c_focused_surface,
                 ) {
-                    (surface, c_pos.clone(), s_pos.clone())
+                    ptr.motion(
+                        global_state,
+                        &dh,
+                        &MotionEvent {
+                            location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
+                            focus: Some((surface.clone(), s_pos)),
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
                 } else {
-                    return;
-                };
-
-                ptr.motion(
-                    global_state,
-                    &dh,
-                    &MotionEvent {
-                        location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
-                        focus: Some((surface.clone(), s_pos)),
-                        serial: SERIAL_COUNTER.next_serial(),
-                        time: time.try_into().unwrap(),
-                    },
-                );
+                    ptr.motion(
+                        global_state,
+                        &dh,
+                        &MotionEvent {
+                            location: Point::from((surface_x, surface_y)),
+                            focus: None,
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
+                }
             }
             c_wl_pointer::Event::Button {
                 time: _time,
