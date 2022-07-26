@@ -194,6 +194,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     Some(f) => f.0.clone(),
                     None => return,
                 };
+                
                 if let Some(ServerPointerFocus {
                     surface,
                     c_pos,
@@ -393,29 +394,38 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     }
                 }
 
-                let (surface, c_pos, s_pos) = if let Some(ServerPointerFocus {
+                if let Some(ServerPointerFocus {
                     surface,
                     c_pos,
                     s_pos,
                     ..
-                }) =
-                    space.pointer_enter((surface_x as i32, surface_y as i32), seat_name, surface)
-                {
-                    (surface, c_pos.clone(), s_pos.clone())
+                }) = space.update_pointer(
+                    (surface_x as i32, surface_y as i32),
+                    seat_name,
+                    surface,
+                ) {
+                    ptr.motion(
+                        global_state,
+                        &dh,
+                        &MotionEvent {
+                            location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
+                            focus: Some((surface.clone(), s_pos)),
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
                 } else {
-                    return;
-                };
-
-                ptr.motion(
-                    global_state,
-                    &dh,
-                    &MotionEvent {
-                        location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
-                        focus: Some((surface.clone(), s_pos)),
-                        serial: SERIAL_COUNTER.next_serial(),
-                        time: time.try_into().unwrap(),
-                    },
-                );
+                    ptr.motion(
+                        global_state,
+                        &dh,
+                        &MotionEvent {
+                            location: Point::from((surface_x, surface_y)),
+                            focus: None,
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
+                }
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
                 {
@@ -552,66 +562,4 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
 //     })?;
 //     selected_data_provider.replace(Some(seat.clone()));
 //     Ok(())
-// }
-
-// pub(crate) fn handle_motion<W: WrapperSpace>(
-//     dh: &DisplayHandle,
-//     global_state: &mut GlobalState<W>,
-//     s_focused: (WlSurface, &str),
-//     surface_x: f64,
-//     surface_y: f64,
-//     ptr: PointerHandle<GlobalState<W>>,
-//     time: u32,
-// ) {
-//     // let motion_point = global_state.space.point_to_compositor_space(&c_focused_surface, (surface_x as i32, surface_y as i32).into());
-//     let mut motion_point: Point<i32, Logical> = (surface_x as i32, surface_y as i32).into();
-//     if let Some(p) = global_state
-//         .space
-//         .popups()
-//         .iter()
-//         .find(|p| &p.c_wl_surface == c_focused_surface)
-//     {
-//         motion_point += p.position;
-//         ptr.motion(
-//             global_state,
-//             &dh,
-//             &MotionEvent {
-//                 location: motion_point.to_f64(),
-//                 focus: Some((p.s_surface.wl_surface().clone(), p.position)),
-//                 serial: SERIAL_COUNTER.next_serial(),
-//                 time,
-//             },
-//         );
-//     } else {
-//         match global_state
-//             .space
-//             .space()
-//             .surface_under((surface_x, surface_y), WindowSurfaceType::ALL)
-//         {
-//             Some((w, s, p)) => {
-//                 ptr.motion(
-//                     global_state,
-//                     &dh,
-//                     &MotionEvent {
-//                         location: motion_point.to_f64() - w.geometry().loc.to_f64(),
-//                         focus: Some((s, p)),
-//                         serial: SERIAL_COUNTER.next_serial(),
-//                         time,
-//                     },
-//                 );
-//             }
-//             None => {
-//                 ptr.motion(
-//                     global_state,
-//                     &dh,
-//                     &MotionEvent {
-//                         location: (surface_x, surface_y).into(),
-//                         focus: None,
-//                         serial: SERIAL_COUNTER.next_serial(),
-//                         time,
-//                     },
-//                 );
-//             }
-//         }
-//     }
 // }
