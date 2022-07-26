@@ -20,8 +20,9 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
+    desktop::PopupManager,
     reexports::{calloop, wayland_server},
-    wayland::seat, desktop::PopupManager,
+    wayland::seat,
 };
 
 use crate::{
@@ -205,7 +206,7 @@ impl ClientState {
                 }) {
                     let env_handle = env.clone();
                     let logger = log.clone();
-                    handle_output( &env_handle, logger, o, &info, dh, &mut s_outputs, space);
+                    handle_output(&env_handle, logger, o, &info, dh, &mut s_outputs, space);
                 }
             }
         }

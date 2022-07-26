@@ -72,9 +72,10 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             positioner,
             positioner_state,
         );
-        self.server_state.popup_manager
-        .track_popup(PopupKind::Xdg(surface.clone()))
-        .unwrap();
+        self.server_state
+            .popup_manager
+            .track_popup(PopupKind::Xdg(surface.clone()))
+            .unwrap();
         self.server_state.popup_manager.commit(surface.wl_surface());
     }
 
@@ -132,7 +133,6 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             .space
             .reposition_popup(surface.clone(), new_positioner, positioner, token);
         self.server_state.popup_manager.commit(surface.wl_surface());
-
     }
 }
 

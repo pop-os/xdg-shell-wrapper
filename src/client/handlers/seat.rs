@@ -48,10 +48,7 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
         focused_surface: c_focused_surface,
         ..
     } = &mut state.client_state;
-    let ServerState {
-        seats,
-        ..
-    } = &mut state.server_state;
+    let ServerState { seats, .. } = &mut state.server_state;
     if let Some(seat) = seats.iter().find(|SeatPair { name, .. }| name == seat_name) {
         let kbd = match seat.server.get_keyboard() {
             Some(kbd) => kbd,
@@ -120,25 +117,21 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
 
                 {
                     let mut c_focused_surface = c_focused_surface.borrow_mut();
-                    if let Some(i) = c_focused_surface
-                        .iter()
-                        .position(|f| f.1 == seat_name)
-                    {
+                    if let Some(i) = c_focused_surface.iter().position(|f| f.1 == seat_name) {
                         c_focused_surface[i].0 = surface.clone();
                         c_focused_surface[i].2 = FocusStatus::Focused;
-                    }  else {
-                        c_focused_surface.push((surface.clone(), seat_name.to_string(), FocusStatus::Focused));
-
+                    } else {
+                        c_focused_surface.push((
+                            surface.clone(),
+                            seat_name.to_string(),
+                            FocusStatus::Focused,
+                        ));
                     }
                 }
 
                 let s = space.keyboard_enter(seat_name, surface);
 
-                kbd.set_focus(
-                    &dh,
-                    s.as_ref(),
-                    SERIAL_COUNTER.next_serial(),
-                );
+                kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
             }
             wl_keyboard::Event::Leave { surface, .. } => {
                 let kbd_focus = {
@@ -177,9 +170,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
         ..
     } = &mut global_state.client_state;
     let ServerState {
-        seats,
-        last_button,
-        ..
+        seats, last_button, ..
     } = &mut global_state.server_state;
     let start_time = global_state.start_time;
     let time = start_time.elapsed().as_millis();
@@ -195,22 +186,29 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 surface_x,
                 surface_y,
             } => {
-                let c_focused_surface = match c_hovered_surface.borrow().iter().find(|f| f.1.as_str() == seat_name) {
+                let c_focused_surface = match c_hovered_surface
+                    .borrow()
+                    .iter()
+                    .find(|f| f.1.as_str() == seat_name)
+                {
                     Some(f) => f.0.clone(),
-                    None => return 
+                    None => return,
                 };
                 let (surface, c_pos, s_pos) = if let Some(ServerPointerFocus {
                     surface,
                     c_pos,
                     s_pos,
                     ..
-                }) = space.update_pointer((surface_x as i32, surface_y as i32), seat_name, c_focused_surface)
-                {
+                }) = space.update_pointer(
+                    (surface_x as i32, surface_y as i32),
+                    seat_name,
+                    c_focused_surface,
+                ) {
                     (surface, c_pos.clone(), s_pos.clone())
                 } else {
                     return;
                 };
-                
+
                 ptr.motion(
                     global_state,
                     &dh,
@@ -235,11 +233,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 let s = space.handle_press(seat_name);
 
                 if let Some(kbd) = kbd.as_ref() {
-                    kbd.set_focus(
-                        &dh,
-                        s.as_ref(),
-                        SERIAL_COUNTER.next_serial(),
-                    );
+                    kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
                 }
 
                 if let Ok(button_state) = wl_pointer::ButtonState::try_from(state as u32) {
@@ -370,19 +364,25 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     _ => (),
                 }
             }
-            c_wl_pointer::Event::Enter { surface, surface_x, surface_y, .. } => {
+            c_wl_pointer::Event::Enter {
+                surface,
+                surface_x,
+                surface_y,
+                ..
+            } => {
                 // if not popup, then must be a panel layer shell surface
                 // TODO better handling of subsurfaces?
                 {
                     let mut c_hovered_surface = c_hovered_surface.borrow_mut();
-                    if let Some(i) = c_hovered_surface
-                        .iter()
-                        .position(|f| f.1 == seat_name)
-                    {
+                    if let Some(i) = c_hovered_surface.iter().position(|f| f.1 == seat_name) {
                         c_hovered_surface[i].0 = surface.clone();
                         c_hovered_surface[i].2 = FocusStatus::Focused;
                     } else {
-                        c_hovered_surface.push((surface.clone(), seat_name.to_string(), FocusStatus::Focused));
+                        c_hovered_surface.push((
+                            surface.clone(),
+                            seat_name.to_string(),
+                            FocusStatus::Focused,
+                        ));
                     }
                 }
 
@@ -391,13 +391,14 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     c_pos,
                     s_pos,
                     ..
-                }) = space.pointer_enter((surface_x as i32, surface_y as i32), seat_name, surface)
+                }) =
+                    space.pointer_enter((surface_x as i32, surface_y as i32), seat_name, surface)
                 {
                     (surface, c_pos.clone(), s_pos.clone())
                 } else {
                     return;
                 };
-                
+
                 ptr.motion(
                     global_state,
                     &dh,

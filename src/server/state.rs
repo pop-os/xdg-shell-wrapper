@@ -4,6 +4,7 @@ use once_cell::sync::OnceCell;
 use sctk::reexports::client::Attached;
 use slog::Logger;
 use smithay::{
+    desktop::PopupManager,
     reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
     utils::{Logical, Point},
     wayland::{
@@ -14,7 +15,7 @@ use smithay::{
         seat::{self, SeatState},
         shell::xdg::XdgShellState,
         shm::ShmState,
-    }, desktop::PopupManager,
+    },
 };
 
 use crate::{

@@ -70,9 +70,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
                 let mut state = DmabufState::new();
                 let global =
                     state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
-                self.server_state
-                    .dmabuf_state
-                    .replace((state, global));
+                self.server_state.dmabuf_state.replace((state, global));
             }
         }
     }

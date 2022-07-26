@@ -14,22 +14,22 @@ use smithay::reexports::{
     wayland_server::Display,
 };
 
-pub use client::{state as client_state, handlers::output};
 use client::state::ClientState;
+pub use client::{handlers::output, state as client_state};
 pub use server::state as server_state;
 use server::state::ServerState;
 use shared_state::GlobalState;
 use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
 pub use xdg_shell_wrapper_config as config;
 
+mod client;
+mod server;
 /// shared state
 pub mod shared_state;
 /// wrapper space abstraction
 pub mod space;
 /// utilities
 pub mod util;
-mod client;
-mod server;
 
 /// run the cosmic panel xdg wrapper with the provided config
 pub fn run<W: WrapperSpace + 'static>(

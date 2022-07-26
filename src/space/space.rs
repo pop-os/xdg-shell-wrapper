@@ -9,7 +9,11 @@ use sctk::{
     environment::Environment,
     output::OutputInfo,
     reexports::{
-        client::{self, protocol::{wl_output as c_wl_output, wl_surface}, Attached, Main},
+        client::{
+            self,
+            protocol::{wl_output as c_wl_output, wl_surface},
+            Attached, Main,
+        },
         protocols::xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
     },
 };
@@ -116,7 +120,12 @@ pub trait WrapperSpace {
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
-    fn update_pointer(&mut self, dim: (i32, i32), seat_name: &str, surface: wl_surface::WlSurface) -> Option<ServerPointerFocus>;
+    fn update_pointer(
+        &mut self,
+        dim: (i32, i32),
+        seat_name: &str,
+        surface: wl_surface::WlSurface,
+    ) -> Option<ServerPointerFocus>;
 
     /// add a top level window to the space
     fn add_window(&mut self, s_top_level: Window);
@@ -140,13 +149,22 @@ pub trait WrapperSpace {
 
     /// keyboard focus gained handler
     /// optionally returns a focused server wl surface
-    fn keyboard_enter(&mut self, seat_name: &str, surface: wl_surface::WlSurface)  -> Option<s_WlSurface>;
+    fn keyboard_enter(
+        &mut self,
+        seat_name: &str,
+        surface: wl_surface::WlSurface,
+    ) -> Option<s_WlSurface>;
 
     /// pointer focus lost handler
     fn pointer_leave(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
 
     /// pointer focus gained handler
-    fn pointer_enter(&mut self, dim: (i32, i32), seat_name: &str, surface: wl_surface::WlSurface) -> Option<ServerPointerFocus>;
+    fn pointer_enter(
+        &mut self,
+        dim: (i32, i32),
+        seat_name: &str,
+        surface: wl_surface::WlSurface,
+    ) -> Option<ServerPointerFocus>;
 
     /// repositions a popup
     fn reposition_popup(
@@ -159,7 +177,12 @@ pub trait WrapperSpace {
 
     /// called in a loop by xdg-shell-wrapper
     /// handles events for the space
-    fn handle_events(&mut self, dh: &DisplayHandle, popup_manager: &mut PopupManager, time: u32) -> Instant;
+    fn handle_events(
+        &mut self,
+        dh: &DisplayHandle,
+        popup_manager: &mut PopupManager,
+        time: u32,
+    ) -> Instant;
 
     /// gets the config
     fn config(&self) -> Self::Config;
