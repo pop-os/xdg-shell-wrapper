@@ -20,7 +20,6 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
-    desktop::PopupManager,
     reexports::{calloop, wayland_server},
     wayland::seat,
 };
@@ -34,7 +33,7 @@ use crate::{
 };
 
 use super::handlers::{
-    output::{c_output_as_s_output, handle_output},
+    output::{handle_output},
     seat::{seat_handle_callback, send_pointer_event},
 };
 
@@ -189,25 +188,13 @@ impl ClientState {
             xdg_shell_wrapper_config::WrapperOutput::Name(list) => list,
         };
 
-        if configured_outputs.is_empty() {
-            space.handle_output(dh.clone(), &env, None, None).unwrap();
-        } else {
-            for o in &outputs {
-                if let Some(info) = with_output_info(&o, Clone::clone).and_then(|info| {
-                    if configured_outputs
-                        .iter()
-                        .find(|configured| *configured == &info.name)
-                        .is_some()
-                    {
-                        Some(info)
-                    } else {
-                        None
-                    }
-                }) {
-                    let env_handle = env.clone();
-                    let logger = log.clone();
-                    handle_output(&env_handle, logger, o, &info, dh, &mut s_outputs, space);
-                }
+
+        for o in &outputs {
+            if let Some(info) = with_output_info(&o, Clone::clone)
+            {
+                let env_handle = env.clone();
+                let logger = log.clone();
+                handle_output(&env_handle, logger, o, &info, dh, &mut s_outputs, space);
             }
         }
 

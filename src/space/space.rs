@@ -20,7 +20,7 @@ use sctk::{
 use slog::Logger;
 use smithay::{
     backend::renderer::gles2::Gles2Renderer,
-    desktop::{PopupManager, Space, Window},
+    desktop::{PopupManager, Window},
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
@@ -31,7 +31,6 @@ use crate::{
     client_state::{ClientFocus, Env},
     config::WrapperConfig,
     server_state::ServerPointerFocus,
-    space::Popup,
 };
 
 /// Space events

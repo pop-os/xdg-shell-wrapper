@@ -26,7 +26,7 @@ use crate::{
 
 use super::super::state::Env;
 
-pub fn handle_output<W: WrapperSpace + 'static>(
+pub(crate) fn handle_output<W: WrapperSpace + 'static>(
     env_handle: &Environment<Env>,
     logger: Logger,
     output: &client::protocol::wl_output::WlOutput,
@@ -54,6 +54,7 @@ pub fn handle_output<W: WrapperSpace + 'static>(
         .unwrap();
 }
 
+/// convert client output to server output
 pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
     dh: &DisplayHandle,
     info: &OutputInfo,
