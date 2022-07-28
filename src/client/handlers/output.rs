@@ -16,7 +16,7 @@ use smithay::{
         protocol::wl_output::{Subpixel as s_Subpixel, Transform},
         DisplayHandle,
     },
-    wayland::output::{Mode as s_Mode, Output as s_Output, PhysicalProperties, Scale},
+    wayland::output::{Mode as s_Mode, Output, PhysicalProperties, Scale},
 };
 
 use crate::{
@@ -50,17 +50,17 @@ pub(crate) fn handle_output<W: WrapperSpace + 'static>(
 
     // construct a surface for an output if possible
     space
-        .handle_output(dh.clone(), env_handle, Some(output), Some(info))
+        .handle_output(dh.clone(), env_handle, Some(output.clone()), Some(c_output_as_s_output::<W>(&dh, &info, logger.clone()).0), Some(info))
         .unwrap();
 }
 
 /// convert client output to server output
-pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
+pub(crate) fn c_output_as_s_output<W: WrapperSpace + 'static>(
     dh: &DisplayHandle,
     info: &OutputInfo,
     logger: Logger,
-) -> (s_Output, GlobalId) {
-    let s_output = s_Output::new(
+) -> (Output, GlobalId) {
+    let s_output = Output::new(
         info.name.clone(), // the name of this output,
         PhysicalProperties {
             size: info.physical_size.into(), // dimensions (width, height) in mm

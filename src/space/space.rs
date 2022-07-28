@@ -22,9 +22,9 @@ use smithay::{
     backend::renderer::gles2::Gles2Renderer,
     desktop::{PopupManager, Window},
     reexports::wayland_server::{
-        self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
+        self, protocol::{wl_surface::WlSurface as s_WlSurface, wl_output}, DisplayHandle,
     },
-    wayland::shell::xdg::{PopupSurface, PositionerState},
+    wayland::{shell::xdg::{PopupSurface, PositionerState}, output::Output},
 };
 
 use crate::{
@@ -118,7 +118,8 @@ pub trait WrapperSpace {
         &mut self,
         display: wayland_server::DisplayHandle,
         env: &Environment<Env>,
-        output: Option<&c_wl_output::WlOutput>,
+        c_output: Option<c_wl_output::WlOutput>,
+        s_output: Option<Output>,
         output_info: Option<&OutputInfo>,
     ) -> anyhow::Result<()>;
 
