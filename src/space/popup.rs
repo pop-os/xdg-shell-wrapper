@@ -14,7 +14,7 @@ use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
-    utils::{Logical, Physical, Point, Rectangle},
+    utils::{Logical, Physical, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
 use wayland_egl::WlEglSurface;
@@ -61,7 +61,7 @@ pub struct Popup {
     /// whether or not the popup needs to be rendered
     pub dirty: bool,
     /// position of the popup
-    pub position: Point<i32, Logical>,
+    pub rectangle: Rectangle<i32, Logical>,
     /// accumulated damage with age values
     pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
     /// full clear
@@ -124,7 +124,7 @@ impl Popup {
                         popup_manager.commit(self.s_surface.wl_surface());
                         self.dirty = true;
                         self.full_clear = 4;
-                        self.position = (x, y).into();
+                        self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
                         true
                     }
                     Some(PopupState::WaitConfigure(first)) => {

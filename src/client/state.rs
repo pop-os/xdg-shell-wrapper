@@ -51,7 +51,7 @@ pub enum FocusStatus {
 }
 // TODO remove refcell if possible
 /// list of focused surfaces and the seats that focus them
-pub type ClientFocus = Rc<RefCell<Vec<(wl_surface::WlSurface, String, FocusStatus)>>>;
+pub type ClientFocus = Vec<(wl_surface::WlSurface, String, FocusStatus)>;
 
 /// Wrapper client state
 #[derive(Debug)]
@@ -61,9 +61,9 @@ pub struct ClientState {
     /// the last input serial
     pub last_input_serial: Option<u32>,
     /// state regarding the last embedded client surface with keyboard focus
-    pub focused_surface: ClientFocus,
+    pub focused_surface: Rc<RefCell<ClientFocus>>,
     /// state regarding the last embedded client surface with keyboard focus
-    pub hovered_surface: ClientFocus,
+    pub hovered_surface: Rc<RefCell<ClientFocus>>,
     pub(crate) display: client::Display,
     pub(crate) cursor_surface: wl_surface::WlSurface,
     pub(crate) axis_frame: Vec<AxisFrameData>,
@@ -170,8 +170,8 @@ impl ClientState {
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         let outputs = env.get_all_outputs();
-        let c_focused_surface: ClientFocus = Default::default();
-        let c_hovered_surface: ClientFocus = Default::default();
+        let c_focused_surface: Rc<RefCell<ClientFocus>> = Default::default();
+        let c_hovered_surface: Rc<RefCell<ClientFocus>> = Default::default();
         space.setup(
             dh.clone(),
             &env,

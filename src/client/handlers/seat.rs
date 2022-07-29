@@ -12,6 +12,7 @@ use sctk::{
     seat::SeatData,
 };
 use slog::{error, trace, Logger};
+use smithay::reexports::wayland_server::Resource;
 use smithay::utils::Point;
 use smithay::wayland::seat::MotionEvent;
 use smithay::{
@@ -192,7 +193,13 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 let s = space.handle_press(seat_name);
 
                 if let Some(kbd) = kbd.as_ref() {
-                    kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
+                    if let Some(client_id) = s.as_ref().and_then(|s| s.client_id()) {
+                        if !kbd.has_focus(&client_id) {
+                            kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
+                        }
+                    } else {
+                        kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
+                    }
                 }
 
                 if let Ok(button_state) = wl_pointer::ButtonState::try_from(state as u32) {
@@ -389,7 +396,6 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                     Some(f) => f.0.clone(),
                     None => return,
                 };
-                // dbg!(&c_focused_surface, surface_x, surface_y);
 
                 if let Some(ServerPointerFocus {
                     surface,

@@ -2,7 +2,7 @@
 
 use std::{
     os::unix::net::UnixStream,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, rc::Rc, cell::RefCell,
 };
 
 use sctk::{
@@ -109,8 +109,8 @@ pub trait WrapperSpace {
         display: wayland_server::DisplayHandle,
         env: &Environment<Env>,
         c_display: client::Display,
-        c_focused_surface: ClientFocus,
-        c_hovered_surface: ClientFocus,
+        c_focused_surface: Rc<RefCell<ClientFocus>>,
+        c_hovered_surface: Rc<RefCell<ClientFocus>>,
     );
 
     /// add the configured output to the space
