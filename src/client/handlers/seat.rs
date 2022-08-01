@@ -339,6 +339,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 // if not popup, then must be a panel layer shell surface
                 // TODO better handling of subsurfaces?
                 {
+                    println!("enter: {:?}", surface);
                     let mut c_hovered_surface = c_hovered_surface.borrow_mut();
                     if let Some(i) = c_hovered_surface.iter().position(|f| f.1 == seat_name) {
                         c_hovered_surface[i].0 = surface.clone();
@@ -431,6 +432,7 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
                 }
             }
             c_wl_pointer::Event::Leave { surface, .. } => {
+                println!("leave: {:?}", surface);
                 {
                     let mut c_hovered_surface = c_hovered_surface.borrow_mut();
                     if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == surface) {
