@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::Result;
 use smithay::reexports::{
-    calloop::{self, generic::Generic, Interest, Mode, PostAction},
+    calloop,
 };
 
 use client::state::ClientState;
@@ -78,7 +78,6 @@ pub fn run<W: WrapperSpace + 'static>(
 
         // dispatch desktop client events
         event_loop.dispatch(Duration::from_millis(16), &mut global_state).expect("Failed to dispatch events");
-
 
         // rendering
         {
