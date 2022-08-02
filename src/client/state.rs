@@ -45,8 +45,11 @@ pub(crate) struct ClientSeat {
 }
 
 #[derive(Debug, Copy, Clone)]
+/// The focus status of a surface
 pub enum FocusStatus {
+    /// surface has focus
     Focused,
+    /// Last know instant that the surface had focus
     LastFocused(Instant),
 }
 // TODO remove refcell if possible
@@ -110,7 +113,7 @@ impl ClientState {
     pub(crate) fn new<W: WrapperSpace + 'static>(
         loop_handle: calloop::LoopHandle<
             'static,
-            (GlobalState<W>, wayland_server::Display<GlobalState<W>>),
+            GlobalState<W>,
         >,
         space: &mut W,
         log: Logger,
@@ -202,8 +205,8 @@ impl ClientState {
             None
         } else {
             Some(env.listen_for_outputs(move |o, info, mut dispatch_data| {
-                let (state, sd) = dispatch_data
-                    .get::<(GlobalState<W>, wayland_server::Display<GlobalState<W>>)>()
+                let state = dispatch_data
+                    .get::<GlobalState<W>>()
                     .unwrap();
                 if !info.obsolete {
                     return;
@@ -220,6 +223,9 @@ impl ClientState {
                                 _output_group,
                                 ..
                             },
+                        server_state: ServerState {
+                            dh, ..
+                        },
                         space,
                         log,
                         ..
@@ -229,7 +235,7 @@ impl ClientState {
                         log.clone(),
                         &o,
                         &info,
-                        &mut sd.handle(),
+                        dh,
                         _output_group,
                         space,
                     );

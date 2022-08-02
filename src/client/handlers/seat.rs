@@ -17,7 +17,7 @@ use smithay::utils::Point;
 use smithay::wayland::seat::MotionEvent;
 use smithay::{
     backend::input::KeyState,
-    reexports::wayland_server::{protocol::wl_pointer, Display},
+    reexports::wayland_server::{protocol::wl_pointer},
     wayland::{
         seat::{self, AxisFrame, ButtonEvent, FilterResult},
         SERIAL_COUNTER,
@@ -39,17 +39,16 @@ pub fn send_keyboard_event<W: WrapperSpace + 'static>(
     seat_name: &str,
     mut dispatch_data: DispatchData<'_>,
 ) {
-    let (state, server_display) = dispatch_data
-        .get::<(GlobalState<W>, Display<GlobalState<W>>)>()
+    let state = dispatch_data
+        .get::<GlobalState<W>>()
         .unwrap();
-    let dh = server_display.handle();
     let space = &mut state.space;
     let ClientState {
         last_input_serial,
         focused_surface: c_focused_surface,
         ..
     } = &mut state.client_state;
-    let ServerState { seats, .. } = &mut state.server_state;
+    let ServerState { seats, dh, .. } = &mut state.server_state;
     if let Some(seat) = seats.iter().find(|SeatPair { name, .. }| name == seat_name) {
         let kbd = match seat.server.get_keyboard() {
             Some(kbd) => kbd,
@@ -157,10 +156,9 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
     seat_name: &str,
     mut dispatch_data: DispatchData<'_>,
 ) {
-    let (global_state, server_display) = dispatch_data
-        .get::<(GlobalState<W>, Display<GlobalState<W>>)>()
+    let global_state = dispatch_data
+        .get::<GlobalState<W>>()
         .unwrap();
-    let dh = server_display.handle();
     let space = &mut global_state.space;
     let ClientState {
         axis_frame,
@@ -169,8 +167,9 @@ pub fn send_pointer_event<W: WrapperSpace + 'static>(
         ..
     } = &mut global_state.client_state;
     let ServerState {
-        seats, last_button, ..
+        seats, last_button, dh, ..
     } = &mut global_state.server_state;
+    let dh = dh.clone();
     let start_time = global_state.start_time;
     let time = start_time.elapsed().as_millis();
     if let Some((Some(ptr), kbd)) = seats
@@ -462,14 +461,14 @@ pub fn seat_handle_callback<W: WrapperSpace + 'static>(
     seat_data: &SeatData,
     mut dispatch_data: DispatchData<'_>,
 ) {
-    let (state, server_display) = dispatch_data
-        .get::<(GlobalState<W>, Display<GlobalState<W>>)>()
+    let state = dispatch_data
+        .get::<GlobalState<W>>()
         .unwrap();
     // let DesktopClientState {
     //     env_handle, ..
     // } = &mut state.desktop_client_state;
-    let ServerState { seats, .. } = &mut state.server_state;
-    let dh = server_display.handle();
+    let ServerState { seats, dh, .. } = &mut state.server_state;
+    let dh = dh.clone();
     let logger = &state.log;
     // find the seat in the vec of seats, or insert it if it is unknown
     trace!(logger, "seat event: {:?} {:?}", seat, seat_data);

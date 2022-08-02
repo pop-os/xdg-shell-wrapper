@@ -11,7 +11,6 @@ use std::{
 use anyhow::Result;
 use smithay::reexports::{
     calloop::{self, generic::Generic, Interest, Mode, PostAction},
-    wayland_server::Display,
 };
 
 use client::state::ClientState;
@@ -34,26 +33,13 @@ pub mod util;
 /// run the cosmic panel xdg wrapper with the provided config
 pub fn run<W: WrapperSpace + 'static>(
     mut space: W,
-    mut event_loop: calloop::EventLoop<'static, (GlobalState<W>, Display<GlobalState<W>>)>,
+    mut event_loop: calloop::EventLoop<'static, GlobalState<W>>,
 ) -> Result<()> {
     let log = space.log().unwrap();
     let loop_handle = event_loop.handle();
 
     let mut server_display = smithay::reexports::wayland_server::Display::new().unwrap();
     let s_dh = server_display.handle();
-    loop_handle
-        .insert_source(
-            Generic::new(
-                server_display.backend().poll_fd(),
-                Interest::READ,
-                Mode::Level,
-            ),
-            |_, _, (state, display)| {
-                display.dispatch_clients(state).unwrap();
-                Ok(PostAction::Continue)
-            },
-        )
-        .expect("Failed to init wayland server source");
 
     let mut embedded_server_state = ServerState::new(&s_dh, log.clone());
 
@@ -77,7 +63,6 @@ pub fn run<W: WrapperSpace + 'static>(
     };
     global_state.bind_display(&s_dh);
 
-    let mut shared_data = (global_state, server_display);
     let mut last_cleanup = Instant::now();
     let five_min = Duration::from_secs(300);
 
@@ -87,28 +72,25 @@ pub fn run<W: WrapperSpace + 'static>(
     loop {
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
-            shared_data.0.server_state.popup_manager.cleanup();
+            global_state.server_state.popup_manager.cleanup();
             last_cleanup = Instant::now();
         }
 
         // dispatch desktop client events
-        let dispatch_client_res = event_loop.dispatch(Duration::from_millis(16), &mut shared_data);
+        event_loop.dispatch(Duration::from_millis(16), &mut global_state).expect("Failed to dispatch events");
 
-        dispatch_client_res.expect("Failed to dispatch events");
-
-        let (shared_data, server_display) = &mut shared_data;
 
         // rendering
         {
-            let display = &mut shared_data.client_state.display;
+            let display = &mut global_state.client_state.display;
             display.flush().unwrap();
 
-            let space = &mut shared_data.space;
+            let space = &mut global_state.space;
 
             let _ = space.handle_events(
                 &s_dh,
-                &mut shared_data.server_state.popup_manager,
-                shared_data
+                &mut global_state.server_state.popup_manager,
+                global_state
                     .start_time
                     .elapsed()
                     .as_millis()
@@ -119,7 +101,7 @@ pub fn run<W: WrapperSpace + 'static>(
 
         // dispatch server events
         {
-            server_display.dispatch_clients(shared_data).unwrap();
+            server_display.dispatch_clients(&mut global_state).unwrap();
             server_display.flush_clients().unwrap();
         }
 
@@ -151,7 +133,7 @@ pub fn run<W: WrapperSpace + 'static>(
         // }
 
         // sleep if not focused...
-        if matches!(shared_data.space.visibility(), Visibility::Hidden) {
+        if matches!(global_state.space.visibility(), Visibility::Hidden) {
             thread::sleep(Duration::from_millis(100));
         }
     }

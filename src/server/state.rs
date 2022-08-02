@@ -50,6 +50,7 @@ pub type ServerPtrFocus = Vec<ServerPointerFocus>;
 pub struct ServerState<W: WrapperSpace + 'static> {
     /// popup manager
     pub popup_manager: PopupManager,
+    pub(crate) dh: DisplayHandle,
     pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,
@@ -125,6 +126,7 @@ impl<W: WrapperSpace> ServerState<W> {
                 _seat: selected_seat,
                 env_handle: env,
             },
+            dh: dh.clone(),
             last_button: None,
             seats: Vec::new(),
             compositor_state: CompositorState::new::<GlobalState<W>, _>(&dh, log.clone()),

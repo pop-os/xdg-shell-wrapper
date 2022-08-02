@@ -11,7 +11,6 @@ use sctk::{
 use slog::Logger;
 use smithay::{
     reexports::wayland_server::{
-        self,
         backend::GlobalId,
         protocol::wl_output::{Subpixel as s_Subpixel, Transform},
         DisplayHandle,

@@ -22,7 +22,7 @@ use smithay::{
     backend::renderer::gles2::Gles2Renderer,
     desktop::{PopupManager, Window},
     reexports::wayland_server::{
-        self, protocol::{wl_surface::WlSurface as s_WlSurface, wl_output}, DisplayHandle,
+        self, protocol::{wl_surface::WlSurface as s_WlSurface}, DisplayHandle,
     },
     wayland::{shell::xdg::{PopupSurface, PositionerState}, output::Output},
 };
