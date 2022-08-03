@@ -1,6 +1,6 @@
 use std::cell::RefMut;
 
-use slog::trace;
+use slog::{error, trace};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
     delegate_compositor, delegate_shm,
@@ -19,7 +19,10 @@ use smithay::{
     },
 };
 
-use crate::{server_state::SeatPair, shared_state::GlobalState, space::WrapperSpace};
+use crate::{
+    server_state::SeatPair, shared_state::GlobalState, space::WrapperSpace,
+    util::write_and_attach_buffer,
+};
 
 // let DesktopClientState {
 //     cursor_surface,
@@ -39,9 +42,8 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
     }
 
     fn commit(&mut self, dh: &DisplayHandle, surface: &WlSurface) {
-        let cached_buffers = &mut self.cached_buffers;
         let log = &mut self.log;
-
+        let qh = &self.client_state.queue_handle;
         let role = get_role(&surface);
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
         if role == "xdg_toplevel".into() {
@@ -52,6 +54,14 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             self.space.dirty_popup(&dh, &surface);
             self.server_state.popup_manager.commit(&surface);
         } else if role == "cursor_image".into() {
+            let multipool = match &mut self.client_state.multipool {
+                Some(m) => m,
+                None => {
+                    error!(log.clone(), "multipool is missing!");
+                    return;
+                }
+            };
+
             // FIXME pass cursor image to parent compositor
             trace!(log, "received surface with cursor image");
             for SeatPair { client, .. } in &self.server_state.seats {
@@ -63,16 +73,17 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
                             if let Some(BufferType::Shm) = buffer_type(buffer) {
                                 trace!(log, "attaching buffer to cursor surface.");
-                                let _ = cached_buffers.write_and_attach_buffer(
+                                let _ = write_and_attach_buffer(
                                     buf.as_ref().unwrap(),
-                                    &self.client_state.cursor_surface,
-                                    &self.client_state.shm,
+                                    self.client_state.cursor_surface.as_ref().unwrap(),
+                                    multipool,
+                                    &qh,
                                 );
 
                                 trace!(log, "requesting update");
                                 ptr.set_cursor(
                                     SERIAL_COUNTER.next_serial().into(),
-                                    Some(&self.client_state.cursor_surface),
+                                    Some(self.client_state.cursor_surface.as_ref().unwrap()),
                                     0,
                                     0,
                                 );

@@ -4,12 +4,10 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::space::ClientEglSurface;
-use sctk::reexports::client::Display;
-use sctk::reexports::{
-    client::protocol::wl_surface as c_wl_surface,
-    client::Main,
-    protocols::xdg_shell::client::{xdg_popup::XdgPopup, xdg_surface::XdgSurface},
-};
+use sctk::reexports::client::protocol::wl_display::WlDisplay;
+use sctk::reexports::client::{protocol::wl_surface as c_wl_surface, Proxy};
+use sctk::reexports::protocols::xdg::shell::client::xdg_popup::XdgPopup;
+use sctk::reexports::protocols::xdg::shell::client::xdg_surface::XdgSurface;
 use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::{
     backend::egl::surface::EGLSurface,
@@ -47,9 +45,9 @@ pub enum PopupState {
 #[derive(Debug)]
 pub struct Popup {
     /// the popup on the layer shell surface
-    pub c_popup: Main<XdgPopup>,
+    pub c_popup: XdgPopup,
     /// the xdg surface for the popup on the layer shell surface
-    pub c_xdg_surface: Main<XdgSurface>,
+    pub c_xdg_surface: XdgSurface,
     /// the wl surface for the popup on the layer shell surface
     pub c_wl_surface: c_wl_surface::WlSurface,
     /// the embedded popup
@@ -76,10 +74,10 @@ impl Popup {
         popup_manager: &mut PopupManager,
         egl_context: &EGLContext,
         egl_display: &EGLDisplay,
-        c_display: &Display,
+        c_display: &WlDisplay,
     ) -> bool {
         let should_keep = {
-            if !self.s_surface.alive() || !self.c_wl_surface.as_ref().is_alive() {
+            if !self.s_surface.alive() {
                 false
             } else {
                 match self.popup_state.take() {
@@ -92,12 +90,13 @@ impl Popup {
                         y,
                     }) => {
                         if first {
+                            let wl_egl_surface =
+                                match WlEglSurface::new(self.c_wl_surface.id(), width, height) {
+                                    Ok(s) => s,
+                                    Err(_) => return false,
+                                };
                             let client_egl_surface = ClientEglSurface {
-                                wl_egl_surface: WlEglSurface::new(
-                                    &self.c_wl_surface,
-                                    width,
-                                    height,
-                                ),
+                                wl_egl_surface,
                                 display: c_display.clone(),
                             };
 
@@ -124,7 +123,7 @@ impl Popup {
                         popup_manager.commit(self.s_surface.wl_surface());
                         self.dirty = true;
                         self.full_clear = 4;
-                        self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
+                        self.rectangle = Rectangle::from_loc_and_size((x, y), (width, height));
                         true
                     }
                     Some(PopupState::WaitConfigure(first)) => {

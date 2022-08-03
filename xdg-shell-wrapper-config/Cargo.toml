@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-wayland-protocols = { version = "0.29" , features = ["client", "unstable_protocols"] }
+wayland-protocols-wlr = "0.1.0-beta.8"

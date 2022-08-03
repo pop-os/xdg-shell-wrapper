@@ -1,3 +1,4 @@
+use sctk::shell::xdg::XdgPositioner;
 use slog::error;
 use smithay::{
     delegate_xdg_shell,
@@ -60,16 +61,20 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         surface: PopupSurface,
         positioner_state: PositionerState,
     ) {
-        let positioner = self.client_state.xdg_wm_base.create_positioner();
+        let positioner = match XdgPositioner::new(&self.client_state.xdg_shell_state) {
+            Ok(p) => p,
+            Err(_) => return,
+        };
 
         // let wl_surface = self.desktop_client_state.env_handle.create_surface().detach();
         // let xdg_surface = self.desktop_client_state.xdg_wm_base.get_xdg_surface(&wl_surface);
 
         self.space.add_popup(
-            &self.client_state.env_handle,
-            &self.client_state.xdg_wm_base,
+            &self.client_state.compositor_state,
+            &self.client_state.connection,
+            &mut self.client_state.xdg_shell_state,
             surface.clone(),
-            positioner,
+            &positioner,
             positioner_state,
         );
         self.server_state
@@ -127,11 +132,13 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         positioner: PositionerState,
         token: u32,
     ) {
-        let new_positioner = self.client_state.xdg_wm_base.create_positioner();
-
+        let new_positioner = match XdgPositioner::new(&self.client_state.xdg_shell_state) {
+            Ok(p) => p,
+            Err(_) => return,
+        };
         let _ = self
             .space
-            .reposition_popup(surface.clone(), new_positioner, positioner, token);
+            .reposition_popup(surface.clone(), &new_positioner, positioner, token);
         self.server_state.popup_manager.commit(surface.wl_surface());
     }
 }
