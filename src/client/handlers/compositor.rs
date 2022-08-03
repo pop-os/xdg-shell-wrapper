@@ -24,7 +24,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
     fn frame(
         &mut self,
         _conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _qh: &QueueHandle<Self>,
         _surface: &wl_surface::WlSurface,
         _time: u32,
     ) {
