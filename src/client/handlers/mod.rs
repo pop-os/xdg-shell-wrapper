@@ -18,6 +18,8 @@ pub mod layer_shell;
 /// output helpers
 pub mod output;
 pub mod seat;
+pub mod pointer;
+pub mod keyboard;
 pub mod shell;
 
 impl<W: WrapperSpace> ShmHandler for GlobalState<W> {
@@ -42,5 +44,4 @@ impl<W: WrapperSpace> ProvidesRegistryState for GlobalState<W> {
 delegate_compositor!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_output!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_shm!(@<W: WrapperSpace + 'static> GlobalState<W>);
-delegate_seat!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_registry!(@<W: WrapperSpace + 'static> GlobalState<W>);

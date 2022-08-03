@@ -2,34 +2,53 @@
 
 use sctk::{
     reexports::client::{
-        self,
-        protocol::{wl_keyboard, wl_pointer as c_wl_pointer, wl_seat as c_wl_seat, wl_surface},
+        protocol::wl_seat,
         Connection, QueueHandle,
     },
-    seat::{SeatData, SeatHandler},
-};
-use slog::{error, trace, Logger};
-use smithay::reexports::wayland_server::Resource;
-use smithay::utils::Point;
-use smithay::wayland::seat::MotionEvent;
-use smithay::{
-    backend::input::KeyState,
-    reexports::wayland_server::{protocol::wl_pointer, Display},
-    wayland::{
-        seat::{self, AxisFrame, ButtonEvent, FilterResult},
-        SERIAL_COUNTER,
-    },
+    seat::SeatHandler, delegate_seat,
 };
 
-use crate::client_state::FocusStatus;
-use crate::server_state::ServerPointerFocus;
-use crate::shared_state::AxisFrameData;
 use crate::{
-    client_state::{ClientSeat, ClientState},
-    server_state::{SeatPair, ServerState},
     shared_state::GlobalState,
     space::WrapperSpace,
 };
+
+
+impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
+    fn seat_state(&mut self) -> &mut sctk::seat::SeatState {
+        todo!()
+    }
+
+    fn new_seat(&mut self, conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
+        todo!()
+    }
+
+    fn new_capability(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: sctk::seat::Capability,
+    ) {
+        todo!()
+    }
+
+    fn remove_capability(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: sctk::seat::Capability,
+    ) {
+        todo!()
+    }
+
+    fn remove_seat(&mut self, conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
+        todo!()
+    }
+}
+
+delegate_seat!(@<W: WrapperSpace + 'static> GlobalState<W>);
 
 // pub fn send_keyboard_event<W: WrapperSpace + 'static>(
 //     event: wl_keyboard::Event,
@@ -347,37 +366,3 @@ use crate::{
 //         };
 //     }
 // }
-
-impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
-    fn seat_state(&mut self) -> &mut sctk::seat::SeatState {
-        todo!()
-    }
-
-    fn new_seat(&mut self, conn: &Connection, qh: &QueueHandle<Self>, seat: c_wl_seat::WlSeat) {
-        todo!()
-    }
-
-    fn new_capability(
-        &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        seat: c_wl_seat::WlSeat,
-        capability: sctk::seat::Capability,
-    ) {
-        todo!()
-    }
-
-    fn remove_capability(
-        &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        seat: c_wl_seat::WlSeat,
-        capability: sctk::seat::Capability,
-    ) {
-        todo!()
-    }
-
-    fn remove_seat(&mut self, conn: &Connection, qh: &QueueHandle<Self>, seat: c_wl_seat::WlSeat) {
-        todo!()
-    }
-}
