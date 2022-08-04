@@ -20,11 +20,7 @@ use sctk::{
 use slog::Logger;
 use smithay::reexports::{calloop, wayland_server};
 
-use crate::{
-    server_state::ServerState,
-    shared_state::{GlobalState},
-    space::WrapperSpace,
-};
+use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
 
 #[derive(Debug)]
 pub(crate) struct ClientSeat {

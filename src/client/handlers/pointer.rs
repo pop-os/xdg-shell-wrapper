@@ -1,9 +1,24 @@
 use std::time::Instant;
 
-use crate::{space::WrapperSpace, shared_state::GlobalState, server_state::{SeatPair, ServerPointerFocus}, client_state::FocusStatus};
-use sctk::{seat::pointer::PointerHandler, delegate_pointer};
-use smithay::{wayland::{seat::{MotionEvent, ButtonEvent, AxisFrame}, SERIAL_COUNTER}, utils::Point, reexports::wayland_server::{self, Resource, protocol::wl_pointer::{ButtonState, Axis}}};
-
+use crate::{
+    client_state::FocusStatus,
+    server_state::{SeatPair, ServerPointerFocus},
+    shared_state::GlobalState,
+    space::WrapperSpace,
+};
+use sctk::{delegate_pointer, seat::pointer::PointerHandler};
+use smithay::{
+    reexports::wayland_server::{
+        self,
+        protocol::wl_pointer::{Axis, ButtonState},
+        Resource,
+    },
+    utils::Point,
+    wayland::{
+        seat::{AxisFrame, ButtonEvent, MotionEvent},
+        SERIAL_COUNTER,
+    },
+};
 
 impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
     fn pointer_frame(
@@ -13,46 +28,52 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
         pointer: &sctk::reexports::client::protocol::wl_pointer::WlPointer,
         events: &[sctk::seat::pointer::PointerEvent],
     ) {
-
         let start_time = self.start_time;
         let time = start_time.elapsed().as_millis();
         let dh = self.server_state.display_handle.clone();
 
-        let (seat_name, ptr, kbd) = 
-            if let Some((name, Some(ptr), Some(kbd))) = self.server_state.seats
-                .iter()
-                .find(|SeatPair { client, .. }| {
-                    client.ptr.as_ref().map(|p| p == pointer).unwrap_or(false)
-                })
-                .map(|seat| (seat.name.as_str(), seat.server.get_pointer(), seat.server.get_keyboard()))
-            {
-                (name.to_string(), ptr, kbd).clone()
-            } else {
-                return ;
-            };
+        let (seat_name, ptr, kbd) = if let Some((name, Some(ptr), Some(kbd))) = self
+            .server_state
+            .seats
+            .iter()
+            .find(|SeatPair { client, .. }| {
+                client.ptr.as_ref().map(|p| p == pointer).unwrap_or(false)
+            })
+            .map(|seat| {
+                (
+                    seat.name.as_str(),
+                    seat.server.get_pointer(),
+                    seat.server.get_keyboard(),
+                )
+            }) {
+            (name.to_string(), ptr, kbd).clone()
+        } else {
+            return;
+        };
         for e in events {
             match e.kind {
                 sctk::seat::pointer::PointerEventKind::Leave { .. } => {
-                {
-                    let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
-                    if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == e.surface) {
-                        c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
+                    {
+                        let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
+                        if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == e.surface) {
+                            c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
+                        }
                     }
+
+                    self.space
+                        .pointer_leave(&seat_name, Some(e.surface.clone()));
+
+                    ptr.motion(
+                        self,
+                        &dh,
+                        &MotionEvent {
+                            location: (0.0, 0.0).into(),
+                            focus: None,
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
                 }
-
-                self.space.pointer_leave(&seat_name, Some(e.surface.clone()));
-
-                ptr.motion(
-                    self,
-                    &dh,
-                    &MotionEvent {
-                        location: (0.0, 0.0).into(),
-                        focus: None,
-                        serial: SERIAL_COUNTER.next_serial(),
-                        time: time.try_into().unwrap(),
-                    },
-                );
-                },
                 sctk::seat::pointer::PointerEventKind::Enter { .. } => {
                     // if not popup, then must be a panel layer shell surface
                     // TODO better handling of subsurfaces?
@@ -76,9 +97,11 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         c_pos,
                         s_pos,
                         ..
-                    }) =
-                        self.space.update_pointer((surface_x as i32, surface_y as i32), &seat_name, e.surface.clone())
-                    {
+                    }) = self.space.update_pointer(
+                        (surface_x as i32, surface_y as i32),
+                        &seat_name,
+                        e.surface.clone(),
+                    ) {
                         ptr.motion(
                             self,
                             &dh,
@@ -101,11 +124,13 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             },
                         );
                     }
-                },
+                }
                 sctk::seat::pointer::PointerEventKind::Motion { time } => {
                     let (surface_x, surface_y) = e.position;
 
-                    let c_focused_surface = match self.client_state.hovered_surface
+                    let c_focused_surface = match self
+                        .client_state
+                        .hovered_surface
                         .borrow()
                         .iter()
                         .find(|f| f.1.as_str() == seat_name)
@@ -146,12 +171,12 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             },
                         );
                     }
-                },
+                }
                 sctk::seat::pointer::PointerEventKind::Press { time, button, .. } => {
                     self.server_state.last_button.replace(button);
-    
+
                     let s = self.space.handle_press(&seat_name);
-    
+
                     if let Some(client_id) = s.as_ref().and_then(|s| s.client_id()) {
                         if !kbd.has_focus(&client_id) {
                             kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
@@ -159,7 +184,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     } else {
                         kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
                     }
-    
+
                     ptr.button(
                         self,
                         &dh,
@@ -170,12 +195,12 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             state: ButtonState::Pressed,
                         },
                     );
-                },
+                }
                 sctk::seat::pointer::PointerEventKind::Release { time, button, .. } => {
                     self.server_state.last_button.replace(button);
-    
+
                     let s = self.space.handle_press(&seat_name);
-    
+
                     if let Some(client_id) = s.as_ref().and_then(|s| s.client_id()) {
                         if !kbd.has_focus(&client_id) {
                             kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
@@ -183,7 +208,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     } else {
                         kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
                     }
-    
+
                     ptr.button(
                         self,
                         &dh,
@@ -194,18 +219,24 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             state: ButtonState::Released,
                         },
                     );
-                },
-                sctk::seat::pointer::PointerEventKind::Axis { time, horizontal, vertical, source } => {
-                    let source = match source.map(|s| wayland_server::protocol::wl_pointer::AxisSource::try_from(s as u32)) {
+                }
+                sctk::seat::pointer::PointerEventKind::Axis {
+                    time,
+                    horizontal,
+                    vertical,
+                    source,
+                } => {
+                    let source = match source.map(|s| {
+                        wayland_server::protocol::wl_pointer::AxisSource::try_from(s as u32)
+                    }) {
                         Some(Ok(s)) => s,
                         _ => continue,
                     };
 
-                    let mut af = AxisFrame::new(time)
-                        .source(source);
+                    let mut af = AxisFrame::new(time).source(source);
 
-                    if ! horizontal.is_none() {
-                        if horizontal.discrete > 0  {
+                    if !horizontal.is_none() {
+                        if horizontal.discrete > 0 {
                             af = af.discrete(Axis::HorizontalScroll, horizontal.discrete)
                         }
                         if horizontal.absolute.abs() > 0.0 {
@@ -216,14 +247,14 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         }
                     }
 
-                    if ! vertical.is_none() {
+                    if !vertical.is_none() {
                         if vertical.discrete > 0 {
                             af = af.discrete(Axis::VerticalScroll, vertical.discrete)
                         }
                         af = af.value(Axis::VerticalScroll, vertical.absolute);
                         if vertical.stop {
                             af.stop(Axis::VerticalScroll);
-                        }  
+                        }
                     }
 
                     ptr.axis(self, &dh, af);
@@ -238,14 +269,14 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     //             axis_frame.push(new_afd);
                     //             axis_frame.last_mut().unwrap()
                     //         };
-        
+
                     //     let af = if let Some(af) = &mut axis_frame.frame {
                     //         af
                     //     } else {
                     //         axis_frame.frame.replace(AxisFrame::new(time));
                     //         axis_frame.frame.as_mut().unwrap()
                     //     };
-        
+
                     //     if let Some(axis_source) = axis_frame.source.take() {
                     //         *af = af.source(axis_source);
                     //     }
@@ -311,14 +342,14 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     //             axis_frame.push(new_afd);
                     //             axis_frame.last_mut().unwrap()
                     //         };
-        
+
                     //     let af = if let Some(af) = &mut axis_frame.frame {
                     //         af
                     //     } else {
                     //         axis_frame.frame.replace(AxisFrame::new(time));
                     //         axis_frame.frame.as_mut().unwrap()
                     //     };
-        
+
                     //     if let Ok(axis) = wl_pointer::Axis::try_from(axis as u32) {
                     //         *af = af.stop(axis);
                     //     }
@@ -343,7 +374,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     //         _ => (),
                     //     }
                     // }
-                },
+                }
             }
         }
     }

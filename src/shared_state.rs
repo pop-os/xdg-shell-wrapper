@@ -2,13 +2,11 @@
 
 use sctk::reexports::client::protocol::wl_output as c_wl_output;
 use slog::Logger;
+use smithay::wayland::output::Output;
 use smithay::{
     backend::renderer::{ImportDma, ImportEgl},
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
     wayland::dmabuf::DmabufState,
-};
-use smithay::{
-    wayland::output::Output,
 };
 
 use crate::client_state::ClientState;

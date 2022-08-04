@@ -14,12 +14,12 @@ use sctk::{
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 pub mod compositor;
+pub mod keyboard;
 pub mod layer_shell;
 /// output helpers
 pub mod output;
-pub mod seat;
 pub mod pointer;
-pub mod keyboard;
+pub mod seat;
 pub mod shell;
 
 impl<W: WrapperSpace> ShmHandler for GlobalState<W> {

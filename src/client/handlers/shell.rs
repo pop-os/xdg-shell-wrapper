@@ -19,7 +19,7 @@ impl<W: WrapperSpace> PopupHandler for GlobalState<W> {
         popup: &sctk::shell::xdg::popup::Popup,
         config: sctk::shell::xdg::popup::PopupConfigure,
     ) {
-        todo!()
+        self.space.configure_popup(popup, config);
     }
 
     fn done(
@@ -28,7 +28,7 @@ impl<W: WrapperSpace> PopupHandler for GlobalState<W> {
         qh: &sctk::reexports::client::QueueHandle<Self>,
         popup: &sctk::shell::xdg::popup::Popup,
     ) {
-        todo!()
+        self.space.done_popup(popup)
     }
 }
 

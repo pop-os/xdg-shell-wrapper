@@ -16,9 +16,7 @@ use smithay::{
 // SPDX-License-Identifier: MPL-2.0-only
 use anyhow::{bail, Result};
 use sctk::{
-    reexports::client::{
-        protocol::{wl_shm, wl_surface::WlSurface},
-    },
+    reexports::client::protocol::{wl_shm, wl_surface::WlSurface},
     shm::multi::MultiPool,
 };
 use smithay::{

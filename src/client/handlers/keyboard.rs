@@ -1,8 +1,17 @@
 use std::time::Instant;
 
-use crate::{space::WrapperSpace, shared_state::GlobalState, server_state::SeatPair, client_state::FocusStatus};
-use sctk::{seat::keyboard::{KeyboardHandler, keysyms::XKB_KEY_Escape, RepeatInfo}, delegate_keyboard};
-use smithay::{wayland::{SERIAL_COUNTER, seat::FilterResult}, backend::input::KeyState};
+use crate::{
+    client_state::FocusStatus, server_state::SeatPair, shared_state::GlobalState,
+    space::WrapperSpace,
+};
+use sctk::{
+    delegate_keyboard,
+    seat::keyboard::{keysyms::XKB_KEY_Escape, KeyboardHandler, RepeatInfo},
+};
+use smithay::{
+    backend::input::KeyState,
+    wayland::{seat::FilterResult, SERIAL_COUNTER},
+};
 
 impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
     fn enter(
@@ -15,19 +24,20 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         _raw: &[u32],
         _keysyms: &[u32],
     ) {
-        let (seat_name, kbd) = 
-            if let Some((name, Some(kbd))) = self.server_state.seats
-                .iter()
-                .find(|SeatPair { client, .. }| {
-                    client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
-                })
-                .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
-            {
-                (name.to_string(), kbd).clone()
-            } else {
-                return ;
-            };    
-        
+        let (seat_name, kbd) = if let Some((name, Some(kbd))) = self
+            .server_state
+            .seats
+            .iter()
+            .find(|SeatPair { client, .. }| {
+                client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
+            })
+            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+        {
+            (name.to_string(), kbd).clone()
+        } else {
+            return;
+        };
+
         {
             let mut c_focused_surface = self.client_state.focused_surface.borrow_mut();
             if let Some(i) = c_focused_surface.iter().position(|f| f.1 == seat_name) {
@@ -43,7 +53,11 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         }
 
         let s = self.space.keyboard_enter(&seat_name, surface.clone());
-        kbd.set_focus(&self.server_state.display_handle, s.as_ref(), SERIAL_COUNTER.next_serial());
+        kbd.set_focus(
+            &self.server_state.display_handle,
+            s.as_ref(),
+            SERIAL_COUNTER.next_serial(),
+        );
     }
 
     fn leave(
@@ -54,18 +68,19 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         surface: &sctk::reexports::client::protocol::wl_surface::WlSurface,
         _serial: u32,
     ) {
-        let (seat_name, kbd) = 
-            if let Some((name, Some(kbd))) = self.server_state.seats
-                .iter()
-                .find(|SeatPair { client, .. }| {
-                    client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
-                })
-                .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
-            {
-                (name.to_string(), kbd).clone()
-            } else {
-                return ;
-            };   
+        let (seat_name, kbd) = if let Some((name, Some(kbd))) = self
+            .server_state
+            .seats
+            .iter()
+            .find(|SeatPair { client, .. }| {
+                client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
+            })
+            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+        {
+            (name.to_string(), kbd).clone()
+        } else {
+            return;
+        };
 
         let kbd_focus = {
             let mut c_focused_surface = self.client_state.focused_surface.borrow_mut();
@@ -78,7 +93,11 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         };
         if kbd_focus {
             self.space.keyboard_leave(&seat_name, Some(surface.clone()));
-            kbd.set_focus(&self.server_state.display_handle, None, SERIAL_COUNTER.next_serial());
+            kbd.set_focus(
+                &self.server_state.display_handle,
+                None,
+                SERIAL_COUNTER.next_serial(),
+            );
         }
     }
 
@@ -90,17 +109,23 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         _serial: u32,
         event: sctk::seat::keyboard::KeyEvent,
     ) {
-        let kbd = 
-            if let Some(Some(kbd)) = self.server_state.seats
+        let kbd = if let Some(Some(kbd)) =
+            self.server_state
+                .seats
                 .iter()
                 .find_map(|SeatPair { client, server, .. }| {
-                    client.kbd.as_ref().map(|k| if k == keyboard {server.get_keyboard()} else {None})
-                })
-            {
-                kbd.clone()
-            } else {
-                return ;
-            };   
+                    client.kbd.as_ref().map(|k| {
+                        if k == keyboard {
+                            server.get_keyboard()
+                        } else {
+                            None
+                        }
+                    })
+                }) {
+            kbd.clone()
+        } else {
+            return;
+        };
 
         let _ = kbd.input::<(), _>(
             &self.server_state.display_handle,
@@ -108,8 +133,8 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             KeyState::Pressed,
             SERIAL_COUNTER.next_serial(),
             event.time,
-            move |_modifiers, _keysym| FilterResult::Forward
-        );   
+            move |_modifiers, _keysym| FilterResult::Forward,
+        );
     }
 
     fn release_key(
@@ -120,18 +145,19 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         _serial: u32,
         event: sctk::seat::keyboard::KeyEvent,
     ) {
-        let (seat_name, kbd) = 
-            if let Some((name, Some(kbd))) = self.server_state.seats
-                .iter()
-                .find(|SeatPair { client, .. }| {
-                    client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
-                })
-                .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
-            {
-                (name.to_string(), kbd).clone()
-            } else {
-                return ;
-            };   
+        let (seat_name, kbd) = if let Some((name, Some(kbd))) = self
+            .server_state
+            .seats
+            .iter()
+            .find(|SeatPair { client, .. }| {
+                client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
+            })
+            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+        {
+            (name.to_string(), kbd).clone()
+        } else {
+            return;
+        };
 
         match kbd.input::<(), _>(
             &self.server_state.display_handle,
@@ -149,7 +175,11 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         ) {
             Some(_) => {
                 self.space.keyboard_leave(&seat_name, None);
-                kbd.set_focus(&self.server_state.display_handle, None, SERIAL_COUNTER.next_serial());
+                kbd.set_focus(
+                    &self.server_state.display_handle,
+                    None,
+                    SERIAL_COUNTER.next_serial(),
+                );
             }
             None => {}
         };
@@ -162,15 +192,25 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         kbd: &sctk::reexports::client::protocol::wl_keyboard::WlKeyboard,
         info: RepeatInfo,
     ) {
-        if let Some(kbd) = self.server_state.seats
-            .iter()
-            .find_map(|SeatPair { client, server, .. }| {
-                client.kbd.as_ref().and_then(|k| if k == kbd {server.get_keyboard()} else {None})
-            })
+        if let Some(kbd) =
+            self.server_state
+                .seats
+                .iter()
+                .find_map(|SeatPair { client, server, .. }| {
+                    client.kbd.as_ref().and_then(|k| {
+                        if k == kbd {
+                            server.get_keyboard()
+                        } else {
+                            None
+                        }
+                    })
+                })
         {
             match info {
-                RepeatInfo::Repeat { rate, delay } => kbd.change_repeat_info(u32::from(rate) as i32, delay.try_into().unwrap()),
-                RepeatInfo::Disable => {kbd.change_repeat_info(0, 0)},
+                RepeatInfo::Repeat { rate, delay } => {
+                    kbd.change_repeat_info(u32::from(rate) as i32, delay.try_into().unwrap())
+                }
+                RepeatInfo::Disable => kbd.change_repeat_info(0, 0),
             };
         }
     }

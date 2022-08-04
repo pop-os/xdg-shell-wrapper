@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use sctk::{
-    reexports::client::{
-        protocol::wl_seat,
-        Connection, QueueHandle,
-    },
-    seat::SeatHandler, delegate_seat,
+    delegate_seat,
+    reexports::client::{protocol::wl_seat, Connection, QueueHandle},
+    seat::SeatHandler,
 };
 use smithay::wayland::seat::Seat;
 
 use crate::{
-    shared_state::GlobalState,
-    space::WrapperSpace, server_state::SeatPair, client_state::ClientSeat,
+    client_state::ClientSeat, server_state::SeatPair, shared_state::GlobalState,
+    space::WrapperSpace,
 };
-
 
 impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
     fn seat_state(&mut self) -> &mut sctk::seat::SeatState {
@@ -21,10 +18,14 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
     }
 
     fn new_seat(&mut self, _conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        if let Some(info) =  self.client_state.seat_state.info(&seat) {
+        if let Some(info) = self.client_state.seat_state.info(&seat) {
             let name = info.name.unwrap_or_default();
-            
-            let mut new_server_seat = Seat::new(&self.server_state.display_handle, name.clone(), self.log.clone());
+
+            let mut new_server_seat = Seat::new(
+                &self.server_state.display_handle,
+                name.clone(),
+                self.log.clone(),
+            );
             let kbd = if info.has_keyboard {
                 if let Ok(kbd) = self.client_state.seat_state.get_keyboard(qh, &seat, None) {
                     let _ = new_server_seat.add_keyboard(Default::default(), 200, 20, |_, _| {});
@@ -46,7 +47,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             } else {
                 None
             };
-        
+
             self.server_state.seats.push(SeatPair {
                 name: name,
                 client: ClientSeat {
@@ -67,34 +68,41 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         seat: wl_seat::WlSeat,
         capability: sctk::seat::Capability,
     ) {
-        let info = if let Some(info) =  self.client_state.seat_state.info(&seat) {
+        let info = if let Some(info) = self.client_state.seat_state.info(&seat) {
             info
         } else {
-            return ;
+            return;
         };
-        let sp = if let Some(sp) = self.server_state.seats.iter_mut().find(|sp| sp.client._seat == seat) {
+        let sp = if let Some(sp) = self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|sp| sp.client._seat == seat)
+        {
             sp
         } else {
-            return
+            return;
         };
         match capability {
             sctk::seat::Capability::Keyboard => {
                 if info.has_keyboard {
                     if let Ok(kbd) = self.client_state.seat_state.get_keyboard(qh, &seat, None) {
-                        let _ = sp.server.add_keyboard(Default::default(), 200, 20, |_, _| {});
+                        let _ = sp
+                            .server
+                            .add_keyboard(Default::default(), 200, 20, |_, _| {});
                         sp.client.kbd.replace(kbd);
-                    } 
+                    }
                 }
-            },
+            }
             sctk::seat::Capability::Pointer => {
                 if info.has_pointer {
                     if let Ok(ptr) = self.client_state.seat_state.get_pointer(qh, &seat) {
                         sp.server.add_pointer(|_| {});
                         sp.client.ptr.replace(ptr);
-                    } 
+                    }
                 }
-            },
-            sctk::seat::Capability::Touch => {}, // TODO 
+            }
+            sctk::seat::Capability::Touch => {} // TODO
             _ => unimplemented!(),
         }
     }
@@ -106,27 +114,38 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         seat: wl_seat::WlSeat,
         capability: sctk::seat::Capability,
     ) {
-        let sp = if let Some(sp) = self.server_state.seats.iter_mut().find(|sp| sp.client._seat == seat) {
+        let sp = if let Some(sp) = self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|sp| sp.client._seat == seat)
+        {
             sp
         } else {
-            return
+            return;
         };
         match capability {
             sctk::seat::Capability::Keyboard => {
                 sp.server.remove_keyboard();
-            },
+            }
             sctk::seat::Capability::Pointer => {
                 sp.server.remove_pointer();
-            },
-            sctk::seat::Capability::Touch => {}, // TODO 
+            }
+            sctk::seat::Capability::Touch => {} // TODO
             _ => unimplemented!(),
-        }    }
+        }
+    }
 
     fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        let _ = if let Some(sp_i) = self.server_state.seats.iter().position(|sp| sp.client._seat == seat) {
+        let _ = if let Some(sp_i) = self
+            .server_state
+            .seats
+            .iter()
+            .position(|sp| sp.client._seat == seat)
+        {
             self.server_state.seats.swap_remove(sp_i)
         } else {
-            return
+            return;
         };
     }
 }
