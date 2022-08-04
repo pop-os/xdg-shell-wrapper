@@ -52,7 +52,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub(crate) xdg_shell_state: XdgShellState,
 
     pub(crate) connection: Connection,
-    pub(crate) _queue_handle: QueueHandle<GlobalState<W>>, // TODO remove if never used
+    pub(crate) queue_handle: QueueHandle<GlobalState<W>>, // TODO remove if never used
     /// state regarding the last embedded client surface with keyboard focus
     pub focused_surface: Rc<RefCell<ClientFocus>>,
     /// state regarding the last embedded client surface with keyboard focus
@@ -90,7 +90,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             focused_surface: c_focused_surface.clone(),
             hovered_surface: c_hovered_surface.clone(),
 
-            _queue_handle: qh,
+            queue_handle: qh,
             connection,
             seat_state: SeatState::new(),
             output_state: OutputState::new(),

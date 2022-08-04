@@ -11,7 +11,7 @@ use sctk::{
     compositor::CompositorState,
     reexports::client::{
         protocol::{wl_output as c_wl_output, wl_surface},
-        Connection,
+        Connection, QueueHandle,
     },
     shell::xdg::{XdgPositioner, XdgShellState},
 };
@@ -28,7 +28,7 @@ use smithay::{
     },
 };
 
-use crate::{client_state::ClientFocus, config::WrapperConfig, server_state::ServerPointerFocus};
+use crate::{client_state::ClientFocus, config::WrapperConfig, server_state::ServerPointerFocus, shared_state::GlobalState};
 
 /// Space events
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -131,10 +131,11 @@ pub trait WrapperSpace {
     fn add_window(&mut self, s_top_level: Window);
 
     /// add a popup to the space
-    fn add_popup(
+    fn add_popup<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
         conn: &Connection,
+        qh: &QueueHandle<GlobalState<W>>,
         xdg_shell_state: &mut XdgShellState,
         s_surface: PopupSurface,
         positioner: &XdgPositioner,

@@ -72,6 +72,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         self.space.add_popup(
             &self.client_state.compositor_state,
             &self.client_state.connection,
+            &self.client_state.queue_handle,
             &mut self.client_state.xdg_shell_state,
             surface.clone(),
             &positioner,
