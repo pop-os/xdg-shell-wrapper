@@ -22,7 +22,7 @@ use smithay::reexports::{calloop, wayland_server};
 
 use crate::{
     server_state::ServerState,
-    shared_state::{AxisFrameData, GlobalState},
+    shared_state::{GlobalState},
     space::WrapperSpace,
 };
 
@@ -34,8 +34,11 @@ pub(crate) struct ClientSeat {
 }
 
 #[derive(Debug, Copy, Clone)]
+/// status of a focus
 pub enum FocusStatus {
+    /// focused
     Focused,
+    /// instant last focused
     LastFocused(Instant),
 }
 // TODO remove refcell if possible
@@ -45,21 +48,20 @@ pub type ClientFocus = Vec<(wl_surface::WlSurface, String, FocusStatus)>;
 /// Wrapper client state
 #[derive(Debug)]
 pub struct ClientState<W: WrapperSpace + 'static> {
-    pub registry_state: RegistryState,
-    pub seat_state: SeatState,
-    pub output_state: OutputState,
-    pub compositor_state: CompositorState,
-    pub shm_state: ShmState,
-    pub xdg_shell_state: XdgShellState,
+    pub(crate) registry_state: RegistryState,
+    pub(crate) seat_state: SeatState,
+    pub(crate) output_state: OutputState,
+    pub(crate) compositor_state: CompositorState,
+    pub(crate) shm_state: ShmState,
+    pub(crate) xdg_shell_state: XdgShellState,
 
-    pub connection: Connection,
-    pub queue_handle: QueueHandle<GlobalState<W>>,
+    pub(crate) connection: Connection,
+    pub(crate) _queue_handle: QueueHandle<GlobalState<W>>, // TODO remove if never used
     /// state regarding the last embedded client surface with keyboard focus
     pub focused_surface: Rc<RefCell<ClientFocus>>,
     /// state regarding the last embedded client surface with keyboard focus
     pub hovered_surface: Rc<RefCell<ClientFocus>>,
     pub(crate) cursor_surface: Option<wl_surface::WlSurface>,
-    pub(crate) axis_frame: Vec<AxisFrameData>,
     pub(crate) shm: Option<wl_shm::WlShm>,
     pub(crate) multipool: Option<MultiPool<WlSurface>>,
 }
@@ -68,17 +70,16 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
     pub(crate) fn new(
         loop_handle: calloop::LoopHandle<'static, GlobalState<W>>,
         space: &mut W,
-        log: Logger,
+        _log: Logger,
         dh: &mut wayland_server::DisplayHandle,
-        embedded_server_state: &mut ServerState<W>,
+        _embedded_server_state: &mut ServerState<W>,
     ) -> anyhow::Result<Self> {
-        let config = space.config();
         /*
          * Initial setup
          */
         let connection = Connection::connect_to_env()?;
 
-        let mut event_queue = connection.new_event_queue();
+        let event_queue = connection.new_event_queue();
         let qh = event_queue.handle();
         let c_focused_surface: Rc<RefCell<ClientFocus>> = Default::default();
         let c_hovered_surface: Rc<RefCell<ClientFocus>> = Default::default();
@@ -87,14 +88,13 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         let registry_state = RegistryState::new(&connection, &qh);
 
         let client_state = ClientState {
-            axis_frame: Default::default(),
             cursor_surface: None,
             shm: None,
 
             focused_surface: c_focused_surface.clone(),
             hovered_surface: c_hovered_surface.clone(),
 
-            queue_handle: qh,
+            _queue_handle: qh,
             connection,
             seat_state: SeatState::new(),
             output_state: OutputState::new(),

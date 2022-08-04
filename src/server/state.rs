@@ -43,9 +43,6 @@ pub struct ServerState<W: WrapperSpace + 'static> {
     /// popup manager
     pub popup_manager: PopupManager,
     pub(crate) display_handle: DisplayHandle,
-
-    pub(crate) focused_surface: ServerFocus,
-    pub(crate) hovered_surface: ServerPtrFocus,
     // pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,
@@ -123,8 +120,6 @@ impl<W: WrapperSpace> ServerState<W> {
             seat_state: SeatState::new(),
             data_device_state: DataDeviceState::new::<GlobalState<W>, _>(&dh, log.clone()),
             dmabuf_state: None,
-            focused_surface: Default::default(),
-            hovered_surface: Default::default(),
         }
     }
 }

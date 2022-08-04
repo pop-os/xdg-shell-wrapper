@@ -43,9 +43,9 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
 
     fn commit(&mut self, dh: &DisplayHandle, surface: &WlSurface) {
         let log = &mut self.log;
-        let qh = &self.client_state.queue_handle;
         let role = get_role(&surface);
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
+
         if role == "xdg_toplevel".into() {
             on_commit_buffer_handler(&surface);
             self.space.dirty_window(&dh, &surface)
@@ -73,11 +73,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
                             if let Some(BufferType::Shm) = buffer_type(buffer) {
                                 trace!(log, "attaching buffer to cursor surface.");
-                                let _ = write_and_attach_buffer(
+                                let _ = write_and_attach_buffer::<W>(
                                     buf.as_ref().unwrap(),
                                     self.client_state.cursor_surface.as_ref().unwrap(),
                                     multipool,
-                                    &qh,
                                 );
 
                                 trace!(log, "requesting update");

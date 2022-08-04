@@ -2,7 +2,7 @@
 
 use sctk::{
     compositor::CompositorState,
-    delegate_compositor, delegate_output, delegate_registry, delegate_seat, delegate_shm,
+    delegate_compositor, delegate_output, delegate_registry, delegate_shm,
     output::OutputState,
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,

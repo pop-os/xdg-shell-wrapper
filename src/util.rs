@@ -4,7 +4,6 @@ use std::{
     io::{BufWriter, Write},
     os::unix::{net::UnixStream, prelude::AsRawFd},
     process::{Child, Command},
-    ptr::write,
     sync::Arc,
 };
 
@@ -19,7 +18,6 @@ use anyhow::{bail, Result};
 use sctk::{
     reexports::client::{
         protocol::{wl_shm, wl_surface::WlSurface},
-        QueueHandle,
     },
     shm::multi::MultiPool,
 };
@@ -30,8 +28,6 @@ use smithay::{
         shm::{with_buffer_contents, BufferData},
     },
 };
-
-use crate::shared_state::GlobalState;
 
 use super::WrapperSpace;
 
@@ -116,7 +112,6 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
     buffer_assignment: &BufferAssignment,
     cursor_surface: &WlSurface,
     multipool: &mut MultiPool<WlSurface>,
-    qh: &QueueHandle<GlobalState<W>>,
 ) -> Result<()> {
     if let BufferAssignment::NewBuffer(source_buffer) = buffer_assignment {
         if let Some(BufferType::Shm) = buffer_type(source_buffer) {
