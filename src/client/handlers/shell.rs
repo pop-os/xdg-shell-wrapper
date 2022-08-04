@@ -14,8 +14,8 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 impl<W: WrapperSpace> PopupHandler for GlobalState<W> {
     fn configure(
         &mut self,
-        conn: &sctk::reexports::client::Connection,
-        qh: &sctk::reexports::client::QueueHandle<Self>,
+        _conn: &sctk::reexports::client::Connection,
+        _qh: &sctk::reexports::client::QueueHandle<Self>,
         popup: &sctk::shell::xdg::popup::Popup,
         config: sctk::shell::xdg::popup::PopupConfigure,
     ) {
@@ -24,8 +24,8 @@ impl<W: WrapperSpace> PopupHandler for GlobalState<W> {
 
     fn done(
         &mut self,
-        conn: &sctk::reexports::client::Connection,
-        qh: &sctk::reexports::client::QueueHandle<Self>,
+        _conn: &sctk::reexports::client::Connection,
+        _qh: &sctk::reexports::client::QueueHandle<Self>,
         popup: &sctk::shell::xdg::popup::Popup,
     ) {
         self.space.done_popup(popup)
