@@ -28,7 +28,7 @@ impl<W: WrapperSpace> PopupHandler for GlobalState<W> {
         _qh: &sctk::reexports::client::QueueHandle<Self>,
         popup: &sctk::shell::xdg::popup::Popup,
     ) {
-        self.space.done_popup(popup)
+        self.space.close_popup(popup)
     }
 }
 

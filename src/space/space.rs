@@ -13,7 +13,10 @@ use sctk::{
         protocol::{wl_output as c_wl_output, wl_surface},
         Connection, QueueHandle,
     },
-    shell::xdg::{XdgPositioner, XdgShellState},
+    shell::{
+        layer::{LayerSurface, LayerSurfaceConfigure},
+        xdg::{XdgPositioner, XdgShellState},
+    },
 };
 use slog::Logger;
 use smithay::{
@@ -28,7 +31,10 @@ use smithay::{
     },
 };
 
-use crate::{client_state::ClientFocus, config::WrapperConfig, server_state::ServerPointerFocus, shared_state::GlobalState};
+use crate::{
+    client_state::ClientFocus, config::WrapperConfig, server_state::ServerPointerFocus,
+    shared_state::GlobalState,
+};
 
 /// Space events
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -225,7 +231,13 @@ pub trait WrapperSpace {
     );
 
     /// finished popup
-    fn done_popup(&mut self, popup: &sctk::shell::xdg::popup::Popup);
+    fn close_popup(&mut self, popup: &sctk::shell::xdg::popup::Popup);
+
+    /// configure layer
+    fn configure_layer(&mut self, layer: &LayerSurface, configure: LayerSurfaceConfigure);
+
+    /// close layer
+    fn close_layer(&mut self, layer: &LayerSurface);
 
     /// gets the renderer for the space
     fn renderer(&mut self) -> Option<&mut Gles2Renderer>;

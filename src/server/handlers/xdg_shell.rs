@@ -66,10 +66,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             Err(_) => return,
         };
 
-        // let wl_surface = self.desktop_client_state.env_handle.create_surface().detach();
-        // let xdg_surface = self.desktop_client_state.xdg_wm_base.get_xdg_surface(&wl_surface);
-
-        self.space.add_popup(
+        match self.space.add_popup(
             &self.client_state.compositor_state,
             &self.client_state.connection,
             &self.client_state.queue_handle,
@@ -77,12 +74,17 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             surface.clone(),
             &positioner,
             positioner_state,
-        );
-        self.server_state
-            .popup_manager
-            .track_popup(PopupKind::Xdg(surface.clone()))
-            .unwrap();
-        self.server_state.popup_manager.commit(surface.wl_surface());
+        ) {
+            Ok(_) => {
+                self.server_state
+                    .popup_manager
+                    .track_popup(PopupKind::Xdg(surface.clone()))
+                    .unwrap();
+                self.server_state.popup_manager.commit(surface.wl_surface());
+            },
+            Err(_) => {},
+        }
+
     }
 
     fn move_request(

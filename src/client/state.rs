@@ -3,18 +3,20 @@ use std::{cell::RefCell, rc::Rc, time::Instant};
 use sctk::{
     compositor::CompositorState,
     output::OutputState,
-    reexports::client::{
-        protocol::{
-            wl_keyboard, wl_pointer,
-            wl_seat::WlSeat,
-            wl_shm,
-            wl_surface::{self, WlSurface},
+    reexports::{
+        client::{
+            protocol::{
+                wl_keyboard, wl_pointer,
+                wl_seat::WlSeat,
+                wl_shm,
+                wl_surface::{self, WlSurface},
+            },
+            Connection, QueueHandle,
         },
-        Connection, QueueHandle,
     },
     registry::RegistryState,
     seat::SeatState,
-    shell::xdg::XdgShellState,
+    shell::{layer::LayerState, xdg::XdgShellState},
     shm::{multi::MultiPool, ShmState},
 };
 use slog::Logger;
@@ -50,6 +52,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub(crate) compositor_state: CompositorState,
     pub(crate) shm_state: ShmState,
     pub(crate) xdg_shell_state: XdgShellState,
+    pub(crate) layer_state: LayerState,
 
     pub(crate) connection: Connection,
     pub(crate) queue_handle: QueueHandle<GlobalState<W>>, // TODO remove if never used
@@ -99,6 +102,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             xdg_shell_state: XdgShellState::new(),
             registry_state,
             multipool: multipool.ok(),
+            layer_state: LayerState::new(),
         };
 
         // let _ = embedded_server_state
