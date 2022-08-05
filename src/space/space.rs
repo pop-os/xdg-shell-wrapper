@@ -140,7 +140,7 @@ pub trait WrapperSpace {
         s_surface: PopupSurface,
         positioner: &XdgPositioner,
         positioner_state: PositionerState,
-    );
+    ) -> anyhow::Result<()>;
 
     /// handle a button press on a client surface
     /// optionally returns a pressed server wl surface
