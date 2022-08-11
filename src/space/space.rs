@@ -9,12 +9,13 @@ use std::{
 
 use sctk::{
     compositor::CompositorState,
+    output::OutputInfo,
     reexports::client::{
         protocol::{wl_output as c_wl_output, wl_surface},
         Connection, QueueHandle,
     },
     shell::{
-        layer::{LayerSurface, LayerSurfaceConfigure},
+        layer::{LayerState, LayerSurface, LayerSurfaceConfigure},
         xdg::{XdgPositioner, XdgShellState},
     },
 };
@@ -47,17 +48,6 @@ pub enum SpaceEvent {
         width: i32,
         /// height
         height: i32,
-    },
-    /// the next configure event
-    Configure {
-        /// whether it is the first configure event
-        first: bool,
-        /// width
-        width: i32,
-        /// height
-        height: i32,
-        /// serial
-        serial: i32,
     },
     /// the space has been scheduled to cleanup and exit
     Quit,
@@ -107,22 +97,35 @@ pub trait WrapperSpace {
     type Config: WrapperConfig;
 
     /// initial setup of the space
-    fn setup(
+    fn setup<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
+        layer_state: &mut LayerState,
         conn: &Connection,
+        qh: &QueueHandle<GlobalState<W>>,
         c_display: DisplayHandle,
         c_focused_surface: Rc<RefCell<ClientFocus>>,
         c_hovered_surface: Rc<RefCell<ClientFocus>>,
     );
 
     /// add the configured output to the space
-    fn handle_output(
+    fn handle_output<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
+        layer_state: &mut LayerState,
         conn: &Connection,
+        qh: &QueueHandle<GlobalState<W>>,
         c_output: Option<c_wl_output::WlOutput>,
         s_output: Option<Output>,
+        info: Option<OutputInfo>,
+    ) -> anyhow::Result<()>;
+
+    /// remove the configured output from the space
+    fn output_leave(
+        &mut self,
+        c_output: Option<c_wl_output::WlOutput>,
+        s_output: Option<Output>,
+        info: Option<OutputInfo>,
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space

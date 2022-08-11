@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use sctk::shell::layer::LayerHandler;
+use sctk::{delegate_layer, shell::layer::LayerHandler};
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
@@ -29,3 +29,5 @@ impl<W: WrapperSpace> LayerHandler for GlobalState<W> {
         self.space.configure_layer(layer, configure);
     }
 }
+
+delegate_layer!(@<W: WrapperSpace + 'static> GlobalState<W>);

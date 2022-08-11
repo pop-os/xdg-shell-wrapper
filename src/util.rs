@@ -2,7 +2,7 @@
 
 use std::{
     io::{BufWriter, Write},
-    os::unix::{net::UnixStream, prelude::AsRawFd},
+    os::unix::{net::UnixStream, prelude::{AsRawFd, BorrowedFd, RawFd}},
     process::{Child, Command},
     sync::Arc,
 };
@@ -72,7 +72,7 @@ impl ClientData for WrapperClientData {
 pub fn exec_child(
     c: &str,
     log: Logger,
-    raw_fd: i32,
+    fd: RawFd,
     env_vars: Vec<(&str, &str)>,
     requests_wayland_display: bool,
 ) -> Child {
@@ -97,7 +97,7 @@ pub fn exec_child(
     }
 
     child
-        .env("WAYLAND_SOCKET", raw_fd.to_string())
+        .env("WAYLAND_SOCKET", fd.to_string())
         .env_remove("WAYLAND_DEBUG")
         // .env("WAYLAND_DEBUG", "1")
         // .stderr(std::process::Stdio::piped())

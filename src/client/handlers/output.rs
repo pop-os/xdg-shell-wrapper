@@ -31,7 +31,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
     fn new_output(
         &mut self,
         conn: &Connection,
-        _qh: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
         let info = match self.output_state().info(&output) {
@@ -40,9 +40,12 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
         };
 
         let GlobalState {
-            client_state: ClientState {
-                compositor_state, ..
-            },
+            client_state:
+                ClientState {
+                    compositor_state,
+                    layer_state,
+                    ..
+                },
             server_state: ServerState { display_handle, .. },
             space,
             log,
@@ -63,7 +66,15 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
 
             space
-                .handle_output(compositor_state, conn, Some(output), Some(s_output.0))
+                .handle_output(
+                    compositor_state,
+                    layer_state,
+                    conn,
+                    qh,
+                    Some(output),
+                    Some(s_output.0),
+                    Some(info),
+                )
                 .unwrap();
         }
     }
@@ -71,7 +82,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
     fn update_output(
         &mut self,
         conn: &Connection,
-        _qh: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
         let info = match self.output_state().info(&output) {
@@ -79,9 +90,12 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             _ => return,
         };
         let GlobalState {
-            client_state: ClientState {
-                compositor_state, ..
-            },
+            client_state:
+                ClientState {
+                    compositor_state,
+                    layer_state,
+                    ..
+                },
             server_state: ServerState { display_handle, .. },
             space,
             log,
@@ -102,7 +116,15 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
 
             space
-                .handle_output(compositor_state, conn, Some(output), Some(s_output.0))
+                .handle_output(
+                    compositor_state,
+                    layer_state,
+                    conn,
+                    qh,
+                    Some(output),
+                    Some(s_output.0),
+                    Some(info),
+                )
                 .unwrap();
         }
     }
@@ -110,7 +132,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
     fn output_destroyed(
         &mut self,
         conn: &Connection,
-        _qh: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
         let info = match self.output_state().info(&output) {
@@ -118,9 +140,12 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             _ => return,
         };
         let GlobalState {
-            client_state: ClientState {
-                compositor_state, ..
-            },
+            client_state:
+                ClientState {
+                    compositor_state,
+                    layer_state,
+                    ..
+                },
             server_state: ServerState { display_handle, .. },
             space,
             log,
@@ -141,7 +166,15 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
 
             space
-                .handle_output(compositor_state, conn, Some(output), Some(s_output.0))
+                .handle_output(
+                    compositor_state,
+                    layer_state,
+                    conn,
+                    qh,
+                    Some(output),
+                    Some(s_output.0),
+                    Some(info),
+                )
                 .unwrap();
         }
     }

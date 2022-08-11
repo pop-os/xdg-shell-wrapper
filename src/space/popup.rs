@@ -51,7 +51,7 @@ pub struct WrapperPopup {
     /// the egl surface
     pub egl_surface: Option<Rc<EGLSurface>>,
     /// the state of the popup
-    pub popup_state: Option<WrapperPopupState>,
+    pub state: Option<WrapperPopupState>,
     /// whether or not the popup needs to be rendered
     pub dirty: bool,
     /// position of the popup
@@ -67,73 +67,13 @@ impl WrapperPopup {
     /// Returns true if the surface is alive.
     pub fn handle_events(
         &mut self,
-        popup_manager: &mut PopupManager,
-        egl_context: &EGLContext,
-        egl_display: &EGLDisplay,
-        c_display: &WlDisplay,
+        _: &mut PopupManager,
+        _: &EGLContext,
+        _: &EGLDisplay,
+        _: &WlDisplay,
     ) -> bool {
-        let should_keep = {
-            if !self.s_surface.alive() {
-                false
-            } else {
-                match self.popup_state.take() {
-                    Some(WrapperPopupState::Closed) => false,
-                    Some(WrapperPopupState::Configure {
-                        first,
-                        width,
-                        height,
-                        x,
-                        y,
-                    }) => {
-                        if first {
-                            let wl_egl_surface =
-                                match WlEglSurface::new(self.c_wl_surface.id(), width, height) {
-                                    Ok(s) => s,
-                                    Err(_) => return false,
-                                };
-                            let client_egl_surface = ClientEglSurface {
-                                wl_egl_surface,
-                                display: c_display.clone(),
-                            };
-
-                            let egl_surface = Rc::new(
-                                EGLSurface::new(
-                                    &egl_display,
-                                    egl_context
-                                        .pixel_format()
-                                        .expect("Failed to get pixel format from EGL context "),
-                                    egl_context.config_id(),
-                                    client_egl_surface,
-                                    None,
-                                )
-                                .expect("Failed to initialize EGL Surface"),
-                            );
-
-                            self.egl_surface.replace(egl_surface);
-                        } else {
-                            self.egl_surface
-                                .as_ref()
-                                .unwrap()
-                                .resize(width, height, 0, 0);
-                        }
-                        popup_manager.commit(self.s_surface.wl_surface());
-                        self.dirty = true;
-                        self.full_clear = 4;
-                        self.rectangle = Rectangle::from_loc_and_size((x, y), (width, height));
-                        true
-                    }
-                    Some(WrapperPopupState::WaitConfigure(first)) => {
-                        self.popup_state
-                            .replace(WrapperPopupState::WaitConfigure(first));
-                        true
-                    }
-                    Some(WrapperPopupState::Repositioned(_)) => true,
-                    None => true,
-                }
-            }
-        };
-
-        should_keep
+        // TODO refactor to do most of this in the space
+        self.s_surface.alive()
     }
 }
 

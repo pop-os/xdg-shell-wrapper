@@ -81,10 +81,9 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
                     .track_popup(PopupKind::Xdg(surface.clone()))
                     .unwrap();
                 self.server_state.popup_manager.commit(surface.wl_surface());
-            },
-            Err(_) => {},
+            }
+            Err(_) => {}
         }
-
     }
 
     fn move_request(

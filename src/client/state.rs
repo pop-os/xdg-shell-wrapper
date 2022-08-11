@@ -3,16 +3,14 @@ use std::{cell::RefCell, rc::Rc, time::Instant};
 use sctk::{
     compositor::CompositorState,
     output::OutputState,
-    reexports::{
-        client::{
-            protocol::{
-                wl_keyboard, wl_pointer,
-                wl_seat::WlSeat,
-                wl_shm,
-                wl_surface::{self, WlSurface},
-            },
-            Connection, QueueHandle,
+    reexports::client::{
+        protocol::{
+            wl_keyboard, wl_pointer,
+            wl_seat::WlSeat,
+            wl_shm,
+            wl_surface::{self, WlSurface},
         },
+        Connection, QueueHandle,
     },
     registry::RegistryState,
     seat::SeatState,
@@ -86,7 +84,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         let multipool = MultiPool::new(&shm);
         let registry_state = RegistryState::new(&connection, &qh);
 
-        let client_state = ClientState {
+        let mut client_state = ClientState {
             cursor_surface: None,
             shm: None,
 
@@ -118,7 +116,9 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
 
         space.setup(
             &client_state.compositor_state,
+            &mut client_state.layer_state,
             &client_state.connection,
+            &client_state.queue_handle,
             dh.clone(),
             c_focused_surface.clone(),
             c_hovered_surface.clone(),
