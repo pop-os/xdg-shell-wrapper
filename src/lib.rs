@@ -49,7 +49,6 @@ pub fn run<W: WrapperSpace + 'static>(
         &mut server_display.handle(),
         &mut embedded_server_state,
     )?;
-    let _sockets = space.spawn_clients(server_display.handle()).unwrap();
 
     let mut global_state = GlobalState::new(
         client_state,
@@ -60,8 +59,17 @@ pub fn run<W: WrapperSpace + 'static>(
     );
 
     while !global_state.client_state.registry_state.ready() {
-        event_loop.dispatch(Duration::from_millis(100), &mut global_state)?;
+        for _ in 0..2 {
+            event_loop.dispatch(Duration::from_millis(100), &mut global_state)?;
+        }
     }
+
+    let _sockets = global_state
+        .space
+        .spawn_clients(server_display.handle())
+        .unwrap();
+
+    event_loop.dispatch(Duration::from_millis(30), &mut global_state)?;
 
     global_state.bind_display(&s_dh);
 
@@ -79,9 +87,7 @@ pub fn run<W: WrapperSpace + 'static>(
         }
 
         // dispatch desktop client events
-        let dispatch_client_res = event_loop.dispatch(Duration::from_millis(16), &mut global_state);
-
-        dispatch_client_res.expect("Failed to dispatch events");
+        event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
 
         // rendering
         {

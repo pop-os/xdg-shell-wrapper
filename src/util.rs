@@ -2,7 +2,10 @@
 
 use std::{
     io::{BufWriter, Write},
-    os::unix::{net::UnixStream, prelude::{AsRawFd, BorrowedFd, RawFd}},
+    os::unix::{
+        net::UnixStream,
+        prelude::{AsRawFd, RawFd},
+    },
     process::{Child, Command},
     sync::Arc,
 };

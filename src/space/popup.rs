@@ -2,9 +2,8 @@
 
 use std::rc::Rc;
 
-use crate::space::ClientEglSurface;
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
-use sctk::reexports::client::{protocol::wl_surface as c_wl_surface, Proxy};
+use sctk::reexports::client::{protocol::wl_surface as c_wl_surface};
 use sctk::shell::xdg::popup::Popup;
 use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::{
@@ -13,7 +12,6 @@ use smithay::{
     utils::{Logical, Physical, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
-use wayland_egl::WlEglSurface;
 
 /// Popup events
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -54,12 +52,14 @@ pub struct WrapperPopup {
     pub state: Option<WrapperPopupState>,
     /// whether or not the popup needs to be rendered
     pub dirty: bool,
-    /// position of the popup
+    /// full rectangle of the popup, including dropshadow borders
     pub rectangle: Rectangle<i32, Logical>,
     /// accumulated damage with age values
     pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
     /// full clear
     pub full_clear: u8,
+    // /// last submitted positioner
+    // pub positioner_state: PositionerState,
 }
 
 impl WrapperPopup {
