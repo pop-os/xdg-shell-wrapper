@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use crate::space::ClientEglSurface;
 use sctk::reexports::client::Display;
+use sctk::reexports::client::protocol::wl_region::WlRegion;
 use sctk::reexports::{
     client::protocol::wl_surface as c_wl_surface,
     client::Main,
@@ -66,6 +67,8 @@ pub struct Popup {
     pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
     /// full clear
     pub full_clear: u8,
+    /// input region for the popup
+    pub input_region: Main<WlRegion>,
 }
 
 impl Popup {
