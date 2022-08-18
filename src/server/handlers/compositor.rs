@@ -1,4 +1,4 @@
-use std::cell::RefMut;
+use std::{cell::RefMut, sync::Mutex};
 
 use slog::trace;
 use smithay::{
@@ -15,7 +15,7 @@ use smithay::{
             SurfaceAttributes,
         },
         shm::{ShmHandler, ShmState},
-        SERIAL_COUNTER,
+        SERIAL_COUNTER, seat::CursorImageAttributes,
     },
 };
 
@@ -53,36 +53,44 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             self.server_state.popup_manager.commit(&surface);
         } else if role == "cursor_image".into() {
             // FIXME pass cursor image to parent compositor with correct offset
-            // trace!(log, "received surface with cursor image");
-            // for SeatPair { client, .. } in &self.server_state.seats {
-            //     if let Some(ptr) = client.ptr.as_ref() {
-            //         trace!(log, "updating cursor for pointer {:?}", &ptr);
-            //         let _ = with_states(&surface, |data| {
-            //             let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
-            //             let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
-            //             if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
-            //                 if let Some(BufferType::Shm) = buffer_type(buffer) {
-            //                     trace!(log, "attaching buffer to cursor surface.");
-            //                     let _ = cached_buffers.write_and_attach_buffer(
-            //                         buf.as_ref().unwrap(),
-            //                         &self.client_state.cursor_surface,
-            //                         &self.client_state.shm,
-            //                     );
+            trace!(log, "received surface with cursor image");
+            for SeatPair { client, .. } in &self.server_state.seats {
+                if let Some(ptr) = client.ptr.as_ref() {
+                    trace!(log, "updating cursor for pointer {:?}", &ptr);
+                    let _ = with_states(&surface, |data| {
+                        let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
+                        let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
+                        if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
+                            if let Some(BufferType::Shm) = buffer_type(buffer) {
+                                trace!(log, "attaching buffer to cursor surface.");
+                                let _ = cached_buffers.write_and_attach_buffer(
+                                    buf.as_ref().unwrap(),
+                                    &self.client_state.cursor_surface,
+                                    &self.client_state.shm,
+                                );
 
-            //                     trace!(log, "requesting update");
-            //                     ptr.set_cursor(
-            //                         SERIAL_COUNTER.next_serial().into(),
-            //                         Some(&self.client_state.cursor_surface),
-            //                         0,
-            //                         0,
-            //                     );
-            //                 }
-            //             } else {
-            //                 ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);
-            //             }
-            //         });
-            //     }
-            // }
+                                if let Some(hotspot) = data
+                                    .data_map
+                                    .get::<Mutex<CursorImageAttributes>>()
+                                    .and_then(|m| m.lock().ok())
+                                    .map(|attr| (*attr).hotspot) 
+                                {
+
+                                    trace!(log, "requesting update");
+                                    ptr.set_cursor(
+                                        SERIAL_COUNTER.next_serial().into(),
+                                        Some(&self.client_state.cursor_surface),
+                                        hotspot.x,
+                                        hotspot.y,
+                                    );
+                                }
+                            }
+                        } else {
+                            ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);
+                        }
+                    });
+                }
+            }
         } else {
             trace!(log, "{:?}", surface);
         }
