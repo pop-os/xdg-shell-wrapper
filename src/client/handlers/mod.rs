@@ -7,7 +7,7 @@ use sctk::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::SeatState,
-    shell::xdg::XdgShellState,
+    shell::{xdg::XdgShellState, layer::LayerState},
     shm::{ShmHandler, ShmState},
 };
 
@@ -38,6 +38,7 @@ impl<W: WrapperSpace> ProvidesRegistryState for GlobalState<W> {
         ShmState,
         SeatState,
         XdgShellState,
+        LayerState
     ];
 }
 

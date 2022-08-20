@@ -1,4 +1,4 @@
-use std::cell::RefMut;
+use std::{cell::RefMut, sync::Mutex};
 
 use slog::{error, trace};
 use smithay::{
@@ -15,7 +15,7 @@ use smithay::{
             SurfaceAttributes,
         },
         shm::{ShmHandler, ShmState},
-        SERIAL_COUNTER,
+        SERIAL_COUNTER, seat::CursorImageAttributes,
     },
 };
 
@@ -78,14 +78,21 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                                     self.client_state.cursor_surface.as_ref().unwrap(),
                                     multipool,
                                 );
+                                if let Some(hotspot) = data
+                                    .data_map
+                                    .get::<Mutex<CursorImageAttributes>>()
+                                    .and_then(|m| m.lock().ok())
+                                    .map(|attr| (*attr).hotspot) 
+                                {
 
-                                trace!(log, "requesting update");
-                                ptr.set_cursor(
-                                    SERIAL_COUNTER.next_serial().into(),
-                                    Some(self.client_state.cursor_surface.as_ref().unwrap()),
-                                    0,
-                                    0,
-                                );
+                                    trace!(log, "requesting update");
+                                    ptr.set_cursor(
+                                        SERIAL_COUNTER.next_serial().into(),
+                                        Some(self.client_state.cursor_surface.as_ref().unwrap()),
+                                        hotspot.x,
+                                        hotspot.y,
+                                    );
+                                }
                             }
                         } else {
                             ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);

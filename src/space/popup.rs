@@ -2,6 +2,7 @@
 
 use std::rc::Rc;
 
+use sctk::compositor::Region;
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::{protocol::wl_surface as c_wl_surface};
 use sctk::shell::xdg::popup::Popup;
@@ -58,8 +59,8 @@ pub struct WrapperPopup {
     pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
     /// full clear
     pub full_clear: u8,
-    // /// last submitted positioner
-    // pub positioner_state: PositionerState,
+    /// input region for the popup
+    pub input_region: Region,
 }
 
 impl WrapperPopup {
