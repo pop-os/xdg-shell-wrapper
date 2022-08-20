@@ -7,7 +7,6 @@ use sctk::{
         protocol::{
             wl_keyboard, wl_pointer,
             wl_seat::WlSeat,
-            wl_shm,
             wl_surface::{self, WlSurface},
         },
         Connection, QueueHandle,
@@ -59,7 +58,6 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     /// state regarding the last embedded client surface with keyboard focus
     pub hovered_surface: Rc<RefCell<ClientFocus>>,
     pub(crate) cursor_surface: Option<wl_surface::WlSurface>,
-    pub(crate) shm: Option<wl_shm::WlShm>,
     pub(crate) multipool: Option<MultiPool<WlSurface>>,
 }
 
@@ -80,14 +78,9 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         let qh = event_queue.handle();
         let c_focused_surface: Rc<RefCell<ClientFocus>> = Default::default();
         let c_hovered_surface: Rc<RefCell<ClientFocus>> = Default::default();
-        let shm = ShmState::new();
-        let multipool = MultiPool::new(&shm);
         let registry_state = RegistryState::new(&connection, &qh);
 
         let mut client_state = ClientState {
-            cursor_surface: None,
-            shm: None,
-
             focused_surface: c_focused_surface.clone(),
             hovered_surface: c_hovered_surface.clone(),
 
@@ -96,11 +89,14 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             seat_state: SeatState::new(),
             output_state: OutputState::new(),
             compositor_state: CompositorState::new(),
-            shm_state: shm,
+            shm_state: ShmState::new(),
             xdg_shell_state: XdgShellState::new(),
-            registry_state,
-            multipool: multipool.ok(),
             layer_state: LayerState::new(),
+
+            registry_state,
+            multipool: None,
+            cursor_surface: None,
+
         };
 
         // let _ = embedded_server_state

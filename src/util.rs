@@ -127,6 +127,7 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
                             stride,
                             ..
                         } = buffer_metadata;
+
                         let (_, buff, to) =
                             match multipool.get(width, stride, height, cursor_surface, format) {
                                 Some(b) => b,
@@ -158,11 +159,11 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
                         let mut writer = BufWriter::new(to);
                         let from = Vec::from(from);
                         let offset: usize = offset.try_into()?;
-                        let width: usize = width.try_into()?;
                         let height: usize = height.try_into()?;
                         let stride: usize = stride.try_into()?;
 
-                        writer.write_all(&from[offset..(offset + width * height * stride)])?;
+                        // XXX what to do with width
+                        writer.write_all(&from[offset..(offset + height * stride)])?;
                         writer.flush()?;
 
                         cursor_surface.attach(Some(buff), 0, 0);

@@ -38,7 +38,7 @@ impl<W: WrapperSpace> ProvidesRegistryState for GlobalState<W> {
         ShmState,
         SeatState,
         XdgShellState,
-        LayerState
+        LayerState,
     ];
 }
 

@@ -17,12 +17,10 @@ use smithay::{
 /// Popup events
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum WrapperPopupState {
-    /// Waiting for the configure event for the popup surface
-    WaitConfigure(bool),
+    /// Wait for configure event to render
+    WaitConfigure,
     /// Configure Event
-    Configure {
-        /// first configure event
-        first: bool,
+    Rectangle {
         /// x position
         x: i32,
         /// y position
@@ -32,10 +30,6 @@ pub enum WrapperPopupState {
         /// height
         height: i32,
     },
-    /// Popup reposition token
-    Repositioned(u32),
-    /// Popup closed
-    Closed,
 }
 
 /// Popup
@@ -68,12 +62,25 @@ impl WrapperPopup {
     /// Returns true if the surface is alive.
     pub fn handle_events(
         &mut self,
-        _: &mut PopupManager,
+        popup_manager: &mut PopupManager,
         _: &EGLContext,
         _: &EGLDisplay,
         _: &WlDisplay,
     ) -> bool {
-        // TODO refactor to do most of this in the space
+        match self.state {
+            Some(WrapperPopupState::Rectangle { width, height, x, y }) => {
+                self.egl_surface
+                    .as_ref()
+                    .unwrap()
+                    .resize(width, height, 0, 0);
+                popup_manager.commit(self.s_surface.wl_surface());
+                self.dirty = true;
+                self.full_clear = 4;
+                self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
+                self.state.take();
+            },
+            _ => {}
+        };
         self.s_surface.alive()
     }
 }

@@ -24,18 +24,6 @@ use crate::{
     util::write_and_attach_buffer,
 };
 
-// let DesktopClientState {
-//     cursor_surface,
-//     space,
-//     seats,
-//     shm,
-//     ..
-// } = &mut state.desktop_client_state;
-// let EmbeddedServerState {
-//     popup_manager,
-//     shell_state,
-//     ..
-// } = &mut state.embedded_server_state;
 impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
     fn compositor_state(&mut self) -> &mut CompositorState {
         &mut self.server_state.compositor_state
@@ -61,6 +49,13 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     return;
                 }
             };
+            let cursor_surface = match &mut self.client_state.cursor_surface {
+                Some(m) => m,
+                None => {
+                    error!(log.clone(), "cursor surface is missing!");
+                    return;
+                }
+            };
 
             // FIXME pass cursor image to parent compositor
             trace!(log, "received surface with cursor image");
@@ -75,9 +70,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                                 trace!(log, "attaching buffer to cursor surface.");
                                 let _ = write_and_attach_buffer::<W>(
                                     buf.as_ref().unwrap(),
-                                    self.client_state.cursor_surface.as_ref().unwrap(),
+                                    cursor_surface,
                                     multipool,
                                 );
+
                                 if let Some(hotspot) = data
                                     .data_map
                                     .get::<Mutex<CursorImageAttributes>>()
@@ -88,7 +84,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                                     trace!(log, "requesting update");
                                     ptr.set_cursor(
                                         SERIAL_COUNTER.next_serial().into(),
-                                        Some(self.client_state.cursor_surface.as_ref().unwrap()),
+                                        Some(cursor_surface),
                                         hotspot.x,
                                         hotspot.y,
                                     );

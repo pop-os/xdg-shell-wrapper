@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::Result;
+use sctk::shm::multi::MultiPool;
 use smithay::reexports::calloop;
 
 use client::state::ClientState;
@@ -63,6 +64,10 @@ pub fn run<W: WrapperSpace + 'static>(
             event_loop.dispatch(Duration::from_millis(100), &mut global_state)?;
         }
     }
+    let multipool = MultiPool::new(&global_state.client_state.shm_state);
+    let cursor_surface = global_state.client_state.compositor_state.create_surface(&global_state.client_state.queue_handle);
+    global_state.client_state.multipool = multipool.ok();
+    global_state.client_state.cursor_surface = cursor_surface.ok();
 
     let _sockets = global_state
         .space
