@@ -9,8 +9,8 @@ license = "MPL-2.0"
 [dependencies]
 smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
-sctk = { git = "https://github.com/wash2/client-toolkit", package = "smithay-client-toolkit", default-features = false, features = ["calloop", "xkbcommon"], branch = "get_popup" }
-# sctk = { package = "smithay-client-toolkit", path = "../../client-toolkit", default-features = false, features = ["calloop"] }
+sctk = { git = "https://github.com/wash2/client-toolkit", package = "smithay-client-toolkit", branch = "get_popup" }
+# sctk = { package = "smithay-client-toolkit", path = "../fork/client-toolkit", default-features = false, features = ["calloop", "xkbcommon", "system"] }
 anyhow = "1.0.53"
 ron = "0.8.0"
 serde = { version = "1.0.136", features = ["derive"] }
