@@ -15,7 +15,7 @@ use smithay::{
 };
 
 /// Popup events
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum WrapperPopupState {
     /// Wait for configure event to render
     WaitConfigure,
@@ -67,19 +67,16 @@ impl WrapperPopup {
         _: &EGLDisplay,
         _: &WlDisplay,
     ) -> bool {
-        match self.state {
-            Some(WrapperPopupState::Rectangle { width, height, x, y }) => {
-                self.egl_surface
-                    .as_ref()
-                    .unwrap()
-                    .resize(width, height, 0, 0);
-                popup_manager.commit(self.s_surface.wl_surface());
-                self.dirty = true;
-                self.full_clear = 4;
-                self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
-                self.state.take();
-            },
-            _ => {}
+        if let Some(WrapperPopupState::Rectangle { width, height, x, y }) =  self.state {
+            self.egl_surface
+                .as_ref()
+                .unwrap()
+                .resize(width, height, 0, 0);
+            popup_manager.commit(self.s_surface.wl_surface());
+            self.dirty = true;
+            self.full_clear = 4;
+            self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
+            self.state.take();
         };
         self.s_surface.alive()
     }

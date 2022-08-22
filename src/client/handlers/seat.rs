@@ -49,7 +49,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             };
 
             self.server_state.seats.push(SeatPair {
-                name: name,
+                name,
                 client: ClientSeat {
                     _seat: seat.clone(),
                     kbd,

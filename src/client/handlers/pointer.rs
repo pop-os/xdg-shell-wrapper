@@ -46,7 +46,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     seat.server.get_keyboard(),
                 )
             }) {
-            (name.to_string(), ptr, kbd).clone()
+            (name.to_string(), ptr, kbd)
         } else {
             return;
         };
@@ -156,7 +156,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
                                 focus: Some((surface.clone(), s_pos)),
                                 serial: SERIAL_COUNTER.next_serial(),
-                                time: time.try_into().unwrap(),
+                                time,
                             },
                         );
                     } else {
@@ -167,7 +167,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 location: Point::from((surface_x, surface_y)),
                                 focus: None,
                                 serial: SERIAL_COUNTER.next_serial(),
-                                time: time.try_into().unwrap(),
+                                time,
                             },
                         );
                     }

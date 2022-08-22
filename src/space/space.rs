@@ -38,7 +38,7 @@ use crate::{
 };
 
 /// Space events
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum SpaceEvent {
     /// waiting for the next configure event
     WaitConfigure {
@@ -54,7 +54,7 @@ pub enum SpaceEvent {
 }
 
 /// Visibility of the space
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Visibility {
     /// hidden
     Hidden,

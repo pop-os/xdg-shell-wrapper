@@ -56,18 +56,17 @@ impl<W: WrapperSpace> DmabufHandler for GlobalState<W> {
 
     fn dmabuf_imported(
         &mut self,
-        _dh: &smithay::reexports::wayland_server::DisplayHandle,
         _global: &smithay::wayland::dmabuf::DmabufGlobal,
         dmabuf: smithay::backend::allocator::dmabuf::Dmabuf,
     ) -> Result<(), ImportError> {
         self.space
             .renderer()
             .map(|renderer| renderer.import_dmabuf(&dmabuf, None))
-            .and_then(|r| match r {
-                Ok(_) => Some(Ok(())),
-                Err(_) => Some(Err(ImportError::Failed)),
+            .map(|r| match r {
+                Ok(_) => Ok(()),
+                Err(_) => Err(ImportError::Failed),
             })
-            .unwrap()
+            .unwrap_or_else(|| Err(ImportError::Failed))
     }
 }
 delegate_dmabuf!(@<W: WrapperSpace + 'static> GlobalState<W>);

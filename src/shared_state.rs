@@ -39,15 +39,13 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
         start_time: std::time::Instant,
         log: Logger,
     ) -> Self {
-        let global_state = Self {
+        Self {
             space,
             client_state,
             server_state,
             start_time,
             log,
-        };
-
-        global_state
+        }
     }
 }
 

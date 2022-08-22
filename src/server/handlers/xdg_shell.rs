@@ -5,7 +5,7 @@ use smithay::{
     desktop::{Kind, PopupKind, Window},
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
-        wayland_server::{protocol::wl_seat, DisplayHandle},
+        wayland_server::{protocol::wl_seat},
     },
     wayland::{
         shell::xdg::{
@@ -37,7 +37,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         &mut self.server_state.xdg_shell_state
     }
 
-    fn new_toplevel(&mut self, _dh: &DisplayHandle, surface: ToplevelSurface) {
+    fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let window = Window::new(Kind::Xdg(surface.clone()));
         // window.refresh();
 
@@ -57,7 +57,6 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 
     fn new_popup(
         &mut self,
-        _dh: &DisplayHandle,
         surface: PopupSurface,
         positioner_state: PositionerState,
     ) {
@@ -66,7 +65,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             Err(_) => return,
         };
 
-        match self.space.add_popup(
+        if self.space.add_popup(
             &self.client_state.compositor_state,
             &self.client_state.connection,
             &self.client_state.queue_handle,
@@ -74,21 +73,17 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             surface.clone(),
             &positioner,
             positioner_state,
-        ) {
-            Ok(_) => {
-                self.server_state
-                    .popup_manager
-                    .track_popup(PopupKind::Xdg(surface.clone()))
-                    .unwrap();
-                self.server_state.popup_manager.commit(surface.wl_surface());
-            }
-            Err(_) => {}
+        ).is_ok() {
+            self.server_state
+                .popup_manager
+                .track_popup(PopupKind::Xdg(surface.clone()))
+                .unwrap();
+            self.server_state.popup_manager.commit(surface.wl_surface());
         }
     }
 
     fn move_request(
         &mut self,
-        _dh: &DisplayHandle,
         _surface: ToplevelSurface,
         _seat: wl_seat::WlSeat,
         _serial: Serial,
@@ -97,7 +92,6 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 
     fn resize_request(
         &mut self,
-        _dh: &DisplayHandle,
         _surface: ToplevelSurface,
         _seat: wl_seat::WlSeat,
         _serial: Serial,
@@ -107,15 +101,15 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 
     fn grab(
         &mut self,
-        dh: &DisplayHandle,
         surface: PopupSurface,
         seat: wl_seat::WlSeat,
         _serial: Serial,
     ) {
+        let dh = self.server_state.display_handle.clone();
         for s in &self.server_state.seats {
             if s.server.owns(&seat) {
                 if let Err(e) = self.server_state.popup_manager.grab_popup(
-                    dh,
+                    &dh,
                     PopupKind::Xdg(surface),
                     &s.server,
                     SERIAL_COUNTER.next_serial(),
@@ -129,7 +123,6 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 
     fn reposition_request(
         &mut self,
-        _dh: &smithay::reexports::wayland_server::DisplayHandle,
         surface: PopupSurface,
         positioner: PositionerState,
         token: u32,

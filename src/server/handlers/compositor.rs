@@ -6,7 +6,6 @@ use smithay::{
     delegate_compositor, delegate_shm,
     reexports::wayland_server::{
         protocol::{wl_buffer, wl_surface::WlSurface},
-        DisplayHandle,
     },
     wayland::{
         buffer::BufferHandler,
@@ -29,18 +28,19 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         &mut self.server_state.compositor_state
     }
 
-    fn commit(&mut self, dh: &DisplayHandle, surface: &WlSurface) {
+    fn commit(&mut self, surface: &WlSurface) {
+        let dh = self.server_state.display_handle.clone();
         let log = &mut self.log;
-        let role = get_role(&surface);
+        let role = get_role(surface);
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
 
         if role == "xdg_toplevel".into() {
-            on_commit_buffer_handler(&surface);
-            self.space.dirty_window(&dh, &surface)
+            on_commit_buffer_handler(surface);
+            self.space.dirty_window(&dh, surface)
         } else if role == "xdg_popup".into() {
-            on_commit_buffer_handler(&surface);
-            self.space.dirty_popup(&dh, &surface);
-            self.server_state.popup_manager.commit(&surface);
+            on_commit_buffer_handler(surface);
+            self.space.dirty_popup(&dh, surface);
+            self.server_state.popup_manager.commit(surface);
         } else if role == "cursor_image".into() {
             let multipool = match &mut self.client_state.multipool {
                 Some(m) => m,
@@ -62,7 +62,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             for SeatPair { client, .. } in &self.server_state.seats {
                 if let Some(ptr) = client.ptr.as_ref() {
                     trace!(log, "updating cursor for pointer {:?}", &ptr);
-                    let _ = with_states(&surface, |data| {
+                    let _ = with_states(surface, |data| {
                         let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
                         let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {

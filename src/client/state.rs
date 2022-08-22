@@ -116,8 +116,8 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             &client_state.connection,
             &client_state.queue_handle,
             dh.clone(),
-            c_focused_surface.clone(),
-            c_hovered_surface.clone(),
+            c_focused_surface,
+            c_hovered_surface,
         );
 
         Ok(client_state)

@@ -33,7 +33,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             })
             .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
         {
-            (name.to_string(), kbd).clone()
+            (name.to_string(), kbd)
         } else {
             return;
         };
@@ -77,7 +77,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             })
             .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
         {
-            (name.to_string(), kbd).clone()
+            (name.to_string(), kbd)
         } else {
             return;
         };
@@ -122,7 +122,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
                         }
                     })
                 }) {
-            kbd.clone()
+            kbd
         } else {
             return;
         };
@@ -154,7 +154,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             })
             .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
         {
-            (name.to_string(), kbd).clone()
+            (name.to_string(), kbd)
         } else {
             return;
         };
