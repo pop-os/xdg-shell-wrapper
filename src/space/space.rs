@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use std::{
+    cell::RefCell,
     os::unix::net::UnixStream,
-    time::{Duration, Instant}, rc::Rc, cell::RefCell,
+    rc::Rc,
+    time::{Duration, Instant},
 };
 
 use sctk::{
-    environment::Environment,
+    compositor::CompositorState,
     output::OutputInfo,
-    reexports::{
-        client::{
-            self,
-            protocol::{wl_output as c_wl_output, wl_surface},
-            Attached, Main,
-        },
-        protocols::xdg_shell::client::{xdg_positioner::XdgPositioner, xdg_wm_base::XdgWmBase},
+    reexports::client::{
+        protocol::{wl_output as c_wl_output, wl_surface},
+        Connection, QueueHandle,
+    },
+    shell::{
+        layer::{LayerState, LayerSurface, LayerSurfaceConfigure},
+        xdg::{XdgPositioner, XdgShellState},
     },
 };
 use slog::Logger;
@@ -22,15 +24,17 @@ use smithay::{
     backend::renderer::gles2::Gles2Renderer,
     desktop::{PopupManager, Window},
     reexports::wayland_server::{
-        self, protocol::{wl_surface::WlSurface as s_WlSurface}, DisplayHandle,
+        self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    wayland::{shell::xdg::{PopupSurface, PositionerState}, output::Output},
+    wayland::{
+        output::Output,
+        shell::xdg::{PopupSurface, PositionerState},
+    },
 };
 
 use crate::{
-    client_state::{ClientFocus, Env},
-    config::WrapperConfig,
-    server_state::ServerPointerFocus,
+    client_state::ClientFocus, config::WrapperConfig, server_state::ServerPointerFocus,
+    shared_state::GlobalState,
 };
 
 /// Space events
@@ -44,17 +48,6 @@ pub enum SpaceEvent {
         width: i32,
         /// height
         height: i32,
-    },
-    /// the next configure event
-    Configure {
-        /// whether it is the first configure event
-        first: bool,
-        /// width
-        width: i32,
-        /// height
-        height: i32,
-        /// serial
-        serial: i32,
     },
     /// the space has been scheduled to cleanup and exit
     Quit,
@@ -104,23 +97,35 @@ pub trait WrapperSpace {
     type Config: WrapperConfig;
 
     /// initial setup of the space
-    fn setup(
+    fn setup<W: WrapperSpace>(
         &mut self,
-        display: wayland_server::DisplayHandle,
-        env: &Environment<Env>,
-        c_display: client::Display,
+        compositor_state: &CompositorState,
+        layer_state: &mut LayerState,
+        conn: &Connection,
+        qh: &QueueHandle<GlobalState<W>>,
+        c_display: DisplayHandle,
         c_focused_surface: Rc<RefCell<ClientFocus>>,
         c_hovered_surface: Rc<RefCell<ClientFocus>>,
     );
 
     /// add the configured output to the space
-    fn handle_output(
+    fn handle_output<W: WrapperSpace>(
         &mut self,
-        display: wayland_server::DisplayHandle,
-        env: &Environment<Env>,
+        compositor_state: &CompositorState,
+        layer_state: &mut LayerState,
+        conn: &Connection,
+        qh: &QueueHandle<GlobalState<W>>,
         c_output: Option<c_wl_output::WlOutput>,
         s_output: Option<Output>,
-        output_info: Option<&OutputInfo>,
+        info: Option<OutputInfo>,
+    ) -> anyhow::Result<()>;
+
+    /// remove the configured output from the space
+    fn output_leave(
+        &mut self,
+        c_output: Option<c_wl_output::WlOutput>,
+        s_output: Option<Output>,
+        info: Option<OutputInfo>,
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
@@ -135,14 +140,16 @@ pub trait WrapperSpace {
     fn add_window(&mut self, s_top_level: Window);
 
     /// add a popup to the space
-    fn add_popup(
+    fn add_popup<W: WrapperSpace>(
         &mut self,
-        env: &Environment<Env>,
-        xdg_surface_state: &Attached<XdgWmBase>,
+        compositor_state: &CompositorState,
+        conn: &Connection,
+        qh: &QueueHandle<GlobalState<W>>,
+        xdg_shell_state: &mut XdgShellState,
         s_surface: PopupSurface,
-        positioner: Main<XdgPositioner>,
+        positioner: &XdgPositioner,
         positioner_state: PositionerState,
-    );
+    ) -> anyhow::Result<()>;
 
     /// handle a button press on a client surface
     /// optionally returns a pressed server wl surface
@@ -174,7 +181,7 @@ pub trait WrapperSpace {
     fn reposition_popup(
         &mut self,
         popup: PopupSurface,
-        positioner: Main<XdgPositioner>,
+        positioner: &XdgPositioner,
         positioner_state: PositionerState,
         token: u32,
     ) -> anyhow::Result<()>;
@@ -218,6 +225,22 @@ pub trait WrapperSpace {
 
     /// marks the popup as dirtied()
     fn dirty_popup(&mut self, dh: &DisplayHandle, w: &s_WlSurface);
+
+    /// configure popup
+    fn configure_popup(
+        &mut self,
+        popup: &sctk::shell::xdg::popup::Popup,
+        config: sctk::shell::xdg::popup::PopupConfigure,
+    );
+
+    /// finished popup
+    fn close_popup(&mut self, popup: &sctk::shell::xdg::popup::Popup);
+
+    /// configure layer
+    fn configure_layer(&mut self, layer: &LayerSurface, configure: LayerSurfaceConfigure);
+
+    /// close layer
+    fn close_layer(&mut self, layer: &LayerSurface);
 
     /// gets the renderer for the space
     fn renderer(&mut self) -> Option<&mut Gles2Renderer>;

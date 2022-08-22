@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::cell::Cell;
 use std::rc::Rc;
 
-use crate::space::ClientEglSurface;
-use sctk::reexports::client::Display;
-use sctk::reexports::client::protocol::wl_region::WlRegion;
-use sctk::reexports::{
-    client::protocol::wl_surface as c_wl_surface,
-    client::Main,
-    protocols::xdg_shell::client::{xdg_popup::XdgPopup, xdg_surface::XdgSurface},
-};
+use sctk::compositor::Region;
+use sctk::reexports::client::protocol::wl_display::WlDisplay;
+use sctk::reexports::client::{protocol::wl_surface as c_wl_surface};
+use sctk::shell::xdg::popup::Popup;
 use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::{
     backend::egl::surface::EGLSurface,
@@ -18,17 +13,14 @@ use smithay::{
     utils::{Logical, Physical, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
-use wayland_egl::WlEglSurface;
 
 /// Popup events
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub enum PopupState {
-    /// Waiting for the configure event for the popup surface
-    WaitConfigure(bool),
+pub enum WrapperPopupState {
+    /// Wait for configure event to render
+    WaitConfigure,
     /// Configure Event
-    Configure {
-        /// first configure event
-        first: bool,
+    Rectangle {
         /// x position
         x: i32,
         /// y position
@@ -38,19 +30,13 @@ pub enum PopupState {
         /// height
         height: i32,
     },
-    /// Popup reposition token
-    Repositioned(u32),
-    /// Popup closed
-    Closed,
 }
 
 /// Popup
 #[derive(Debug)]
-pub struct Popup {
+pub struct WrapperPopup {
     /// the popup on the layer shell surface
-    pub c_popup: Main<XdgPopup>,
-    /// the xdg surface for the popup on the layer shell surface
-    pub c_xdg_surface: Main<XdgSurface>,
+    pub c_popup: Popup,
     /// the wl surface for the popup on the layer shell surface
     pub c_wl_surface: c_wl_surface::WlSurface,
     /// the embedded popup
@@ -58,98 +44,50 @@ pub struct Popup {
     /// the egl surface
     pub egl_surface: Option<Rc<EGLSurface>>,
     /// the state of the popup
-    pub popup_state: Rc<Cell<Option<PopupState>>>,
+    pub state: Option<WrapperPopupState>,
     /// whether or not the popup needs to be rendered
     pub dirty: bool,
-    /// position of the popup
+    /// full rectangle of the popup, including dropshadow borders
     pub rectangle: Rectangle<i32, Logical>,
     /// accumulated damage with age values
     pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
     /// full clear
     pub full_clear: u8,
     /// input region for the popup
-    pub input_region: Main<WlRegion>,
+    pub input_region: Region,
 }
 
-impl Popup {
+impl WrapperPopup {
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface is alive.
     pub fn handle_events(
         &mut self,
         popup_manager: &mut PopupManager,
-        egl_context: &EGLContext,
-        egl_display: &EGLDisplay,
-        c_display: &Display,
+        _: &EGLContext,
+        _: &EGLDisplay,
+        _: &WlDisplay,
     ) -> bool {
-        let should_keep = {
-            if !self.s_surface.alive() || !self.c_wl_surface.as_ref().is_alive() {
-                false
-            } else {
-                match self.popup_state.take() {
-                    Some(PopupState::Closed) => false,
-                    Some(PopupState::Configure {
-                        first,
-                        width,
-                        height,
-                        x,
-                        y,
-                    }) => {
-                        if first {
-                            let client_egl_surface = ClientEglSurface {
-                                wl_egl_surface: WlEglSurface::new(
-                                    &self.c_wl_surface,
-                                    width,
-                                    height,
-                                ),
-                                display: c_display.clone(),
-                            };
-
-                            let egl_surface = Rc::new(
-                                EGLSurface::new(
-                                    &egl_display,
-                                    egl_context
-                                        .pixel_format()
-                                        .expect("Failed to get pixel format from EGL context "),
-                                    egl_context.config_id(),
-                                    client_egl_surface,
-                                    None,
-                                )
-                                .expect("Failed to initialize EGL Surface"),
-                            );
-
-                            self.egl_surface.replace(egl_surface);
-                        } else {
-                            self.egl_surface
-                                .as_ref()
-                                .unwrap()
-                                .resize(width, height, 0, 0);
-                        }
-                        popup_manager.commit(self.s_surface.wl_surface());
-                        self.dirty = true;
-                        self.full_clear = 4;
-                        self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
-                        true
-                    }
-                    Some(PopupState::WaitConfigure(first)) => {
-                        self.popup_state
-                            .replace(Some(PopupState::WaitConfigure(first)));
-                        true
-                    }
-                    Some(PopupState::Repositioned(_)) => true,
-                    None => true,
-                }
-            }
+        match self.state {
+            Some(WrapperPopupState::Rectangle { width, height, x, y }) => {
+                self.egl_surface
+                    .as_ref()
+                    .unwrap()
+                    .resize(width, height, 0, 0);
+                popup_manager.commit(self.s_surface.wl_surface());
+                self.dirty = true;
+                self.full_clear = 4;
+                self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
+                self.state.take();
+            },
+            _ => {}
         };
-
-        should_keep
+        self.s_surface.alive()
     }
 }
 
-impl Drop for Popup {
+impl Drop for WrapperPopup {
     fn drop(&mut self) {
         self.s_surface.send_popup_done();
-        self.c_popup.destroy();
-        self.c_xdg_surface.destroy();
         // XXX causes segfault when using nvidia
         // self.c_wl_surface.destroy();
     }

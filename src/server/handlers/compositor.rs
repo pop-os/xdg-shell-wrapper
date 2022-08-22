@@ -1,6 +1,6 @@
 use std::{cell::RefMut, sync::Mutex};
 
-use slog::trace;
+use slog::{error, trace};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
     delegate_compositor, delegate_shm,
@@ -19,31 +19,21 @@ use smithay::{
     },
 };
 
-use crate::{server_state::SeatPair, shared_state::GlobalState, space::WrapperSpace};
+use crate::{
+    server_state::SeatPair, shared_state::GlobalState, space::WrapperSpace,
+    util::write_and_attach_buffer,
+};
 
-// let DesktopClientState {
-//     cursor_surface,
-//     space,
-//     seats,
-//     shm,
-//     ..
-// } = &mut state.desktop_client_state;
-// let EmbeddedServerState {
-//     popup_manager,
-//     shell_state,
-//     ..
-// } = &mut state.embedded_server_state;
 impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
     fn compositor_state(&mut self) -> &mut CompositorState {
         &mut self.server_state.compositor_state
     }
 
     fn commit(&mut self, dh: &DisplayHandle, surface: &WlSurface) {
-        let cached_buffers = &mut self.cached_buffers;
         let log = &mut self.log;
-
         let role = get_role(&surface);
         trace!(log, "role: {:?} surface: {:?}", &role, &surface);
+
         if role == "xdg_toplevel".into() {
             on_commit_buffer_handler(&surface);
             self.space.dirty_window(&dh, &surface)
@@ -52,7 +42,22 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             self.space.dirty_popup(&dh, &surface);
             self.server_state.popup_manager.commit(&surface);
         } else if role == "cursor_image".into() {
-            // FIXME pass cursor image to parent compositor with correct offset
+            let multipool = match &mut self.client_state.multipool {
+                Some(m) => m,
+                None => {
+                    error!(log.clone(), "multipool is missing!");
+                    return;
+                }
+            };
+            let cursor_surface = match &mut self.client_state.cursor_surface {
+                Some(m) => m,
+                None => {
+                    error!(log.clone(), "cursor surface is missing!");
+                    return;
+                }
+            };
+
+            // FIXME pass cursor image to parent compositor
             trace!(log, "received surface with cursor image");
             for SeatPair { client, .. } in &self.server_state.seats {
                 if let Some(ptr) = client.ptr.as_ref() {
@@ -63,10 +68,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
                             if let Some(BufferType::Shm) = buffer_type(buffer) {
                                 trace!(log, "attaching buffer to cursor surface.");
-                                let _ = cached_buffers.write_and_attach_buffer(
+                                let _ = write_and_attach_buffer::<W>(
                                     buf.as_ref().unwrap(),
-                                    &self.client_state.cursor_surface,
-                                    &self.client_state.shm,
+                                    cursor_surface,
+                                    multipool,
                                 );
 
                                 if let Some(hotspot) = data
@@ -79,7 +84,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                                     trace!(log, "requesting update");
                                     ptr.set_cursor(
                                         SERIAL_COUNTER.next_serial().into(),
-                                        Some(&self.client_state.cursor_surface),
+                                        Some(cursor_surface),
                                         hotspot.x,
                                         hotspot.y,
                                     );

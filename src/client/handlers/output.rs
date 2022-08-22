@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use sctk::{
-    environment::Environment,
-    output::{Mode as c_Mode, OutputInfo},
+    output::{Mode as c_Mode, OutputHandler, OutputInfo, OutputState},
     reexports::{
         client::protocol::wl_output::Subpixel as c_Subpixel,
-        client::{self},
+        client::{protocol::wl_output, Connection, QueueHandle},
     },
 };
 use slog::Logger;
@@ -17,50 +16,178 @@ use smithay::{
     },
     wayland::output::{Mode as s_Mode, Output, PhysicalProperties, Scale},
 };
+use xdg_shell_wrapper_config::WrapperConfig;
 
 use crate::{
-    shared_state::{GlobalState, OutputGroup},
+    client_state::ClientState, server_state::ServerState, shared_state::GlobalState,
     space::WrapperSpace,
 };
 
-use super::super::state::Env;
-
-pub(crate) fn handle_output<W: WrapperSpace + 'static>(
-    env_handle: &Environment<Env>,
-    logger: Logger,
-    output: &client::protocol::wl_output::WlOutput,
-    info: &OutputInfo,
-    dh: &mut DisplayHandle,
-    s_outputs: &mut Vec<OutputGroup>,
-    space: &mut W,
-) {
-    // remove output with id if obsolete
-    // add output to list if new output
-
-    if info.obsolete {
-        // an output has been removed, release it
-        // this should not be reached
-        output.release();
-    } else {
-        // Create the Output for the server with given name and physical properties
-        let (s_output, s_output_global) = c_output_as_s_output::<W>(dh, info, logger.clone());
-        s_outputs.push((s_output, s_output_global, info.name.clone(), output.clone()));
+impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
+    fn output_state(&mut self) -> &mut OutputState {
+        &mut self.client_state.output_state
     }
 
-    // construct a surface for an output if possible
-    space
-        .handle_output(dh.clone(), env_handle, Some(output.clone()), Some(c_output_as_s_output::<W>(&dh, &info, logger.clone()).0), Some(info))
-        .unwrap();
+    fn new_output(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        output: wl_output::WlOutput,
+    ) {
+        let info = match self.output_state().info(&output) {
+            Some(info) if info.name.is_some() => info,
+            _ => return,
+        };
+
+        let GlobalState {
+            client_state:
+                ClientState {
+                    compositor_state,
+                    layer_state,
+                    ..
+                },
+            server_state: ServerState { display_handle, .. },
+            space,
+            log,
+            ..
+        } = self;
+
+        let config = space.config();
+        let configured_outputs = match config.outputs() {
+            xdg_shell_wrapper_config::WrapperOutput::All => info.name.iter().cloned().collect(),
+            xdg_shell_wrapper_config::WrapperOutput::Name(list) => list,
+        };
+
+        if configured_outputs
+            .iter()
+            .any(|configured| Some(configured) == info.name.as_ref())
+        {
+            // construct a surface for an output if possible
+            let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
+
+            space
+                .handle_output(
+                    compositor_state,
+                    layer_state,
+                    conn,
+                    qh,
+                    Some(output),
+                    Some(s_output.0),
+                    Some(info),
+                )
+                .unwrap();
+        }
+    }
+
+    fn update_output(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        output: wl_output::WlOutput,
+    ) {
+        let info = match self.output_state().info(&output) {
+            Some(info) if info.name.is_some() => info,
+            _ => return,
+        };
+        let GlobalState {
+            client_state:
+                ClientState {
+                    compositor_state,
+                    layer_state,
+                    ..
+                },
+            server_state: ServerState { display_handle, .. },
+            space,
+            log,
+            ..
+        } = self;
+
+        let config = space.config();
+        let configured_outputs = match config.outputs() {
+            xdg_shell_wrapper_config::WrapperOutput::All => info.name.iter().cloned().collect(),
+            xdg_shell_wrapper_config::WrapperOutput::Name(list) => list,
+        };
+
+        if configured_outputs
+            .iter()
+            .any(|configured| Some(configured) == info.name.as_ref())
+        {
+            // construct a surface for an output if possible
+            let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
+
+            space
+                .handle_output(
+                    compositor_state,
+                    layer_state,
+                    conn,
+                    qh,
+                    Some(output),
+                    Some(s_output.0),
+                    Some(info),
+                )
+                .unwrap();
+        }
+    }
+
+    fn output_destroyed(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        output: wl_output::WlOutput,
+    ) {
+        let info = match self.output_state().info(&output) {
+            Some(info) if info.name.is_some() => info,
+            _ => return,
+        };
+        let GlobalState {
+            client_state:
+                ClientState {
+                    compositor_state,
+                    layer_state,
+                    ..
+                },
+            server_state: ServerState { display_handle, .. },
+            space,
+            log,
+            ..
+        } = self;
+
+        let config = space.config();
+        let configured_outputs = match config.outputs() {
+            xdg_shell_wrapper_config::WrapperOutput::All => info.name.iter().cloned().collect(),
+            xdg_shell_wrapper_config::WrapperOutput::Name(list) => list,
+        };
+
+        if configured_outputs
+            .iter()
+            .any(|configured| Some(configured) == info.name.as_ref())
+        {
+            // construct a surface for an output if possible
+            let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
+
+            space
+                .handle_output(
+                    compositor_state,
+                    layer_state,
+                    conn,
+                    qh,
+                    Some(output),
+                    Some(s_output.0),
+                    Some(info),
+                )
+                .unwrap();
+        }
+    }
 }
 
 /// convert client output to server output
-pub(crate) fn c_output_as_s_output<W: WrapperSpace + 'static>(
+pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
     dh: &DisplayHandle,
     info: &OutputInfo,
     logger: Logger,
 ) -> (Output, GlobalId) {
     let s_output = Output::new(
-        info.name.clone(), // the name of this output,
+        info.name.clone().unwrap_or_default(), // the name of this output,
         PhysicalProperties {
             size: info.physical_size.into(), // dimensions (width, height) in mm
             subpixel: match info.subpixel {
@@ -79,18 +206,18 @@ pub(crate) fn c_output_as_s_output<W: WrapperSpace + 'static>(
     for c_Mode {
         dimensions,
         refresh_rate,
-        is_preferred,
-        is_current,
+        current,
+        preferred,
     } in &info.modes
     {
         let s_mode = s_Mode {
             size: (*dimensions).into(),
             refresh: *refresh_rate,
         };
-        if *is_preferred {
+        if *preferred {
             s_output.set_preferred(s_mode);
         }
-        if *is_current {
+        if *current {
             s_output.change_current_state(
                 Some(s_mode),
                 Some(Transform::Normal),

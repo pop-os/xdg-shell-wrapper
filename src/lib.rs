@@ -9,16 +9,15 @@ use std::{
 };
 
 use anyhow::Result;
-use smithay::reexports::{
-    calloop,
-};
+use sctk::shm::multi::MultiPool;
+use smithay::reexports::calloop;
 
 use client::state::ClientState;
 pub use client::{handlers::output, state as client_state};
 pub use server::state as server_state;
 use server::state::ServerState;
 use shared_state::GlobalState;
-use space::{cached_buffer::CachedBuffers, Visibility, WrapperSpace};
+use space::{Visibility, WrapperSpace};
 pub use xdg_shell_wrapper_config as config;
 
 mod client;
@@ -35,32 +34,48 @@ pub fn run<W: WrapperSpace + 'static>(
     mut space: W,
     mut event_loop: calloop::EventLoop<'static, GlobalState<W>>,
 ) -> Result<()> {
+    let start = std::time::Instant::now();
     let log = space.log().unwrap();
     let loop_handle = event_loop.handle();
 
     let mut server_display = smithay::reexports::wayland_server::Display::new().unwrap();
     let s_dh = server_display.handle();
 
-    let mut embedded_server_state = ServerState::new(&s_dh, log.clone());
+    let mut embedded_server_state = ServerState::new(s_dh.clone(), log.clone());
 
-    let desktop_client_state = ClientState::new(
+    let client_state = ClientState::new(
         loop_handle.clone(),
         &mut space,
         log.clone(),
         &mut server_display.handle(),
         &mut embedded_server_state,
     )?;
-    let _sockets = space.spawn_clients(server_display.handle()).unwrap();
 
-    let mut global_state = GlobalState {
-        client_state: desktop_client_state,
-        server_state: embedded_server_state,
-        _loop_signal: event_loop.get_signal(),
-        log: log.clone(),
-        start_time: std::time::Instant::now(),
-        cached_buffers: CachedBuffers::new(log.clone()),
+    let mut global_state = GlobalState::new(
+        client_state,
+        embedded_server_state,
         space,
-    };
+        start,
+        log.clone(),
+    );
+
+    while !global_state.client_state.registry_state.ready() {
+        for _ in 0..2 {
+            event_loop.dispatch(Duration::from_millis(100), &mut global_state)?;
+        }
+    }
+    let multipool = MultiPool::new(&global_state.client_state.shm_state);
+    let cursor_surface = global_state.client_state.compositor_state.create_surface(&global_state.client_state.queue_handle);
+    global_state.client_state.multipool = multipool.ok();
+    global_state.client_state.cursor_surface = cursor_surface.ok();
+
+    let _sockets = global_state
+        .space
+        .spawn_clients(server_display.handle())
+        .unwrap();
+
+    event_loop.dispatch(Duration::from_millis(30), &mut global_state)?;
+
     global_state.bind_display(&s_dh);
 
     let mut last_cleanup = Instant::now();
@@ -77,12 +92,12 @@ pub fn run<W: WrapperSpace + 'static>(
         }
 
         // dispatch desktop client events
-        event_loop.dispatch(Duration::from_millis(16), &mut global_state).expect("Failed to dispatch events");
+        event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
 
         // rendering
         {
-            let display = &mut global_state.client_state.display;
-            display.flush().unwrap();
+            // let display = &mut shared_data.client_state.display;
+            // display.flush().unwrap();
 
             let space = &mut global_state.space;
 
@@ -108,7 +123,7 @@ pub fn run<W: WrapperSpace + 'static>(
         // the idea is to forward clipbard as soon as possible just once
         // this method is not ideal...
         // if !set_clipboard_once.get() {
-        //     let desktop_client_state = &shared_data.desktop_client_state;
+        //     let desktop_client_state = &global_state.desktop_client_state;
         //     for s in &desktop_client_state.seats {
         //         let server_seat = &s.server.0;
         //         let _ = desktop_client_state.env_handle.with_data_device(

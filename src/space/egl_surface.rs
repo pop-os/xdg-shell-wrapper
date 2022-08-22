@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use libc::{c_int, c_void};
-use sctk::reexports::client;
+use sctk::reexports::client::{protocol::wl_display::WlDisplay, Proxy};
 use smithay::{
     backend::egl::{
         display::EGLDisplayHandle,
@@ -21,7 +21,7 @@ pub struct ClientEglSurface {
     /// egl surface
     pub wl_egl_surface: wayland_egl::WlEglSurface,
     /// client display
-    pub display: client::Display,
+    pub display: WlDisplay,
 }
 
 static SURFACE_ATTRIBUTES: [c_int; 3] = [
@@ -32,7 +32,7 @@ static SURFACE_ATTRIBUTES: [c_int; 3] = [
 
 impl EGLNativeDisplay for ClientEglSurface {
     fn supported_platforms(&self) -> Vec<EGLPlatform<'_>> {
-        let display: *mut c_void = self.display.c_ptr() as *mut _;
+        let display: *mut c_void = self.display.id().as_ptr() as *mut _;
         vec![
             // see: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_platform_wayland.txt
             egl_platform!(PLATFORM_WAYLAND_KHR, display, &["EGL_KHR_platform_wayland"]),

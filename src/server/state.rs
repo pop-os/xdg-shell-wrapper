@@ -1,7 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
-use once_cell::sync::OnceCell;
-use sctk::reexports::client::Attached;
 use slog::Logger;
 use smithay::{
     desktop::PopupManager,
@@ -18,11 +14,7 @@ use smithay::{
     },
 };
 
-use crate::{
-    client_state::{ClientSeat, Env},
-    shared_state::{GlobalState, SelectedDataProvider},
-    space::WrapperSpace,
-};
+use crate::{client_state::ClientSeat, shared_state::GlobalState, space::WrapperSpace};
 
 /// list of focused surfaces and the seats that focus them
 
@@ -50,8 +42,8 @@ pub type ServerPtrFocus = Vec<ServerPointerFocus>;
 pub struct ServerState<W: WrapperSpace + 'static> {
     /// popup manager
     pub popup_manager: PopupManager,
-    pub(crate) dh: DisplayHandle,
-    pub(crate) selected_data_provider: SelectedDataProvider,
+    pub(crate) display_handle: DisplayHandle,
+    // pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,
 
@@ -66,11 +58,7 @@ pub struct ServerState<W: WrapperSpace + 'static> {
 }
 
 impl<W: WrapperSpace> ServerState<W> {
-    pub(crate) fn new(dh: &DisplayHandle, log: Logger) -> ServerState<W> {
-        let selected_seat: Rc<
-            RefCell<Option<Attached<sctk::reexports::client::protocol::wl_seat::WlSeat>>>,
-        > = Rc::new(RefCell::new(None));
-        let env: Rc<OnceCell<sctk::environment::Environment<Env>>> = Rc::new(OnceCell::new());
+    pub(crate) fn new(dh: DisplayHandle, log: Logger) -> ServerState<W> {
         // let selected_data_provider = selected_seat.clone();
         // let env_handle = env.clone();
         // let logger = log.clone();
@@ -122,11 +110,7 @@ impl<W: WrapperSpace> ServerState<W> {
 
         ServerState {
             popup_manager: PopupManager::new(log.clone()),
-            selected_data_provider: SelectedDataProvider {
-                _seat: selected_seat,
-                env_handle: env,
-            },
-            dh: dh.clone(),
+            display_handle: dh.clone(),
             last_button: None,
             seats: Vec::new(),
             compositor_state: CompositorState::new::<GlobalState<W>, _>(&dh, log.clone()),
@@ -136,8 +120,6 @@ impl<W: WrapperSpace> ServerState<W> {
             seat_state: SeatState::new(),
             data_device_state: DataDeviceState::new::<GlobalState<W>, _>(&dh, log.clone()),
             dmabuf_state: None,
-            // focused_surface: Default::default(),
-            // hovered_surface: Default::default(),
         }
     }
 }
