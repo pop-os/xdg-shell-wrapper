@@ -35,14 +35,16 @@ pub enum WrapperPopupState {
 /// Popup
 #[derive(Debug)]
 pub struct WrapperPopup {
+    // XXX implicitly drops egl_surface first to avoid segfault
+    /// the egl surface
+    pub egl_surface: Option<Rc<EGLSurface>>,
+
     /// the popup on the layer shell surface
     pub c_popup: Popup,
     /// the wl surface for the popup on the layer shell surface
     pub c_wl_surface: c_wl_surface::WlSurface,
     /// the embedded popup
     pub s_surface: PopupSurface,
-    /// the egl surface
-    pub egl_surface: Option<Rc<EGLSurface>>,
     /// the state of the popup
     pub state: Option<WrapperPopupState>,
     /// whether or not the popup needs to be rendered
@@ -79,13 +81,5 @@ impl WrapperPopup {
             self.state.take();
         };
         self.s_surface.alive()
-    }
-}
-
-impl Drop for WrapperPopup {
-    fn drop(&mut self) {
-        self.s_surface.send_popup_done();
-        // XXX causes segfault when using nvidia
-        // self.c_wl_surface.destroy();
     }
 }

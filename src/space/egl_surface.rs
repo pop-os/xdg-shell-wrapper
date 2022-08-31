@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use libc::{c_int, c_void};
-use sctk::reexports::client::{protocol::wl_display::WlDisplay, Proxy};
+use sctk::reexports::client::{protocol::{wl_display::WlDisplay, wl_surface::WlSurface}, Proxy};
 use smithay::{
     backend::egl::{
         display::EGLDisplayHandle,
@@ -18,10 +18,21 @@ use smithay::{
 /// Client Egl surface
 #[derive(Debug)]
 pub struct ClientEglSurface {
+    // XXX implicitly drops wl_egl_surface first before _wl_surface
     /// egl surface
     pub wl_egl_surface: wayland_egl::WlEglSurface,
     /// client display
     pub display: WlDisplay,
+    /// wl surface
+    _wl_surface: WlSurface
+}
+
+impl ClientEglSurface {
+    /// Create a Client Egl Surface
+    /// must be dropped before the associated WlSurface is destroyed
+    pub unsafe fn new(wl_egl_surface: wayland_egl::WlEglSurface, display: WlDisplay, _wl_surface: WlSurface) -> Self {
+        Self { wl_egl_surface, display, _wl_surface }
+    }
 }
 
 static SURFACE_ATTRIBUTES: [c_int; 3] = [
