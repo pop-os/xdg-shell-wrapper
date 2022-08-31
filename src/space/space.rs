@@ -96,16 +96,25 @@ pub trait WrapperSpace {
     /// Wrapper config type
     type Config: WrapperConfig;
 
-    /// initial setup of the space
+    /// set the display handle of the space
+    fn set_display_handle(
+        &mut self,
+        display: wayland_server::DisplayHandle,
+    );
+
+    /// get the client hovered surface of the space
+    fn get_client_hovered_surface(&self) -> Rc<RefCell<ClientFocus>>;
+    
+    /// get the client focused surface of the space
+    fn get_client_focused_surface(&self) -> Rc<RefCell<ClientFocus>>;
+
+    /// setup of the space after the wayland connection is ready
     fn setup<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
         layer_state: &mut LayerState,
         conn: &Connection,
         qh: &QueueHandle<GlobalState<W>>,
-        c_display: DisplayHandle,
-        c_focused_surface: Rc<RefCell<ClientFocus>>,
-        c_hovered_surface: Rc<RefCell<ClientFocus>>,
     );
 
     /// add the configured output to the space

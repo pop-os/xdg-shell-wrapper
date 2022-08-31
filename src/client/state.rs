@@ -17,7 +17,7 @@ use sctk::{
     shm::{multi::MultiPool, ShmState},
 };
 use slog::Logger;
-use smithay::reexports::{calloop, wayland_server};
+use smithay::reexports::calloop;
 
 use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
 
@@ -43,16 +43,24 @@ pub type ClientFocus = Vec<(wl_surface::WlSurface, String, FocusStatus)>;
 /// Wrapper client state
 #[derive(Debug)]
 pub struct ClientState<W: WrapperSpace + 'static> {
-    pub(crate) registry_state: RegistryState,
-    pub(crate) seat_state: SeatState,
-    pub(crate) output_state: OutputState,
-    pub(crate) compositor_state: CompositorState,
-    pub(crate) shm_state: ShmState,
-    pub(crate) xdg_shell_state: XdgShellState,
-    pub(crate) layer_state: LayerState,
+    /// state
+    pub registry_state: RegistryState,
+    /// state
+    pub seat_state: SeatState,
+    /// state
+    pub output_state: OutputState,
+    /// state
+    pub compositor_state: CompositorState,
+    /// state
+    pub shm_state: ShmState,
+    /// state
+    pub xdg_shell_state: XdgShellState,
+    /// state
+    pub layer_state: LayerState,
 
     pub(crate) connection: Connection,
-    pub(crate) queue_handle: QueueHandle<GlobalState<W>>, // TODO remove if never used
+    /// queue handle
+    pub queue_handle: QueueHandle<GlobalState<W>>, // TODO remove if never used
     /// state regarding the last embedded client surface with keyboard focus
     pub focused_surface: Rc<RefCell<ClientFocus>>,
     /// state regarding the last embedded client surface with keyboard focus
@@ -66,7 +74,6 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         loop_handle: calloop::LoopHandle<'static, GlobalState<W>>,
         space: &mut W,
         _log: Logger,
-        dh: &mut wayland_server::DisplayHandle,
         _embedded_server_state: &mut ServerState<W>,
     ) -> anyhow::Result<Self> {
         /*
@@ -76,13 +83,11 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
 
         let event_queue = connection.new_event_queue();
         let qh = event_queue.handle();
-        let c_focused_surface: Rc<RefCell<ClientFocus>> = Default::default();
-        let c_hovered_surface: Rc<RefCell<ClientFocus>> = Default::default();
         let registry_state = RegistryState::new(&connection, &qh);
 
-        let mut client_state = ClientState {
-            focused_surface: c_focused_surface.clone(),
-            hovered_surface: c_hovered_surface.clone(),
+        let client_state = ClientState {
+            focused_surface: space.get_client_focused_surface(),
+            hovered_surface: space.get_client_hovered_surface(),
 
             queue_handle: qh,
             connection,
@@ -96,29 +101,13 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             registry_state,
             multipool: None,
             cursor_surface: None,
-
         };
-
-        // let _ = embedded_server_state
-        //     .selected_data_provider
-        //     .env_handle
-        //     .set(env.clone());
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         sctk::event_loop::WaylandSource::new(event_queue)
             .unwrap()
             .insert(loop_handle)
             .unwrap();
-
-        space.setup(
-            &client_state.compositor_state,
-            &mut client_state.layer_state,
-            &client_state.connection,
-            &client_state.queue_handle,
-            dh.clone(),
-            c_focused_surface,
-            c_hovered_surface,
-        );
 
         Ok(client_state)
     }

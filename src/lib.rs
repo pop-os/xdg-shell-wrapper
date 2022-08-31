@@ -40,6 +40,7 @@ pub fn run<W: WrapperSpace + 'static>(
 
     let mut server_display = smithay::reexports::wayland_server::Display::new().unwrap();
     let s_dh = server_display.handle();
+    space.set_display_handle(s_dh.clone());
 
     let mut embedded_server_state = ServerState::new(s_dh.clone(), log.clone());
 
@@ -47,9 +48,9 @@ pub fn run<W: WrapperSpace + 'static>(
         loop_handle.clone(),
         &mut space,
         log.clone(),
-        &mut server_display.handle(),
         &mut embedded_server_state,
     )?;
+
 
     let mut global_state = GlobalState::new(
         client_state,
@@ -59,12 +60,22 @@ pub fn run<W: WrapperSpace + 'static>(
         log.clone(),
     );
 
+
     while !global_state.client_state.registry_state.ready() {
         for _ in 0..2 {
             event_loop.dispatch(Duration::from_millis(100), &mut global_state)?;
         }
     }
+
     let multipool = MultiPool::new(&global_state.client_state.shm_state);
+
+    global_state.space.setup(
+        &global_state.client_state.compositor_state,
+        &mut global_state.client_state.layer_state,
+        &global_state.client_state.connection,
+        &global_state.client_state.queue_handle,
+    );
+
     let cursor_surface = global_state.client_state.compositor_state.create_surface(&global_state.client_state.queue_handle);
     global_state.client_state.multipool = multipool.ok();
     global_state.client_state.cursor_surface = cursor_surface.ok();

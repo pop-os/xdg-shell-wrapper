@@ -7,7 +7,7 @@ license = "MPL-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
+smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"], rev = "7d755cd5e0069ea9e6bdfd0cf6e5d6a6bbe4e977"}
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
 sctk = { git = "https://github.com/wash2/client-toolkit", package = "smithay-client-toolkit", branch = "get_popup" }
 # sctk = { package = "smithay-client-toolkit", path = "../fork/client-toolkit", default-features = false, features = ["calloop", "xkbcommon", "system"] }
@@ -25,3 +25,15 @@ xdg-shell-wrapper-config = { path = "xdg-shell-wrapper-config" }
 
 [workspace]
 members = ["xdg-shell-wrapper-config"]
+
+[patch.crates-io]
+wayland-protocols-wlr = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols-misc = { git = "https://github.com/smithay/wayland-rs" }
+wayland-egl = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols = { git = "https://github.com/smithay/wayland-rs" }
+wayland-server = { git = "https://github.com/smithay/wayland-rs" }
+wayland-sys = { git = "https://github.com/smithay/wayland-rs" }
+wayland-backend = { git = "https://github.com/smithay/wayland-rs" }
+wayland-scanner = { git = "https://github.com/smithay/wayland-rs" }
+wayland-cursor = { git = "https://github.com/smithay/wayland-rs" }
+wayland-client = { git = "https://github.com/smithay/wayland-rs" }
