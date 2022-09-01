@@ -1,10 +1,15 @@
 use smithay::{
     backend::renderer::ImportDma,
-    delegate_data_device, delegate_dmabuf, delegate_output, delegate_seat,
+    delegate_data_device, delegate_dmabuf, delegate_output, delegate_primary_selection,
+    delegate_seat,
+    input::{SeatHandler, SeatState},
+    reexports::wayland_server::{protocol::wl_surface::WlSurface, Resource},
     wayland::{
-        data_device::{ClientDndGrabHandler, DataDeviceHandler, ServerDndGrabHandler},
+        data_device::{
+            set_data_device_focus, ClientDndGrabHandler, DataDeviceHandler, ServerDndGrabHandler,
+        },
         dmabuf::{DmabufHandler, ImportError},
-        seat::{SeatHandler, SeatState},
+        primary_selection::{set_primary_focus, PrimarySelectionHandler, PrimarySelectionState},
     },
 };
 
@@ -13,6 +18,14 @@ use crate::{shared_state::GlobalState, space::WrapperSpace};
 pub(crate) mod compositor;
 pub(crate) mod xdg_shell;
 
+impl<W: WrapperSpace> PrimarySelectionHandler for GlobalState<W> {
+    fn primary_selection_state(&self) -> &PrimarySelectionState {
+        &self.server_state.primary_selection_state
+    }
+}
+
+delegate_primary_selection!(@<W: WrapperSpace + 'static> GlobalState<W>);
+
 //
 // Wl Seat
 //
@@ -20,6 +33,31 @@ pub(crate) mod xdg_shell;
 impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
     fn seat_state(&mut self) -> &mut SeatState<Self> {
         &mut self.server_state.seat_state
+    }
+
+    type KeyboardFocus = WlSurface;
+
+    type PointerFocus = WlSurface;
+
+    fn focus_changed(
+        &mut self,
+        seat: &smithay::input::Seat<Self>,
+        focused: Option<&Self::KeyboardFocus>,
+    ) {
+        let dh = &self.server_state.display_handle;
+        if let Some(client) = focused.and_then(|s| dh.get_client(s.id()).ok()) {
+            set_data_device_focus(dh, seat, Some(client));
+            let client2 = focused.and_then(|s| dh.get_client(s.id()).ok()).unwrap();
+            set_primary_focus(dh, seat, Some(client2))
+        }
+    }
+
+    fn cursor_image(
+        &mut self,
+        _seat: &smithay::input::Seat<Self>,
+        _image: smithay::input::pointer::CursorImageStatus,
+    ) {
+        // TODO
     }
 }
 

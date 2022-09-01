@@ -8,16 +8,10 @@ use crate::{
 };
 use sctk::{delegate_pointer, seat::pointer::PointerHandler};
 use smithay::{
-    reexports::wayland_server::{
-        self,
-        protocol::wl_pointer::{Axis, ButtonState},
-        Resource,
-    },
-    utils::Point,
-    wayland::{
-        seat::{AxisFrame, ButtonEvent, MotionEvent},
-        SERIAL_COUNTER,
-    },
+    backend::input::{self, Axis, ButtonState},
+    input::pointer::{AxisFrame, ButtonEvent, MotionEvent},
+    reexports::wayland_server::protocol::wl_pointer::AxisSource,
+    utils::{Point, SERIAL_COUNTER},
 };
 
 impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
@@ -30,7 +24,6 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
     ) {
         let start_time = self.start_time;
         let time = start_time.elapsed().as_millis();
-        let dh = self.server_state.display_handle.clone();
 
         let (seat_name, ptr, kbd) = if let Some((name, Some(ptr), Some(kbd))) = self
             .server_state
@@ -40,16 +33,18 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                 client.ptr.as_ref().map(|p| p == pointer).unwrap_or(false)
             })
             .map(|seat| {
-                (
+                let ret = (
                     seat.name.as_str(),
                     seat.server.get_pointer(),
                     seat.server.get_keyboard(),
-                )
+                );
+                ret
             }) {
             (name.to_string(), ptr, kbd)
         } else {
             return;
         };
+
         for e in events {
             match e.kind {
                 sctk::seat::pointer::PointerEventKind::Leave { .. } => {
@@ -62,13 +57,11 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
 
                     self.space
                         .pointer_leave(&seat_name, Some(e.surface.clone()));
-
                     ptr.motion(
                         self,
-                        &dh,
+                        None,
                         &MotionEvent {
                             location: (0.0, 0.0).into(),
-                            focus: None,
                             serial: SERIAL_COUNTER.next_serial(),
                             time: time.try_into().unwrap(),
                         },
@@ -102,12 +95,12 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         &seat_name,
                         e.surface.clone(),
                     ) {
+                        // ptr.set_grab(self, GrabStartData { focus: Some((surface.clone(), s_pos)), button: 0, location: c_pos.to_f64() + Point::from((surface_x, surface_y)) }, SERIAL_COUNTER.next_serial(), Focus::Keep);
                         ptr.motion(
                             self,
-                            &dh,
+                            Some((surface.clone(), s_pos)),
                             &MotionEvent {
                                 location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
-                                focus: Some((surface.clone(), s_pos)),
                                 serial: SERIAL_COUNTER.next_serial(),
                                 time: time.try_into().unwrap(),
                             },
@@ -115,10 +108,9 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     } else {
                         ptr.motion(
                             self,
-                            &dh,
+                            None,
                             &MotionEvent {
                                 location: Point::from((surface_x, surface_y)),
-                                focus: None,
                                 serial: SERIAL_COUNTER.next_serial(),
                                 time: time.try_into().unwrap(),
                             },
@@ -151,10 +143,9 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     ) {
                         ptr.motion(
                             self,
-                            &dh,
+                            Some((surface.clone(), s_pos)),
                             &MotionEvent {
                                 location: c_pos.to_f64() + Point::from((surface_x, surface_y)),
-                                focus: Some((surface.clone(), s_pos)),
                                 serial: SERIAL_COUNTER.next_serial(),
                                 time,
                             },
@@ -162,10 +153,9 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     } else {
                         ptr.motion(
                             self,
-                            &dh,
+                            None,
                             &MotionEvent {
                                 location: Point::from((surface_x, surface_y)),
-                                focus: None,
                                 serial: SERIAL_COUNTER.next_serial(),
                                 time,
                             },
@@ -176,18 +166,10 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     self.server_state.last_button.replace(button);
 
                     let s = self.space.handle_press(&seat_name);
-
-                    if let Some(client_id) = s.as_ref().and_then(|s| s.client_id()) {
-                        if !kbd.has_focus(&client_id) {
-                            kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
-                        }
-                    } else {
-                        kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
-                    }
+                    kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
 
                     ptr.button(
                         self,
-                        &dh,
                         &ButtonEvent {
                             serial: SERIAL_COUNTER.next_serial(),
                             time: time as u32,
@@ -200,18 +182,10 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     self.server_state.last_button.replace(button);
 
                     let s = self.space.handle_press(&seat_name);
-
-                    if let Some(client_id) = s.as_ref().and_then(|s| s.client_id()) {
-                        if !kbd.has_focus(&client_id) {
-                            kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
-                        }
-                    } else {
-                        kbd.set_focus(&dh, s.as_ref(), SERIAL_COUNTER.next_serial());
-                    }
+                    kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
 
                     ptr.button(
                         self,
-                        &dh,
                         &ButtonEvent {
                             serial: SERIAL_COUNTER.next_serial(),
                             time: time as u32,
@@ -226,10 +200,16 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     vertical,
                     source,
                 } => {
-                    let source = match source.map(|s| {
-                        wayland_server::protocol::wl_pointer::AxisSource::try_from(s as u32)
+                    let source = match source.and_then(|s| {
+                        AxisSource::try_from(s as u32).ok().and_then(|s| match s {
+                            AxisSource::Wheel => Some(input::AxisSource::Wheel),
+                            AxisSource::Finger => Some(input::AxisSource::Finger),
+                            AxisSource::Continuous => Some(input::AxisSource::Continuous),
+                            AxisSource::WheelTilt => Some(input::AxisSource::WheelTilt),
+                            _ => None,
+                        })
                     }) {
-                        Some(Ok(s)) => s,
+                        Some(s) => s,
                         _ => continue,
                     };
 
@@ -237,143 +217,27 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
 
                     if !horizontal.is_none() {
                         if horizontal.discrete > 0 {
-                            af = af.discrete(Axis::HorizontalScroll, horizontal.discrete)
+                            af = af.discrete(Axis::Horizontal, horizontal.discrete)
                         }
                         if horizontal.absolute.abs() > 0.0 {
-                            af = af.value(Axis::HorizontalScroll, horizontal.absolute);
+                            af = af.value(Axis::Horizontal, horizontal.absolute);
                         }
                         if horizontal.stop {
-                            af.stop(Axis::HorizontalScroll);
+                            af.stop(Axis::Horizontal);
                         }
                     }
 
                     if !vertical.is_none() {
                         if vertical.discrete > 0 {
-                            af = af.discrete(Axis::VerticalScroll, vertical.discrete)
+                            af = af.discrete(Axis::Vertical, vertical.discrete)
                         }
-                        af = af.value(Axis::VerticalScroll, vertical.absolute);
+                        af = af.value(Axis::Vertical, vertical.absolute);
                         if vertical.stop {
-                            af.stop(Axis::VerticalScroll);
+                            af.stop(Axis::Vertical);
                         }
                     }
 
-                    ptr.axis(self, &dh, af);
-
-                    // c_wl_pointer::Event::Axis { time, axis, value } => {
-                    //     let axis_frame =
-                    //         if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
-                    //             af
-                    //         } else {
-                    //             let mut new_afd = AxisFrameData::default();
-                    //             new_afd.seat_name = seat_name.to_string();
-                    //             axis_frame.push(new_afd);
-                    //             axis_frame.last_mut().unwrap()
-                    //         };
-
-                    //     let af = if let Some(af) = &mut axis_frame.frame {
-                    //         af
-                    //     } else {
-                    //         axis_frame.frame.replace(AxisFrame::new(time));
-                    //         axis_frame.frame.as_mut().unwrap()
-                    //     };
-
-                    //     if let Some(axis_source) = axis_frame.source.take() {
-                    //         *af = af.source(axis_source);
-                    //     }
-                    //     if let Ok(axis) = wl_pointer::Axis::try_from(axis as u32) {
-                    //         match axis {
-                    //             wl_pointer::Axis::HorizontalScroll => {
-                    //                 if let Some(discrete) = axis_frame.h_discrete {
-                    //                     *af = af.discrete(axis, discrete);
-                    //                 }
-                    //             }
-                    //             wl_pointer::Axis::VerticalScroll => {
-                    //                 if let Some(discrete) = axis_frame.v_discrete {
-                    //                     *af = af.discrete(axis, discrete);
-                    //                 }
-                    //             }
-                    //             _ => return,
-                    //         }
-                    //         *af = af.value(axis, value);
-                    //     }
-                    // }
-                    // c_wl_pointer::Event::Frame => {
-                    //     // return if no matching axis frame
-                    //     let axis_frame =
-                    //         if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
-                    //             af
-                    //         } else {
-                    //             return;
-                    //         };
-                    //     if let Some(af) = axis_frame.frame.take() {
-                    //         ptr.axis(global_state, &dh, af);
-                    //     }
-                    //     // axis_frame.h_discrete = None;
-                    //     // axis_frame.v_discrete = None;
-                    // }
-                    // c_wl_pointer::Event::AxisSource { axis_source } => {
-                    //     // add source to the current frame if it exists
-                    //     let mut axis_frame =
-                    //         if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
-                    //             af
-                    //         } else {
-                    //             let mut new_afd = AxisFrameData::default();
-                    //             new_afd.seat_name = seat_name.to_string();
-                    //             axis_frame.push(new_afd);
-                    //             axis_frame.last_mut().unwrap()
-                    //         };
-                    //     let source = wl_pointer::AxisSource::try_from(axis_source as u32);
-                    //     if let Some(af) = axis_frame.frame.as_mut() {
-                    //         if let Ok(source) = source {
-                    //             *af = af.source(source);
-                    //         }
-                    //     } else {
-                    //         // hold on to source and add to the next frame
-                    //         axis_frame.source = source.ok();
-                    //     }
-                    // }
-                    // c_wl_pointer::Event::AxisStop { time, axis } => {
-                    //     let axis_frame =
-                    //         if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
-                    //             af
-                    //         } else {
-                    //             let mut new_afd = AxisFrameData::default();
-                    //             new_afd.seat_name = seat_name.to_string();
-                    //             axis_frame.push(new_afd);
-                    //             axis_frame.last_mut().unwrap()
-                    //         };
-
-                    //     let af = if let Some(af) = &mut axis_frame.frame {
-                    //         af
-                    //     } else {
-                    //         axis_frame.frame.replace(AxisFrame::new(time));
-                    //         axis_frame.frame.as_mut().unwrap()
-                    //     };
-
-                    //     if let Ok(axis) = wl_pointer::Axis::try_from(axis as u32) {
-                    //         *af = af.stop(axis);
-                    //     }
-                    // }
-                    // c_wl_pointer::Event::AxisDiscrete { axis, discrete } => {
-                    //     let axis_frame =
-                    //         if let Some(af) = axis_frame.iter_mut().find(|af| af.seat_name == seat_name) {
-                    //             af
-                    //         } else {
-                    //             let mut new_afd = AxisFrameData::default();
-                    //             new_afd.seat_name = seat_name.to_string();
-                    //             axis_frame.push(new_afd);
-                    //             axis_frame.last_mut().unwrap()
-                    //         };
-                    //     match axis {
-                    //         c_wl_pointer::Axis::HorizontalScroll => {
-                    //             axis_frame.h_discrete.replace(discrete);
-                    //         }
-                    //         c_wl_pointer::Axis::VerticalScroll => {
-                    //             axis_frame.v_discrete.replace(discrete);
-                    //         }
-                    //         _ => (),
-                    //     }
-                    // }
+                    ptr.axis(self, af);
                 }
             }
         }

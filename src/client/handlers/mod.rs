@@ -7,7 +7,7 @@ use sctk::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::SeatState,
-    shell::{xdg::XdgShellState, layer::LayerState},
+    shell::{layer::LayerState, xdg::XdgShellState},
     shm::{ShmHandler, ShmState},
 };
 

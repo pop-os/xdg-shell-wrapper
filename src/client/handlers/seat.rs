@@ -5,7 +5,6 @@ use sctk::{
     reexports::client::{protocol::wl_seat, Connection, QueueHandle},
     seat::SeatHandler,
 };
-use smithay::wayland::seat::Seat;
 
 use crate::{
     client_state::ClientSeat, server_state::SeatPair, shared_state::GlobalState,
@@ -21,14 +20,14 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         if let Some(info) = self.client_state.seat_state.info(&seat) {
             let name = info.name.unwrap_or_default();
 
-            let mut new_server_seat = Seat::new(
+            let mut new_server_seat = self.server_state.seat_state.new_wl_seat(
                 &self.server_state.display_handle,
                 name.clone(),
                 self.log.clone(),
             );
+
             let kbd = if info.has_keyboard {
                 if let Ok(kbd) = self.client_state.seat_state.get_keyboard(qh, &seat, None) {
-                    let _ = new_server_seat.add_keyboard(Default::default(), 200, 20, |_, _| {});
                     Some(kbd)
                 } else {
                     None
@@ -39,7 +38,6 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
 
             let ptr = if info.has_pointer {
                 if let Ok(ptr) = self.client_state.seat_state.get_pointer(qh, &seat) {
-                    new_server_seat.add_pointer(|_| {});
                     Some(ptr)
                 } else {
                     None
@@ -47,6 +45,20 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             } else {
                 None
             };
+
+            // A lot of clients bind keyboard and pointer unconditionally once on launch..
+            // Initial clients might race the compositor on adding periheral and
+            // end up in a state, where they are not able to receive input.
+            // Additionally a lot of clients don't handle keyboards/pointer objects being
+            // removed very well either and we don't want to crash applications, because the
+            // user is replugging their keyboard or mouse.
+            //
+            // So instead of doing the right thing (and initialize these capabilities as matching
+            // devices appear), we have to surrender to reality and just always expose a keyboard and pointer.
+            new_server_seat
+                .add_keyboard(Default::default(), 200, 20)
+                .unwrap();
+            new_server_seat.add_pointer();
 
             self.server_state.seats.push(SeatPair {
                 name,
@@ -87,9 +99,6 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             sctk::seat::Capability::Keyboard => {
                 if info.has_keyboard {
                     if let Ok(kbd) = self.client_state.seat_state.get_keyboard(qh, &seat, None) {
-                        let _ = sp
-                            .server
-                            .add_keyboard(Default::default(), 200, 20, |_, _| {});
                         sp.client.kbd.replace(kbd);
                     }
                 }
@@ -97,7 +106,6 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             sctk::seat::Capability::Pointer => {
                 if info.has_pointer {
                     if let Ok(ptr) = self.client_state.seat_state.get_pointer(qh, &seat) {
-                        sp.server.add_pointer(|_| {});
                         sp.client.ptr.replace(ptr);
                     }
                 }

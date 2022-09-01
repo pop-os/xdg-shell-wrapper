@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use sctk::compositor::Region;
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
-use sctk::reexports::client::{protocol::wl_surface as c_wl_surface};
+use sctk::reexports::client::protocol::wl_surface as c_wl_surface;
 use sctk::shell::xdg::popup::Popup;
 use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::{
@@ -69,7 +69,13 @@ impl WrapperPopup {
         _: &EGLDisplay,
         _: &WlDisplay,
     ) -> bool {
-        if let Some(WrapperPopupState::Rectangle { width, height, x, y }) =  self.state {
+        if let Some(WrapperPopupState::Rectangle {
+            width,
+            height,
+            x,
+            y,
+        }) = self.state
+        {
             self.egl_surface
                 .as_ref()
                 .unwrap()
@@ -77,7 +83,7 @@ impl WrapperPopup {
             popup_manager.commit(self.s_surface.wl_surface());
             self.dirty = true;
             self.full_clear = 4;
-            self.rectangle = Rectangle::from_loc_and_size((x,y), (width, height));
+            self.rectangle = Rectangle::from_loc_and_size((x, y), (width, height));
             self.state.take();
         };
         self.s_surface.alive()

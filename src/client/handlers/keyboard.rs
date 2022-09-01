@@ -8,10 +8,7 @@ use sctk::{
     delegate_keyboard,
     seat::keyboard::{keysyms::XKB_KEY_Escape, KeyboardHandler, RepeatInfo},
 };
-use smithay::{
-    backend::input::KeyState,
-    wayland::{seat::FilterResult, SERIAL_COUNTER},
-};
+use smithay::{backend::input::KeyState, input::keyboard::FilterResult, utils::SERIAL_COUNTER};
 
 impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
     fn enter(
@@ -53,11 +50,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         }
 
         let s = self.space.keyboard_enter(&seat_name, surface.clone());
-        kbd.set_focus(
-            &self.server_state.display_handle,
-            s.as_ref(),
-            SERIAL_COUNTER.next_serial(),
-        );
+        kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
     }
 
     fn leave(
@@ -93,11 +86,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         };
         if kbd_focus {
             self.space.keyboard_leave(&seat_name, Some(surface.clone()));
-            kbd.set_focus(
-                &self.server_state.display_handle,
-                None,
-                SERIAL_COUNTER.next_serial(),
-            );
+            kbd.set_focus(self, None, SERIAL_COUNTER.next_serial());
         }
     }
 
@@ -128,12 +117,12 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         };
 
         let _ = kbd.input::<(), _>(
-            &self.server_state.display_handle,
+            self,
             event.keysym,
             KeyState::Pressed,
             SERIAL_COUNTER.next_serial(),
             event.time,
-            move |_modifiers, _keysym| FilterResult::Forward,
+            move |_, _modifiers, _keysym| FilterResult::Forward,
         );
     }
 
@@ -160,12 +149,12 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         };
 
         match kbd.input::<(), _>(
-            &self.server_state.display_handle,
+            self,
             event.keysym,
             KeyState::Released,
             SERIAL_COUNTER.next_serial(),
             event.time,
-            move |_modifiers, keysym| {
+            move |_, _modifiers, keysym| {
                 if keysym.modified_sym() == XKB_KEY_Escape {
                     FilterResult::Intercept(())
                 } else {
@@ -175,11 +164,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         ) {
             Some(_) => {
                 self.space.keyboard_leave(&seat_name, None);
-                kbd.set_focus(
-                    &self.server_state.display_handle,
-                    None,
-                    SERIAL_COUNTER.next_serial(),
-                );
+                kbd.set_focus(self, None, SERIAL_COUNTER.next_serial());
             }
             None => {}
         };

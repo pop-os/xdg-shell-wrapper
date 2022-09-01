@@ -51,7 +51,6 @@ pub fn run<W: WrapperSpace + 'static>(
         &mut embedded_server_state,
     )?;
 
-
     let mut global_state = GlobalState::new(
         client_state,
         embedded_server_state,
@@ -59,7 +58,6 @@ pub fn run<W: WrapperSpace + 'static>(
         start,
         log.clone(),
     );
-
 
     while !global_state.client_state.registry_state.ready() {
         for _ in 0..2 {
@@ -76,7 +74,10 @@ pub fn run<W: WrapperSpace + 'static>(
         &global_state.client_state.queue_handle,
     );
 
-    let cursor_surface = global_state.client_state.compositor_state.create_surface(&global_state.client_state.queue_handle);
+    let cursor_surface = global_state
+        .client_state
+        .compositor_state
+        .create_surface(&global_state.client_state.queue_handle);
     global_state.client_state.multipool = multipool.ok();
     global_state.client_state.cursor_surface = cursor_surface.ok();
 

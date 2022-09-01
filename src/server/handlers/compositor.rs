@@ -4,9 +4,9 @@ use slog::{error, trace};
 use smithay::{
     backend::renderer::{buffer_type, utils::on_commit_buffer_handler, BufferType},
     delegate_compositor, delegate_shm,
-    reexports::wayland_server::{
-        protocol::{wl_buffer, wl_surface::WlSurface},
-    },
+    input::pointer::CursorImageAttributes,
+    reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
+    utils::SERIAL_COUNTER,
     wayland::{
         buffer::BufferHandler,
         compositor::{
@@ -14,7 +14,6 @@ use smithay::{
             SurfaceAttributes,
         },
         shm::{ShmHandler, ShmState},
-        SERIAL_COUNTER, seat::CursorImageAttributes,
     },
 };
 
@@ -78,9 +77,8 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                                     .data_map
                                     .get::<Mutex<CursorImageAttributes>>()
                                     .and_then(|m| m.lock().ok())
-                                    .map(|attr| (*attr).hotspot) 
+                                    .map(|attr| (*attr).hotspot)
                                 {
-
                                     trace!(log, "requesting update");
                                     ptr.set_cursor(
                                         SERIAL_COUNTER.next_serial().into(),

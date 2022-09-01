@@ -97,14 +97,11 @@ pub trait WrapperSpace {
     type Config: WrapperConfig;
 
     /// set the display handle of the space
-    fn set_display_handle(
-        &mut self,
-        display: wayland_server::DisplayHandle,
-    );
+    fn set_display_handle(&mut self, display: wayland_server::DisplayHandle);
 
     /// get the client hovered surface of the space
     fn get_client_hovered_surface(&self) -> Rc<RefCell<ClientFocus>>;
-    
+
     /// get the client focused surface of the space
     fn get_client_focused_surface(&self) -> Rc<RefCell<ClientFocus>>;
 

@@ -1,6 +1,7 @@
 use slog::Logger;
 use smithay::{
     desktop::PopupManager,
+    input::{Seat, SeatState},
     reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
     utils::{Logical, Point},
     wayland::{
@@ -8,7 +9,7 @@ use smithay::{
         data_device::DataDeviceState,
         dmabuf::{DmabufGlobal, DmabufState},
         output::OutputManagerState,
-        seat::{self, SeatState},
+        primary_selection::PrimarySelectionState,
         shell::xdg::XdgShellState,
         shm::ShmState,
     },
@@ -55,6 +56,7 @@ pub struct ServerState<W: WrapperSpace + 'static> {
     pub(crate) seat_state: SeatState<GlobalState<W>>,
     pub(crate) data_device_state: DataDeviceState,
     pub(crate) dmabuf_state: Option<(DmabufState, DmabufGlobal)>,
+    pub(crate) primary_selection_state: PrimarySelectionState,
 }
 
 impl<W: WrapperSpace> ServerState<W> {
@@ -119,6 +121,10 @@ impl<W: WrapperSpace> ServerState<W> {
             _output_manager_state: OutputManagerState::new_with_xdg_output::<GlobalState<W>>(&dh),
             seat_state: SeatState::new(),
             data_device_state: DataDeviceState::new::<GlobalState<W>, _>(&dh, log.clone()),
+            primary_selection_state: PrimarySelectionState::new::<GlobalState<W>, _>(
+                &dh,
+                log.clone(),
+            ),
             dmabuf_state: None,
         }
     }
@@ -127,5 +133,5 @@ impl<W: WrapperSpace> ServerState<W> {
 pub(crate) struct SeatPair<W: WrapperSpace + 'static> {
     pub(crate) name: String,
     pub(crate) client: ClientSeat,
-    pub(crate) server: seat::Seat<GlobalState<W>>,
+    pub(crate) server: Seat<GlobalState<W>>,
 }

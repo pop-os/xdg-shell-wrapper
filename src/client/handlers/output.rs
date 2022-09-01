@@ -65,18 +65,17 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             // construct a surface for an output if possible
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
 
-            if let Err(err) = space
-                .handle_output(
-                    compositor_state,
-                    layer_state,
-                    conn,
-                    qh,
-                    Some(output),
-                    Some(s_output.0),
-                    Some(info),
-                ) {
-                    slog::warn!(log.clone(), "{}", err);
-                }
+            if let Err(err) = space.handle_output(
+                compositor_state,
+                layer_state,
+                conn,
+                qh,
+                Some(output),
+                Some(s_output.0),
+                Some(info),
+            ) {
+                slog::warn!(log.clone(), "{}", err);
+            }
         }
     }
 
@@ -116,18 +115,17 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             // construct a surface for an output if possible
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
 
-            if let Err(err) = space
-                .handle_output(
-                    compositor_state,
-                    layer_state,
-                    conn,
-                    qh,
-                    Some(output),
-                    Some(s_output.0),
-                    Some(info),
-                ) {
-                    slog::warn!(log.clone(), "{}", err);
-                }
+            if let Err(err) = space.handle_output(
+                compositor_state,
+                layer_state,
+                conn,
+                qh,
+                Some(output),
+                Some(s_output.0),
+                Some(info),
+            ) {
+                slog::warn!(log.clone(), "{}", err);
+            }
         }
     }
 
@@ -167,18 +165,17 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             // construct a surface for an output if possible
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
 
-            if let Err(err) = space
-                .handle_output(
-                    compositor_state,
-                    layer_state,
-                    conn,
-                    qh,
-                    Some(output),
-                    Some(s_output.0),
-                    Some(info),
-                ) {
-                    slog::warn!(log.clone(), "{}", err);
-                }
+            if let Err(err) = space.handle_output(
+                compositor_state,
+                layer_state,
+                conn,
+                qh,
+                Some(output),
+                Some(s_output.0),
+                Some(info),
+            ) {
+                slog::warn!(log.clone(), "{}", err);
+            }
         }
     }
 }
