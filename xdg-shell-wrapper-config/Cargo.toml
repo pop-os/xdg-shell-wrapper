@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-wayland-protocols-wlr = { git = "https://github.com/smithay/wayland-rs", features = ["client"], rev = "746c68154d35763025877c9713a30c2b35232f8c" }
+wayland-protocols-wlr = { git = "https://github.com/smithay/wayland-rs", features = ["client"]}

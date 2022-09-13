@@ -11,10 +11,9 @@ use slog::Logger;
 use smithay::{
     reexports::wayland_server::{
         backend::GlobalId,
-        protocol::wl_output::{Subpixel as s_Subpixel, Transform},
         DisplayHandle,
     },
-    wayland::output::{Mode as s_Mode, Output, PhysicalProperties, Scale},
+    output::{Mode as s_Mode, Output, PhysicalProperties, Scale, Subpixel as s_Subpixel}, utils::Transform,
 };
 use xdg_shell_wrapper_config::WrapperConfig;
 

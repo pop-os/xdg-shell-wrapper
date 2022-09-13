@@ -15,7 +15,7 @@ anyhow = "1.0.53"
 ron = "0.8.0"
 serde = { version = "1.0.136", features = ["derive"] }
 slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }
-wayland-egl = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
+wayland-egl = { git = "https://github.com/smithay/wayland-rs" }
 libc = "0.2.117"
 tempfile = "3.3"
 once_cell = "1.10.0"
@@ -27,13 +27,13 @@ xdg-shell-wrapper-config = { path = "xdg-shell-wrapper-config" }
 members = ["xdg-shell-wrapper-config"]
 
 [patch.crates-io]
-wayland-protocols-wlr = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-protocols-misc = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-egl = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-protocols = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-server = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-sys = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-backend = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-scanner = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-cursor = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
-wayland-client = { git = "https://github.com/smithay/wayland-rs", rev = "746c68154d35763025877c9713a30c2b35232f8c"  }
+wayland-protocols-wlr = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols-misc = { git = "https://github.com/smithay/wayland-rs" }
+wayland-egl = { git = "https://github.com/smithay/wayland-rs" }
+wayland-protocols = { git = "https://github.com/smithay/wayland-rs" }
+wayland-server = { git = "https://github.com/smithay/wayland-rs" }
+wayland-sys = { git = "https://github.com/smithay/wayland-rs" }
+wayland-backend = { git = "https://github.com/smithay/wayland-rs" }
+wayland-scanner = { git = "https://github.com/smithay/wayland-rs" }
+wayland-cursor = { git = "https://github.com/smithay/wayland-rs" }
+wayland-client = { git = "https://github.com/smithay/wayland-rs" }

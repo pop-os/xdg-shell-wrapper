@@ -36,17 +36,6 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let window = Window::new(Kind::Xdg(surface.clone()));
-        // window.refresh();
-
-        // TODO move to space implementation
-        // let wl_surface = surface.wl_surface();
-        // if self.desktop_client_state.kbd_focus {
-        //     for s in &self.embedded_server_state.seats {
-        //         if let Some(kbd) = s.server.get_keyboard() {
-        //             kbd.set_focus(dh, Some(wl_surface), SERIAL_COUNTER.next_serial());
-        //         }
-        //     }
-        // }
 
         self.space.add_window(window);
         surface.send_configure();
@@ -92,12 +81,12 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
     }
 
     fn grab(&mut self, surface: PopupSurface, seat: wl_seat::WlSeat, _serial: Serial) {
-        let dh = self.server_state.display_handle.clone();
         for s in &self.server_state.seats {
             if s.server.owns(&seat) {
+                let popup = PopupKind::Xdg(surface);
                 if let Err(e) = self.server_state.popup_manager.grab_popup(
-                    &dh,
-                    PopupKind::Xdg(surface).wl_surface().clone(),
+                    popup.wl_surface().clone(),
+                    popup,
                     &s.server,
                     SERIAL_COUNTER.next_serial(),
                 ) {

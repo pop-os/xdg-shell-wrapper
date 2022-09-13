@@ -21,13 +21,13 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
+    output::Output,
     backend::renderer::gles2::Gles2Renderer,
     desktop::{PopupManager, Window},
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
     wayland::{
-        output::Output,
         shell::xdg::{PopupSurface, PositionerState},
     },
 };
