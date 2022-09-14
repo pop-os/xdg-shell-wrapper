@@ -1,12 +1,11 @@
 use sctk::shell::xdg::XdgPositioner;
-use slog::error;
 use smithay::{
     delegate_xdg_shell,
     desktop::{Kind, PopupKind, Window},
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel, wayland_server::protocol::wl_seat,
     },
-    utils::{Serial, SERIAL_COUNTER},
+    utils::{Serial},
     wayland::shell::xdg::{
         PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
     },
@@ -80,21 +79,22 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
     ) {
     }
 
-    fn grab(&mut self, surface: PopupSurface, seat: wl_seat::WlSeat, _serial: Serial) {
-        for s in &self.server_state.seats {
-            if s.server.owns(&seat) {
-                let popup = PopupKind::Xdg(surface);
-                if let Err(e) = self.server_state.popup_manager.grab_popup(
-                    popup.wl_surface().clone(),
-                    popup,
-                    &s.server,
-                    SERIAL_COUNTER.next_serial(),
-                ) {
-                    error!(self.log.clone(), "{}", e);
-                }
-                break;
-            }
-        }
+    fn grab(&mut self, _surface: PopupSurface, _seat: wl_seat::WlSeat, _serial: Serial) {
+        // FIXME
+        // for s in &self.server_state.seats {
+        //     if s.server.owns(&seat) {
+        //         let popup = PopupKind::Xdg(surface);
+        //         if let Err(e) = self.server_state.popup_manager.grab_popup(
+        //             popup.wl_surface().clone(),
+        //             popup,
+        //             &s.server,
+        //             SERIAL_COUNTER.next_serial(),
+        //         ) {
+        //             error!(self.log.clone(), "{}", e);
+        //         }
+        //         break;
+        //     }
+        // }
     }
 
     fn reposition_request(
