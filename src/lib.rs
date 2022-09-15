@@ -61,9 +61,10 @@ pub fn run<W: WrapperSpace + 'static>(
 
     while !global_state.client_state.registry_state.ready() {
         for _ in 0..2 {
-            event_loop.dispatch(Duration::from_millis(100), &mut global_state)?;
+            event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
         }
     }
+    event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
 
     let multipool = MultiPool::new(&global_state.client_state.shm_state);
 

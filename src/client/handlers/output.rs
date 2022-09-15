@@ -9,11 +9,9 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
-    reexports::wayland_server::{
-        backend::GlobalId,
-        DisplayHandle,
-    },
-    output::{Mode as s_Mode, Output, PhysicalProperties, Scale, Subpixel as s_Subpixel}, utils::Transform,
+    output::{Mode as s_Mode, Output, PhysicalProperties, Scale, Subpixel as s_Subpixel},
+    reexports::wayland_server::{backend::GlobalId, DisplayHandle},
+    utils::Transform,
 };
 use xdg_shell_wrapper_config::WrapperConfig;
 

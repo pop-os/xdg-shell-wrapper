@@ -5,7 +5,7 @@ use smithay::{
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel, wayland_server::protocol::wl_seat,
     },
-    utils::{Serial},
+    utils::Serial,
     wayland::shell::xdg::{
         PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
     },

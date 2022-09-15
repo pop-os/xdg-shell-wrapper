@@ -4,9 +4,9 @@ use sctk::reexports::client::protocol::wl_output as c_wl_output;
 use slog::Logger;
 use smithay::{
     backend::renderer::{ImportDma, ImportEgl},
+    output::Output,
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
     wayland::dmabuf::DmabufState,
-    output::Output,
 };
 
 use crate::client_state::ClientState;
