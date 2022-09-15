@@ -60,11 +60,14 @@ pub fn run<W: WrapperSpace + 'static>(
     );
 
     while !global_state.client_state.registry_state.ready() {
-        for _ in 0..2 {
+        for _ in 0..10 {
             event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
         }
     }
-    event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
+    // remove extra looping after launch-pad is integrated
+    for _ in 0..10 {
+        event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
+    }
 
     let multipool = MultiPool::new(&global_state.client_state.shm_state);
 
