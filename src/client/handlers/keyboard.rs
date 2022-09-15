@@ -118,7 +118,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
 
         let _ = kbd.input::<(), _>(
             self,
-            event.keysym,
+            event.raw_code,
             KeyState::Pressed,
             SERIAL_COUNTER.next_serial(),
             event.time,
@@ -150,7 +150,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
 
         match kbd.input::<(), _>(
             self,
-            event.keysym,
+            event.raw_code,
             KeyState::Released,
             SERIAL_COUNTER.next_serial(),
             event.time,
