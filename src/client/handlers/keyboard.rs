@@ -61,7 +61,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         surface: &sctk::reexports::client::protocol::wl_surface::WlSurface,
         _serial: u32,
     ) {
-        let (seat_name, kbd) = if let Some((name, Some(kbd))) = self
+        let (name, kbd) = if let Some((name, Some(kbd))) = self
             .server_state
             .seats
             .iter()
@@ -85,48 +85,12 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             }
         };
         if kbd_focus {
-            self.space.keyboard_leave(&seat_name, Some(surface.clone()));
+            self.space.keyboard_leave(&name, Some(surface.clone()));
             kbd.set_focus(self, None, SERIAL_COUNTER.next_serial());
         }
     }
 
     fn press_key(
-        &mut self,
-        _conn: &sctk::reexports::client::Connection,
-        _qh: &sctk::reexports::client::QueueHandle<Self>,
-        keyboard: &sctk::reexports::client::protocol::wl_keyboard::WlKeyboard,
-        _serial: u32,
-        event: sctk::seat::keyboard::KeyEvent,
-    ) {
-        let kbd = if let Some(Some(kbd)) =
-            self.server_state
-                .seats
-                .iter()
-                .find_map(|SeatPair { client, server, .. }| {
-                    client.kbd.as_ref().map(|k| {
-                        if k == keyboard {
-                            server.get_keyboard()
-                        } else {
-                            None
-                        }
-                    })
-                }) {
-            kbd
-        } else {
-            return;
-        };
-
-        let _ = kbd.input::<(), _>(
-            self,
-            event.raw_code,
-            KeyState::Pressed,
-            SERIAL_COUNTER.next_serial(),
-            event.time,
-            move |_, _modifiers, _keysym| FilterResult::Forward,
-        );
-    }
-
-    fn release_key(
         &mut self,
         _conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
@@ -147,27 +111,69 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         } else {
             return;
         };
+        let c_kbd_focus = {
+            let c_focused_surface = self.client_state.focused_surface.borrow_mut();
+            c_focused_surface.iter().find_map(|f| {
+                if f.1 == seat_name {
+                    Some(f.0.clone())
+                } else {
+                    None
+                }
+            })
+        };
 
-        match kbd.input::<(), _>(
+        if let Some(c_focus) = c_kbd_focus {
+            self.client_state.last_key_pressed.push((
+                seat_name,
+                (event.raw_code, event.time),
+                c_focus,
+            ))
+        }
+
+        let _ = kbd.input::<(), _>(
+            self,
+            event.raw_code,
+            KeyState::Pressed,
+            SERIAL_COUNTER.next_serial(),
+            event.time,
+            move |_, _modifiers, _keysym| FilterResult::Forward,
+        );
+    }
+
+    fn release_key(
+        &mut self,
+        _conn: &sctk::reexports::client::Connection,
+        _qh: &sctk::reexports::client::QueueHandle<Self>,
+        keyboard: &sctk::reexports::client::protocol::wl_keyboard::WlKeyboard,
+        _serial: u32,
+        event: sctk::seat::keyboard::KeyEvent,
+    ) {
+        let (name, kbd) = if let Some((name, Some(kbd))) = self
+            .server_state
+            .seats
+            .iter()
+            .find(|SeatPair { client, .. }| {
+                client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
+            })
+            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+        {
+            (name.to_string(), kbd)
+        } else {
+            return;
+        };
+
+        self.client_state
+            .last_key_pressed
+            .retain(|(seat_name, raw_code, _s)| seat_name != &name && raw_code.0 == event.raw_code);
+
+        kbd.input::<(), _>(
             self,
             event.raw_code,
             KeyState::Released,
             SERIAL_COUNTER.next_serial(),
             event.time,
-            move |_, _modifiers, keysym| {
-                if keysym.modified_sym() == XKB_KEY_Escape {
-                    FilterResult::Intercept(())
-                } else {
-                    FilterResult::Forward
-                }
-            },
-        ) {
-            Some(_) => {
-                self.space.keyboard_leave(&seat_name, None);
-                kbd.set_focus(self, None, SERIAL_COUNTER.next_serial());
-            }
-            None => {}
-        };
+            move |_, _modifiers, _keysym| FilterResult::Forward,
+        );
     }
 
     fn update_repeat_info(

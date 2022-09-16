@@ -9,8 +9,8 @@ use std::{
 };
 
 use anyhow::Result;
-use sctk::shm::multi::MultiPool;
-use smithay::reexports::calloop;
+use sctk::{shm::multi::MultiPool, reexports::client::Proxy};
+use smithay::{reexports::calloop, utils::SERIAL_COUNTER, backend::input::KeyState, input::keyboard::FilterResult};
 
 use client::state::ClientState;
 pub use client::{handlers::output, state as client_state};
@@ -105,6 +105,41 @@ pub fn run<W: WrapperSpace + 'static>(
         if last_cleanup.elapsed() > five_min {
             global_state.server_state.popup_manager.cleanup();
             last_cleanup = Instant::now();
+        }
+
+        // handle funky keyboard state.
+        // if a client layer shell surface is closed, then it won't receive the release event
+        // then the client will keep receiving input
+        // so we send the release here instead
+        let press = if let Some((key_pressed, kbd)) = global_state
+            .client_state
+            .last_key_pressed
+            .iter()
+            .position(|(_, _, layer_shell_wl_surface)| !layer_shell_wl_surface.is_alive())
+            .and_then(|key_pressed| {
+                global_state.server_state
+                    .seats
+                    .iter()
+                    .find(|s| s.name == global_state
+                        .client_state
+                        .last_key_pressed[key_pressed].0)
+                    .and_then(|s| s.server.get_keyboard().map(|kbd| (global_state
+                        .client_state
+                        .last_key_pressed.remove(key_pressed), kbd)))
+            }) {
+            Some((key_pressed, kbd))
+        } else {
+            None
+        };
+        if let Some((key_pressed, kbd)) = press {
+            kbd.input::<(), _>(
+                &mut global_state,
+                key_pressed.1 .0,
+                KeyState::Released,
+                SERIAL_COUNTER.next_serial(),
+                key_pressed.1.1.wrapping_add(1),
+                move |_, _modifiers, _keysym| FilterResult::Forward,
+            );
         }
 
         // dispatch desktop client events

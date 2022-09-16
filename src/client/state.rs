@@ -67,6 +67,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub hovered_surface: Rc<RefCell<ClientFocus>>,
     pub(crate) cursor_surface: Option<wl_surface::WlSurface>,
     pub(crate) multipool: Option<MultiPool<WlSurface>>,
+    pub(crate) last_key_pressed: Vec<(String, (u32, u32), wl_surface::WlSurface)>,
 }
 
 impl<W: WrapperSpace + 'static> ClientState<W> {
@@ -101,6 +102,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             registry_state,
             multipool: None,
             cursor_surface: None,
+            last_key_pressed: Vec::new(),
         };
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
