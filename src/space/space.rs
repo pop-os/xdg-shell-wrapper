@@ -2,7 +2,6 @@
 
 use std::{
     cell::RefCell,
-    os::unix::net::UnixStream,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -206,7 +205,7 @@ pub trait WrapperSpace {
     fn spawn_clients(
         &mut self,
         display: wayland_server::DisplayHandle,
-    ) -> anyhow::Result<Vec<UnixStream>>;
+    ) -> anyhow::Result<()>;
 
     /// gets visibility of the wrapper
     fn visibility(&self) -> Visibility {

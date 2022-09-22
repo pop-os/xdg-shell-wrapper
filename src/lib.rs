@@ -85,11 +85,6 @@ pub fn run<W: WrapperSpace + 'static>(
     global_state.client_state.multipool = multipool.ok();
     global_state.client_state.cursor_surface = cursor_surface.ok();
 
-    let _sockets = global_state
-        .space
-        .spawn_clients(server_display.handle())
-        .unwrap();
-
     event_loop.dispatch(Duration::from_millis(30), &mut global_state)?;
 
     global_state.bind_display(&s_dh);

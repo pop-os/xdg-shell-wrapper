@@ -6,7 +6,7 @@ use crate::{
 };
 use sctk::{
     delegate_keyboard,
-    seat::keyboard::{keysyms::XKB_KEY_Escape, KeyboardHandler, RepeatInfo},
+    seat::keyboard::{KeyboardHandler, RepeatInfo},
 };
 use smithay::{backend::input::KeyState, input::keyboard::FilterResult, utils::SERIAL_COUNTER};
 
