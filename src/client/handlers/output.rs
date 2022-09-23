@@ -61,8 +61,8 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
         {
             // construct a surface for an output if possible
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
-
-            if let Err(err) = space.handle_output(
+            self.client_state.outputs.push((output.clone(), s_output.0.clone(), s_output.1));
+            if let Err(err) = space.new_output(
                 compositor_state,
                 layer_state,
                 conn,
@@ -86,6 +86,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             Some(info) if info.name.is_some() => info,
             _ => return,
         };
+
         let GlobalState {
             client_state:
                 ClientState {
@@ -109,20 +110,12 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             .iter()
             .any(|configured| Some(configured) == info.name.as_ref())
         {
-            // construct a surface for an output if possible
-            let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
-
-            if let Err(err) = space.handle_output(
-                compositor_state,
-                layer_state,
-                conn,
-                qh,
-                Some(output),
-                Some(s_output.0),
-                Some(info),
-            ) {
-                slog::warn!(log.clone(), "{}", err);
+            if let Some(saved_output) = self.client_state.outputs.iter().find(|o| o.0 == output) {
+                if let Err(err) = space.update_output(output, saved_output.1.clone(), info) {
+                    slog::error!(log.clone(), "{}", err);
+                }
             }
+
         }
     }
 
@@ -159,19 +152,14 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             .iter()
             .any(|configured| Some(configured) == info.name.as_ref())
         {
-            // construct a surface for an output if possible
-            let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
-
-            if let Err(err) = space.handle_output(
-                compositor_state,
-                layer_state,
-                conn,
-                qh,
-                Some(output),
-                Some(s_output.0),
-                Some(info),
-            ) {
-                slog::warn!(log.clone(), "{}", err);
+            if let Some(saved_output) = self.client_state.outputs.iter().position(|o| o.0 == output) {
+                let (c, s, g_id) = self.client_state.outputs.remove(saved_output);
+                if let Err(err) = space.output_leave(
+                    c,
+                    s,
+                ) {
+                    slog::warn!(log.clone(), "{}", err);
+                }
             }
         }
     }

@@ -2,7 +2,7 @@ use slog::Logger;
 use smithay::{
     desktop::PopupManager,
     input::{Seat, SeatState},
-    reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
+    reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle, backend::GlobalId},
     utils::{Logical, Point},
     wayland::{
         compositor::CompositorState,
@@ -12,7 +12,7 @@ use smithay::{
         primary_selection::PrimarySelectionState,
         shell::xdg::XdgShellState,
         shm::ShmState,
-    },
+    }, output::Output,
 };
 
 use crate::{client_state::ClientSeat, shared_state::GlobalState, space::WrapperSpace};
@@ -47,7 +47,6 @@ pub struct ServerState<W: WrapperSpace + 'static> {
     // pub(crate) selected_data_provider: SelectedDataProvider,
     pub(crate) last_button: Option<u32>,
     pub(crate) seats: Vec<SeatPair<W>>,
-
     // Smithay State
     pub(crate) compositor_state: CompositorState,
     pub(crate) xdg_shell_state: XdgShellState,

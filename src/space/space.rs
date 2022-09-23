@@ -112,7 +112,7 @@ pub trait WrapperSpace {
     );
 
     /// add the configured output to the space
-    fn handle_output<W: WrapperSpace>(
+    fn new_output<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
         layer_state: &mut LayerState,
@@ -123,12 +123,19 @@ pub trait WrapperSpace {
         info: Option<OutputInfo>,
     ) -> anyhow::Result<()>;
 
+    /// update the configured output in the space
+    fn update_output(
+        &mut self,
+        c_output: c_wl_output::WlOutput,
+        s_output: Output,
+        info: OutputInfo,
+    ) -> anyhow::Result<()>;
+
     /// remove the configured output from the space
     fn output_leave(
         &mut self,
-        c_output: Option<c_wl_output::WlOutput>,
-        s_output: Option<Output>,
-        info: Option<OutputInfo>,
+        c_output: c_wl_output::WlOutput,
+        s_output: Output,
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
