@@ -57,6 +57,8 @@ pub struct WrapperPopup {
     pub full_clear: u8,
     /// input region for the popup
     pub input_region: Region,
+    /// opaque region for the popup
+    pub opaque_region: Region,
 }
 
 impl WrapperPopup {
