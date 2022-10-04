@@ -209,10 +209,7 @@ pub trait WrapperSpace {
     fn config(&self) -> Self::Config;
 
     /// spawns the clients for the wrapper
-    fn spawn_clients(
-        &mut self,
-        display: wayland_server::DisplayHandle,
-    ) -> anyhow::Result<()>;
+    fn spawn_clients(&mut self, display: wayland_server::DisplayHandle) -> anyhow::Result<()>;
 
     /// gets visibility of the wrapper
     fn visibility(&self) -> Visibility {

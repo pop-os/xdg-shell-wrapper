@@ -9,8 +9,11 @@ use std::{
 };
 
 use anyhow::Result;
-use sctk::{shm::multi::MultiPool, reexports::client::Proxy};
-use smithay::{reexports::calloop, utils::SERIAL_COUNTER, backend::input::KeyState, input::keyboard::FilterResult};
+use sctk::{reexports::client::Proxy, shm::multi::MultiPool};
+use smithay::{
+    backend::input::KeyState, input::keyboard::FilterResult, reexports::calloop,
+    utils::SERIAL_COUNTER,
+};
 
 use client::state::ClientState;
 pub use client::{handlers::output, state as client_state};
@@ -112,15 +115,22 @@ pub fn run<W: WrapperSpace + 'static>(
             .iter()
             .position(|(_, _, layer_shell_wl_surface)| !layer_shell_wl_surface.is_alive())
             .and_then(|key_pressed| {
-                global_state.server_state
+                global_state
+                    .server_state
                     .seats
                     .iter()
-                    .find(|s| s.name == global_state
-                        .client_state
-                        .last_key_pressed[key_pressed].0)
-                    .and_then(|s| s.server.get_keyboard().map(|kbd| (global_state
-                        .client_state
-                        .last_key_pressed.remove(key_pressed), kbd)))
+                    .find(|s| s.name == global_state.client_state.last_key_pressed[key_pressed].0)
+                    .and_then(|s| {
+                        s.server.get_keyboard().map(|kbd| {
+                            (
+                                global_state
+                                    .client_state
+                                    .last_key_pressed
+                                    .remove(key_pressed),
+                                kbd,
+                            )
+                        })
+                    })
             }) {
             Some((key_pressed, kbd))
         } else {
@@ -132,7 +142,7 @@ pub fn run<W: WrapperSpace + 'static>(
                 key_pressed.1 .0,
                 KeyState::Released,
                 SERIAL_COUNTER.next_serial(),
-                key_pressed.1.1.wrapping_add(1),
+                key_pressed.1 .1.wrapping_add(1),
                 move |_, _modifiers, _keysym| FilterResult::Forward,
             );
         }

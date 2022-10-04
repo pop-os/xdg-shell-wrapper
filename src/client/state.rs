@@ -5,9 +5,11 @@ use sctk::{
     output::OutputState,
     reexports::client::{
         protocol::{
-            wl_keyboard, wl_pointer,
+            wl_keyboard,
+            wl_output::WlOutput,
+            wl_pointer,
             wl_seat::WlSeat,
-            wl_surface::{self, WlSurface}, wl_output::WlOutput,
+            wl_surface::{self, WlSurface},
         },
         Connection, QueueHandle,
     },
@@ -17,7 +19,10 @@ use sctk::{
     shm::{multi::MultiPool, ShmState},
 };
 use slog::Logger;
-use smithay::{reexports::{calloop, wayland_server::backend::GlobalId}, output::Output};
+use smithay::{
+    output::Output,
+    reexports::{calloop, wayland_server::backend::GlobalId},
+};
 
 use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
 
@@ -69,7 +74,6 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub(crate) multipool: Option<MultiPool<WlSurface>>,
     pub(crate) last_key_pressed: Vec<(String, (u32, u32), wl_surface::WlSurface)>,
     pub(crate) outputs: Vec<(WlOutput, Output, GlobalId)>,
-
 }
 
 impl<W: WrapperSpace + 'static> ClientState<W> {

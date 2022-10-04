@@ -12,9 +12,9 @@ use std::{
 
 use shlex::Shlex;
 use slog::{trace, Logger};
-use smithay::{
+use smithay::reexports::{
     nix::fcntl,
-    reexports::wayland_server::{self, backend::ClientData, Client},
+    wayland_server::{self, backend::ClientData, Client},
 };
 // SPDX-License-Identifier: MPL-2.0-only
 use anyhow::{bail, Result};

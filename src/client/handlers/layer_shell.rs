@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use sctk::{delegate_layer, shell::layer::LayerHandler};
-use smithay::{
-    backend::input::KeyState, input::keyboard::FilterResult,
-    reexports::wayland_protocols_wlr::layer_shell, utils::SERIAL_COUNTER,
-};
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 

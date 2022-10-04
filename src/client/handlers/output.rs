@@ -61,7 +61,9 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
         {
             // construct a surface for an output if possible
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
-            self.client_state.outputs.push((output.clone(), s_output.0.clone(), s_output.1));
+            self.client_state
+                .outputs
+                .push((output.clone(), s_output.0.clone(), s_output.1));
             if let Err(err) = space.new_output(
                 compositor_state,
                 layer_state,
@@ -78,8 +80,8 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
 
     fn update_output(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
         let info = match self.output_state().info(&output) {
@@ -87,18 +89,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             _ => return,
         };
 
-        let GlobalState {
-            client_state:
-                ClientState {
-                    compositor_state,
-                    layer_state,
-                    ..
-                },
-            server_state: ServerState { display_handle, .. },
-            space,
-            log,
-            ..
-        } = self;
+        let GlobalState { space, log, .. } = self;
 
         let config = space.config();
         let configured_outputs = match config.outputs() {
@@ -115,32 +106,20 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                     slog::error!(log.clone(), "{}", err);
                 }
             }
-
         }
     }
 
     fn output_destroyed(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
         let info = match self.output_state().info(&output) {
             Some(info) if info.name.is_some() => info,
             _ => return,
         };
-        let GlobalState {
-            client_state:
-                ClientState {
-                    compositor_state,
-                    layer_state,
-                    ..
-                },
-            server_state: ServerState { display_handle, .. },
-            space,
-            log,
-            ..
-        } = self;
+        let GlobalState { space, log, .. } = self;
 
         let config = space.config();
         let configured_outputs = match config.outputs() {
@@ -152,12 +131,10 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             .iter()
             .any(|configured| Some(configured) == info.name.as_ref())
         {
-            if let Some(saved_output) = self.client_state.outputs.iter().position(|o| o.0 == output) {
-                let (c, s, g_id) = self.client_state.outputs.remove(saved_output);
-                if let Err(err) = space.output_leave(
-                    c,
-                    s,
-                ) {
+            if let Some(saved_output) = self.client_state.outputs.iter().position(|o| o.0 == output)
+            {
+                let (c, s, _) = self.client_state.outputs.remove(saved_output);
+                if let Err(err) = space.output_leave(c, s) {
                     slog::warn!(log.clone(), "{}", err);
                 }
             }

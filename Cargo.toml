@@ -7,15 +7,15 @@ license = "MPL-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"], rev = "355513d3f675dbf5c61196cd98f5134bba53582c"}
+smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"], rev = "76a878698ea1910607e866519b0f5999f1e66caa"}
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
-sctk = { git = "https://github.com/wash2/client-toolkit", package = "smithay-client-toolkit", branch = "get_popup" }
+sctk = { git = "https://github.com/wash2/client-toolkit", package = "smithay-client-toolkit", branch = "dev" }
 # sctk = { package = "smithay-client-toolkit", path = "../fork/client-toolkit", default-features = false, features = ["calloop", "xkbcommon", "system"] }
 anyhow = "1.0.53"
 ron = "0.8.0"
 serde = { version = "1.0.136", features = ["derive"] }
 slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }
-wayland-egl = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
+wayland-egl = { version = "=0.30.0-beta.10" }
 libc = "0.2.117"
 tempfile = "3.3"
 once_cell = "1.10.0"
@@ -25,15 +25,3 @@ xdg-shell-wrapper-config = { path = "xdg-shell-wrapper-config" }
 
 [workspace]
 members = ["xdg-shell-wrapper-config"]
-
-[patch.crates-io]
-wayland-protocols-wlr = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-protocols-misc = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-egl = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-protocols = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-server = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-sys = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-backend = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-scanner = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-cursor = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
-wayland-client = { git = "https://github.com/smithay/wayland-rs", rev = "f4740097ba42b1ec5d439c82eff4e748e38178d2" }
