@@ -93,11 +93,29 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         {
             sp
         } else {
-            return;
+            let name = info.name.clone().unwrap_or_default();
+            let server = self.server_state.seat_state.new_wl_seat(
+                &self.server_state.display_handle,
+                &name,
+                self.log.clone(),
+            );
+            self.server_state.seats.push(SeatPair {
+                name,
+                client: ClientSeat {
+                    _seat: seat.clone(),
+                    kbd: None,
+                    ptr: None,
+                    // TODO forward touch
+                },
+                server,
+            });
+            self.server_state.seats.last_mut().unwrap()
         };
+
         match capability {
             sctk::seat::Capability::Keyboard => {
                 if info.has_keyboard {
+                    sp.server.add_keyboard(Default::default(), 200, 20).unwrap();
                     if let Ok(kbd) = self.client_state.seat_state.get_keyboard(qh, &seat, None) {
                         sp.client.kbd.replace(kbd);
                     }
@@ -105,6 +123,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             }
             sctk::seat::Capability::Pointer => {
                 if info.has_pointer {
+                    sp.server.add_pointer();
                     if let Ok(ptr) = self.client_state.seat_state.get_pointer(qh, &seat) {
                         sp.client.ptr.replace(ptr);
                     }

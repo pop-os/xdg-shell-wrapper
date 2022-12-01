@@ -38,8 +38,8 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             self.space.dirty_window(&dh, surface)
         } else if role == "xdg_popup".into() {
             on_commit_buffer_handler(surface);
-            self.space.dirty_popup(&dh, surface);
             self.server_state.popup_manager.commit(surface);
+            self.space.dirty_popup(&dh, surface);
         } else if role == "cursor_image".into() {
             let multipool = match &mut self.client_state.multipool {
                 Some(m) => m,

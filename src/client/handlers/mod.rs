@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use sctk::{
-    compositor::CompositorState,
-    delegate_compositor, delegate_output, delegate_registry, delegate_shm,
+    delegate_compositor, delegate_output, delegate_shm,
     output::OutputState,
+    reexports::client::{
+        globals::GlobalListContents, protocol::wl_registry, Connection, Dispatch, QueueHandle,
+    },
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::SeatState,
-    shell::{layer::LayerState, xdg::XdgShellState},
     shm::{ShmHandler, ShmState},
 };
 
@@ -32,17 +33,22 @@ impl<W: WrapperSpace> ProvidesRegistryState for GlobalState<W> {
     fn registry(&mut self) -> &mut RegistryState {
         &mut self.client_state.registry_state
     }
-    registry_handlers![
-        CompositorState,
-        OutputState,
-        ShmState,
-        SeatState,
-        XdgShellState,
-        LayerState,
-    ];
+    registry_handlers![OutputState, SeatState,];
+}
+
+impl<W: WrapperSpace> Dispatch<wl_registry::WlRegistry, GlobalListContents> for GlobalState<W> {
+    fn event(
+        _state: &mut Self,
+        _registry: &wl_registry::WlRegistry,
+        _event: wl_registry::Event,
+        _data: &GlobalListContents,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        // We don't need any other globals.
+    }
 }
 
 delegate_compositor!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_output!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_shm!(@<W: WrapperSpace + 'static> GlobalState<W>);
-delegate_registry!(@<W: WrapperSpace + 'static> GlobalState<W>);

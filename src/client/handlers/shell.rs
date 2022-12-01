@@ -1,15 +1,6 @@
-use sctk::{
-    delegate_xdg_popup, delegate_xdg_shell,
-    shell::xdg::{popup::PopupHandler, XdgShellHandler, XdgShellState},
-};
+use sctk::{delegate_xdg_popup, delegate_xdg_shell, shell::xdg::popup::PopupHandler};
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
-
-impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
-    fn xdg_shell_state(&mut self) -> &mut XdgShellState {
-        &mut self.client_state.xdg_shell_state
-    }
-}
 
 impl<W: WrapperSpace> PopupHandler for GlobalState<W> {
     fn configure(

@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use sctk::{delegate_layer, shell::layer::LayerHandler};
+use sctk::{delegate_layer, shell::layer::LayerShellHandler};
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
-impl<W: WrapperSpace> LayerHandler for GlobalState<W> {
-    fn layer_state(&mut self) -> &mut sctk::shell::layer::LayerState {
-        &mut self.client_state.layer_state
-    }
-
+impl<W: WrapperSpace> LayerShellHandler for GlobalState<W> {
     fn closed(
         &mut self,
         _conn: &sctk::reexports::client::Connection,

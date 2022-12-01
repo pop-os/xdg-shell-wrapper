@@ -13,21 +13,6 @@ use smithay::{
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
-// let DesktopClientState {
-//     seats,
-//     kbd_focus,
-//     env_handle,
-//     space,
-//     xdg_wm_base,
-//     ..
-// } = &mut state.desktop_client_state;
-
-// let EmbeddedServerState {
-//     focused_surface,
-//     popup_manager,
-//     root_window,
-//     ..
-// } = &mut state.embedded_server_state;
 impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         &mut self.server_state.xdg_shell_state

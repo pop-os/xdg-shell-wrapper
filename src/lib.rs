@@ -62,11 +62,6 @@ pub fn run<W: WrapperSpace + 'static>(
         log.clone(),
     );
 
-    while !global_state.client_state.registry_state.ready() {
-        for _ in 0..10 {
-            event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
-        }
-    }
     // remove extra looping after launch-pad is integrated
     for _ in 0..10 {
         event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
@@ -86,7 +81,7 @@ pub fn run<W: WrapperSpace + 'static>(
         .compositor_state
         .create_surface(&global_state.client_state.queue_handle);
     global_state.client_state.multipool = multipool.ok();
-    global_state.client_state.cursor_surface = cursor_surface.ok();
+    global_state.client_state.cursor_surface = Some(cursor_surface);
 
     event_loop.dispatch(Duration::from_millis(30), &mut global_state)?;
 
@@ -159,6 +154,7 @@ pub fn run<W: WrapperSpace + 'static>(
 
             let _ = space.handle_events(
                 &s_dh,
+                &global_state.client_state.queue_handle,
                 &mut global_state.server_state.popup_manager,
                 global_state
                     .start_time
@@ -166,6 +162,7 @@ pub fn run<W: WrapperSpace + 'static>(
                     .as_millis()
                     .try_into()
                     .unwrap(),
+                &global_state.received_frame,
             );
         }
 
@@ -175,36 +172,8 @@ pub fn run<W: WrapperSpace + 'static>(
             server_display.flush_clients().unwrap();
         }
 
-        // TODO find better place for this
-        // the idea is to forward clipbard as soon as possible just once
-        // this method is not ideal...
-        // if !set_clipboard_once.get() {
-        //     let desktop_client_state = &global_state.desktop_client_state;
-        //     for s in &desktop_client_state.seats {
-        //         let server_seat = &s.server.0;
-        //         let _ = desktop_client_state.env_handle.with_data_device(
-        //             &s.client.seat,
-        //             |data_device| {
-        //                 data_device.with_selection(|offer| {
-        //                     if let Some(offer) = offer {
-        //                         offer.with_mime_types(|types| {
-        //                             set_data_device_selection(
-        //                                 server_display,
-        //                                 server_seat,
-        //                                 types.into(),
-        //                             );
-        //                             set_clipboard_once.replace(true);
-        //                         })
-        //                     }
-        //                 })
-        //             },
-        //         );
-        //     }
-        // }
-
-        // sleep if not focused...
         if matches!(global_state.space.visibility(), Visibility::Hidden) {
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(100))
         }
     }
 }

@@ -49,7 +49,7 @@ pub struct WrapperPopup {
     pub state: Option<WrapperPopupState>,
     /// whether or not the popup needs to be rendered
     pub dirty: bool,
-    /// full rectangle of the popup, including dropshadow borders
+    /// full rectangle of the inner popup, including dropshadow borders
     pub rectangle: Rectangle<i32, Logical>,
     /// accumulated damage with age values
     pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
@@ -57,6 +57,8 @@ pub struct WrapperPopup {
     pub full_clear: u8,
     /// input region for the popup
     pub input_region: Region,
+    /// location of the popup wrapper
+    pub wrapper_rectangle: Rectangle<i32, Logical>,
 }
 
 impl WrapperPopup {

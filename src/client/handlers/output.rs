@@ -182,7 +182,7 @@ pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
         if *current {
             s_output.change_current_state(
                 Some(s_mode),
-                Some(Transform::Normal),
+                Some(Transform::Flipped180),
                 Some(Scale::Integer(1)),
                 Some(info.location.into()),
             )

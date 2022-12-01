@@ -4,6 +4,7 @@ use sctk::{
     compositor::CompositorState,
     output::OutputState,
     reexports::client::{
+        globals::registry_queue_init,
         protocol::{
             wl_keyboard,
             wl_output::WlOutput,
@@ -15,7 +16,7 @@ use sctk::{
     },
     registry::RegistryState,
     seat::SeatState,
-    shell::{layer::LayerState, xdg::XdgShellState},
+    shell::{layer::LayerShell, xdg::XdgShellState},
     shm::{multi::MultiPool, ShmState},
 };
 use slog::Logger;
@@ -61,7 +62,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     /// state
     pub xdg_shell_state: XdgShellState,
     /// state
-    pub layer_state: LayerState,
+    pub layer_state: LayerShell,
 
     pub(crate) connection: Connection,
     /// queue handle
@@ -88,22 +89,23 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
          */
         let connection = Connection::connect_to_env()?;
 
-        let event_queue = connection.new_event_queue();
+        let (globals, event_queue) = registry_queue_init(&connection).unwrap();
         let qh = event_queue.handle();
-        let registry_state = RegistryState::new(&connection, &qh);
+        let registry_state = RegistryState::new(&globals);
 
         let client_state = ClientState {
             focused_surface: space.get_client_focused_surface(),
             hovered_surface: space.get_client_hovered_surface(),
 
-            queue_handle: qh,
+            queue_handle: qh.clone(),
             connection,
-            seat_state: SeatState::new(),
-            output_state: OutputState::new(),
-            compositor_state: CompositorState::new(),
-            shm_state: ShmState::new(),
-            xdg_shell_state: XdgShellState::new(),
-            layer_state: LayerState::new(),
+            seat_state: SeatState::new(&globals, &qh),
+            output_state: OutputState::new(&globals, &qh),
+            compositor_state: CompositorState::bind(&globals, &qh)
+                .expect("wl_compositor not available"),
+            shm_state: ShmState::bind(&globals, &qh).expect("wl_shm not available"),
+            xdg_shell_state: XdgShellState::bind(&globals, &qh).expect("xdg shell not available"),
+            layer_state: LayerShell::bind(&globals, &qh).expect("layer shell is not available"),
 
             outputs: Default::default(),
             registry_state,
