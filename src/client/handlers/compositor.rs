@@ -2,7 +2,7 @@
 
 use sctk::{
     compositor::CompositorHandler,
-    reexports::client::{protocol::wl_surface, Connection, Proxy, QueueHandle},
+    reexports::client::{protocol::wl_surface, Connection, QueueHandle},
 };
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};

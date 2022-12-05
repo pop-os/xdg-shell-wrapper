@@ -1,9 +1,8 @@
-use smithay::{
-    desktop::{space::space_elements, PopupKind, Window},
-    wayland::shell::xdg::PopupSurface,
-};
+use smithay::desktop::{space::space_elements, Window};
 
 space_elements! {
+    /// space elements for the wrapper
     pub WrapperSpaceElement;
+    /// window
     Window=Window,
 }

@@ -97,6 +97,10 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
             .reposition_popup(surface.clone(), &new_positioner, positioner, token);
         self.server_state.popup_manager.commit(surface.wl_surface());
     }
+
+    fn popup_destroyed(&mut self, surface: PopupSurface) {
+        self.server_state.popup_manager.commit(surface.wl_surface());
+    }
 }
 
 // Xdg Shell

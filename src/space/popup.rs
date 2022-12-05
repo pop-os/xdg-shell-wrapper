@@ -3,10 +3,7 @@
 use std::rc::Rc;
 
 use sctk::compositor::Region;
-use sctk::reexports::client::protocol::wl_display::WlDisplay;
-use sctk::reexports::client::protocol::wl_surface as c_wl_surface;
 use sctk::shell::xdg::popup::Popup;
-use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
@@ -41,8 +38,6 @@ pub struct WrapperPopup {
 
     /// the popup on the layer shell surface
     pub c_popup: Popup,
-    /// the wl surface for the popup on the layer shell surface
-    pub c_wl_surface: c_wl_surface::WlSurface,
     /// the embedded popup
     pub s_surface: PopupSurface,
     /// the state of the popup
@@ -64,13 +59,7 @@ pub struct WrapperPopup {
 impl WrapperPopup {
     /// Handles any events that have occurred since the last call, redrawing if needed.
     /// Returns true if the surface is alive.
-    pub fn handle_events(
-        &mut self,
-        popup_manager: &mut PopupManager,
-        _: &EGLContext,
-        _: &EGLDisplay,
-        _: &WlDisplay,
-    ) -> bool {
+    pub fn handle_events(&mut self, popup_manager: &mut PopupManager) -> bool {
         if let Some(WrapperPopupState::Rectangle {
             width,
             height,
