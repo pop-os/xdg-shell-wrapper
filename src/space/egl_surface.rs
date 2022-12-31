@@ -24,8 +24,6 @@ pub struct ClientEglSurface {
     // XXX implicitly drops wl_egl_surface first before _wl_surface
     /// egl surface
     pub wl_egl_surface: wayland_egl::WlEglSurface,
-    /// client display
-    pub display: WlDisplay,
     /// wl surface
     _wl_surface: WlSurface,
 }
@@ -33,17 +31,17 @@ pub struct ClientEglSurface {
 impl ClientEglSurface {
     /// Create a Client Egl Surface
     /// must be dropped before the associated WlSurface is destroyed
-    pub unsafe fn new(
-        wl_egl_surface: wayland_egl::WlEglSurface,
-        display: WlDisplay,
-        _wl_surface: WlSurface,
-    ) -> Self {
+    pub unsafe fn new(wl_egl_surface: wayland_egl::WlEglSurface, _wl_surface: WlSurface) -> Self {
         Self {
             wl_egl_surface,
-            display,
             _wl_surface,
         }
     }
+}
+
+pub struct ClientEglDisplay {
+    /// client display
+    pub display: WlDisplay,
 }
 
 static SURFACE_ATTRIBUTES: [c_int; 3] = [
@@ -52,7 +50,7 @@ static SURFACE_ATTRIBUTES: [c_int; 3] = [
     ffi::egl::NONE as c_int,
 ];
 
-impl EGLNativeDisplay for ClientEglSurface {
+impl EGLNativeDisplay for ClientEglDisplay {
     fn supported_platforms(&self) -> Vec<EGLPlatform<'_>> {
         let display: *mut c_void = self.display.id().as_ptr() as *mut _;
         vec![

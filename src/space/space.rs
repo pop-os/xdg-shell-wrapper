@@ -250,7 +250,7 @@ pub trait WrapperSpace {
     /// configure layer
     fn configure_layer(&mut self, layer: &LayerSurface, configure: LayerSurfaceConfigure);
 
-    /// close layer
+    /// close layer in space
     fn close_layer(&mut self, layer: &LayerSurface);
 
     /// gets the renderer for the space

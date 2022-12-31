@@ -16,6 +16,7 @@ use smithay::{
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 pub(crate) mod compositor;
+pub(crate) mod layer;
 pub(crate) mod xdg_shell;
 
 impl<W: WrapperSpace> PrimarySelectionHandler for GlobalState<W> {

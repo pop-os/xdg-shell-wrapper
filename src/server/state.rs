@@ -10,7 +10,7 @@ use smithay::{
         dmabuf::{DmabufGlobal, DmabufState},
         output::OutputManagerState,
         primary_selection::PrimarySelectionState,
-        shell::xdg::XdgShellState,
+        shell::{wlr_layer::WlrLayerShellState, xdg::XdgShellState},
         shm::ShmState,
     },
 };
@@ -56,59 +56,11 @@ pub struct ServerState<W: WrapperSpace + 'static> {
     pub(crate) data_device_state: DataDeviceState,
     pub(crate) dmabuf_state: Option<(DmabufState, DmabufGlobal)>,
     pub(crate) primary_selection_state: PrimarySelectionState,
+    pub(crate) layer_shell_state: WlrLayerShellState,
 }
 
 impl<W: WrapperSpace> ServerState<W> {
     pub(crate) fn new(dh: DisplayHandle, log: Logger) -> ServerState<W> {
-        // let selected_data_provider = selected_seat.clone();
-        // let env_handle = env.clone();
-        // let logger = log.clone();
-        // init_data_device(
-        //     &mut display,
-        //     move |event| {
-        //         /* a callback to react to client DnD/selection actions */
-        //         match event {
-        //             DataDeviceEvent::SendSelection { mime_type, fd } => {
-        //                 if let (Some(seat), Some(env_handle)) =
-        //                     (selected_data_provider.borrow().as_ref(), env_handle.get())
-        //                 {
-        //                     let res = env_handle.with_data_device(seat, |data_device| {
-        //                         data_device.with_selection(|offer| {
-        //                             if let Some(offer) = offer {
-        //                                 offer.with_mime_types(|types| {
-        //                                     if types.contains(&mime_type) {
-        //                                         let _ = unsafe { offer.receive_to_fd(mime_type, fd) };
-        //                                     }
-        //                                 })
-        //                             }
-        //                         })
-        //                     });
-
-        //                     if let Err(err) = res {
-        //                         error!(logger, "{:?}", err);
-        //                     }
-        //                 }
-        //             }
-        //             DataDeviceEvent::DnDStarted {
-        //                 source: _,
-        //                 icon: _,
-        //                 seat: _,
-        //             } => {
-        //                 // dbg!(source);
-        //                 // dbg!(icon);
-        //                 // dbg!(seat);
-        //             }
-
-        //             DataDeviceEvent::DnDDropped { seat: _ } => {
-        //                 // dbg!(seat);
-        //             }
-        //             DataDeviceEvent::NewSelection(_) => {}
-        //         };
-        //     },
-        //     default_action_chooser,
-        //     log.clone(),
-        // );
-
         ServerState {
             popup_manager: PopupManager::new(log.clone()),
             display_handle: dh.clone(),
@@ -124,6 +76,7 @@ impl<W: WrapperSpace> ServerState<W> {
                 &dh,
                 log.clone(),
             ),
+            layer_shell_state: WlrLayerShellState::new::<GlobalState<W>, _>(&dh, log.clone()),
             dmabuf_state: None,
         }
     }

@@ -48,6 +48,22 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
         for e in events {
             match e.kind {
                 sctk::seat::pointer::PointerEventKind::Leave { .. } => {
+                    if let Some((..)) = self
+                    .client_state
+                    .proxied_layer_surfaces
+                    .iter_mut()
+                    .find(|(_, _, _, s, _)| s.wl_surface() == &e.surface)
+                    {
+                        ptr.motion(self,
+                            None,
+                            &MotionEvent {
+                                location: (0.0, 0.0).into(),
+                                serial: SERIAL_COUNTER.next_serial(),
+                                time: time.try_into().unwrap(),
+                            });   
+                        continue;  
+                    }                  
+                    
                     {
                         let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
                         if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == e.surface) {
@@ -68,9 +84,8 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     );
                 }
                 sctk::seat::pointer::PointerEventKind::Enter { .. } => {
-                    // if not popup, then must be a panel layer shell surface
-                    // TODO better handling of subsurfaces?
                     let (surface_x, surface_y) = e.position;
+                    
                     {
                         let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
                         if let Some(i) = c_hovered_surface.iter().position(|f| f.1 == seat_name) {
@@ -84,6 +99,32 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             ));
                         }
                     }
+
+                    // check tracked layer shell surface
+                    let s_surface = self
+                    .client_state
+                    .proxied_layer_surfaces
+                    .iter_mut()
+                    .find_map(|(_, _, s, c, _)| if c.wl_surface() == &e.surface {
+                        Some(s.wl_surface().clone())
+                    } else {
+                        None
+                    }); 
+                    if let Some(s_surface) = s_surface {
+                        ptr.motion(
+                            self,
+                            Some((s_surface, Point::from((surface_x as i32, surface_y as i32)))),
+                            &MotionEvent {
+                                location: Point::from((surface_x, surface_y)),
+                                serial: SERIAL_COUNTER.next_serial(),
+                                time: time.try_into().unwrap(),
+                            },
+                        ); 
+                        continue;  
+                    }  
+
+                    // if not popup, then must be a panel layer shell surface
+                    // TODO better handling of subsurfaces?
 
                     if let Some(ServerPointerFocus {
                         surface,
@@ -121,15 +162,38 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     let (surface_x, surface_y) = e.position;
 
                     let c_focused_surface = match self
-                        .client_state
-                        .hovered_surface
-                        .borrow()
-                        .iter()
-                        .find(|f| f.1.as_str() == seat_name)
+                    .client_state
+                    .hovered_surface
+                    .borrow()
+                    .iter()
+                    .find(|f| f.1.as_str() == seat_name)
                     {
                         Some(f) => f.0.clone(),
                         None => return,
                     };
+                    
+                    // check tracked layer shell surface
+                    let s_surface = self
+                    .client_state
+                    .proxied_layer_surfaces
+                    .iter_mut()
+                    .find_map(|(_, _, s, c, _)| if c.wl_surface() == &e.surface {
+                        Some(s.wl_surface().clone())
+                    } else {
+                        None
+                    }); 
+                    if let Some(s_surface) = s_surface {
+                        ptr.motion(
+                            self,
+                            Some((s_surface, Point::from((surface_x as i32, surface_y as i32)))),
+                            &MotionEvent {
+                                location: Point::from((surface_x, surface_y)),
+                                serial: SERIAL_COUNTER.next_serial(),
+                                time: time.try_into().unwrap(),
+                            },
+                        ); 
+                        continue;  
+                    }  
 
                     if let Some(ServerPointerFocus {
                         surface,
@@ -165,6 +229,31 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                 sctk::seat::pointer::PointerEventKind::Press { time, button, .. } => {
                     self.server_state.last_button.replace(button);
 
+                    // check tracked layer shell surface
+                    let s_surface = self
+                    .client_state
+                    .proxied_layer_surfaces
+                    .iter_mut()
+                    .find_map(|(_, _, s, c, _)| if c.wl_surface() == &e.surface {
+                        Some(s.wl_surface().clone())
+                    } else {
+                        None
+                    }); 
+                    if let Some(s_surface) = s_surface {
+                        kbd.set_focus(self, Some(s_surface), SERIAL_COUNTER.next_serial());
+
+                        ptr.button(
+                            self,
+                            &ButtonEvent {
+                                serial: SERIAL_COUNTER.next_serial(),
+                                time: time as u32,
+                                button,
+                                state: ButtonState::Pressed,
+                            },
+                        );
+                        continue;  
+                    }  
+
                     let s = self.space.handle_press(&seat_name);
                     kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
 
@@ -180,6 +269,31 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                 }
                 sctk::seat::pointer::PointerEventKind::Release { time, button, .. } => {
                     self.server_state.last_button.replace(button);
+
+                    // check tracked layer shell surface
+                    let s_surface = self
+                    .client_state
+                    .proxied_layer_surfaces
+                    .iter_mut()
+                    .find_map(|(_, _, s, c, _)| if c.wl_surface() == &e.surface {
+                        Some(s.wl_surface().clone())
+                    } else {
+                        None
+                    }); 
+                    if let Some(s_surface) = s_surface {
+                        kbd.set_focus(self, Some(s_surface), SERIAL_COUNTER.next_serial());
+
+                        ptr.button(
+                            self,
+                            &ButtonEvent {
+                                serial: SERIAL_COUNTER.next_serial(),
+                                time: time as u32,
+                                button,
+                                state: ButtonState::Released,
+                            },
+                        );
+                        continue;  
+                    }  
 
                     let s = self.space.handle_press(&seat_name);
                     kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());

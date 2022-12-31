@@ -1,5 +1,7 @@
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
+use sctk::shell::layer::LayerSurface as SctkLayerSurface;
 use sctk::{
     compositor::CompositorState,
     output::OutputState,
@@ -20,7 +22,16 @@ use sctk::{
     shm::{multi::MultiPool, ShmState},
 };
 use slog::Logger;
+use smithay::backend::renderer::damage::DamageTrackedRenderer;
+use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
+use smithay::backend::renderer::element::{AsRenderElements, Element};
+use smithay::backend::renderer::gles2::Gles2Renderer;
+use smithay::backend::renderer::{Bind, Unbind};
+use smithay::desktop::{Space, Window};
+use smithay::utils::Scale;
 use smithay::{
+    backend::egl::EGLSurface,
+    desktop::LayerSurface as SmithayLayerSurface,
     output::Output,
     reexports::{calloop, wayland_server::backend::GlobalId},
 };
@@ -49,6 +60,7 @@ pub type ClientFocus = Vec<(wl_surface::WlSurface, String, FocusStatus)>;
 /// Wrapper client state
 #[derive(Debug)]
 pub struct ClientState<W: WrapperSpace + 'static> {
+    log: Logger,
     /// state
     pub registry_state: RegistryState,
     /// state
@@ -75,13 +87,28 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub(crate) multipool: Option<MultiPool<WlSurface>>,
     pub(crate) last_key_pressed: Vec<(String, (u32, u32), wl_surface::WlSurface)>,
     pub(crate) outputs: Vec<(WlOutput, Output, GlobalId)>,
+
+    pub(crate) proxied_layer_surfaces: Vec<(
+        Rc<EGLSurface>,
+        DamageTrackedRenderer,
+        SmithayLayerSurface,
+        SctkLayerSurface,
+        SurfaceState,
+    )>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum SurfaceState {
+    WaitingFirst,
+    Waiting,
+    Dirty,
 }
 
 impl<W: WrapperSpace + 'static> ClientState<W> {
     pub(crate) fn new(
         loop_handle: calloop::LoopHandle<'static, GlobalState<W>>,
         space: &mut W,
-        _log: Logger,
+        log: Logger,
         _embedded_server_state: &mut ServerState<W>,
     ) -> anyhow::Result<Self> {
         /*
@@ -94,8 +121,10 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         let registry_state = RegistryState::new(&globals);
 
         let client_state = ClientState {
+            log,
             focused_surface: space.get_client_focused_surface(),
             hovered_surface: space.get_client_hovered_surface(),
+            proxied_layer_surfaces: Vec::new(),
 
             queue_handle: qh.clone(),
             connection,
@@ -121,5 +150,49 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             .unwrap();
 
         Ok(client_state)
+    }
+
+    /// draw the proxied layer shell surfaces
+    pub fn draw_layer_surfaces(&mut self, renderer: &mut Gles2Renderer, time: u32) {
+        let clear_color = &[0.0, 0.0, 0.0, 0.0];
+        for (egl_surface, dmg_tracked_renderer, s_layer, c_layer, state) in
+            &mut self.proxied_layer_surfaces
+        {
+            match state {
+                SurfaceState::WaitingFirst => continue,
+                SurfaceState::Waiting => continue,
+                SurfaceState::Dirty => {}
+            };
+            let _ = renderer.unbind();
+            let _ = renderer.bind(egl_surface.clone());
+            let elements: Vec<WaylandSurfaceRenderElement<Gles2Renderer>> =
+                s_layer.render_elements(renderer, (0,0).into(), 1.0.into());
+            dmg_tracked_renderer
+                .render_output(
+                    renderer,
+                    egl_surface.buffer_age().unwrap_or_default() as usize,
+                    &elements,
+                    *clear_color,
+                    self.log.clone(),
+                )
+                .unwrap();
+            egl_surface.swap_buffers(None).unwrap();
+            // FIXME: damage tracking issues on integrated graphics but not nvidia
+            // self.egl_surface
+            //     .as_ref()
+            //     .unwrap()
+            //     .swap_buffers(res.0.as_deref_mut())?;
+
+            renderer.unbind().unwrap();
+            // TODO what if there is "no output"?
+            for o in &self.outputs {
+                let output = &o.1;
+                s_layer.send_frame(&o.1, Duration::from_millis(time as u64), None, move |_, _| {
+                    Some(output.clone())
+                })
+
+            }
+            *state = SurfaceState::Waiting;
+        }
     }
 }

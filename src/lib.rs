@@ -165,6 +165,15 @@ pub fn run<W: WrapperSpace + 'static>(
                 &global_state.received_frame,
             );
         }
+        if let Some(renderer) = global_state.space.renderer()
+        {
+            global_state.client_state.draw_layer_surfaces(renderer, global_state
+                .start_time
+                .elapsed()
+                .as_millis()
+                .try_into()
+                .unwrap());
+        }
 
         // dispatch server events
         {

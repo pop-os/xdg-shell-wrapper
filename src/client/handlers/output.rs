@@ -9,6 +9,7 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
+    desktop::LayerMap,
     output::{Mode as s_Mode, Output, PhysicalProperties, Scale, Subpixel as s_Subpixel},
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
     utils::Transform,
@@ -61,6 +62,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
         {
             // construct a surface for an output if possible
             let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
+
             self.client_state
                 .outputs
                 .push((output.clone(), s_output.0.clone(), s_output.1));
@@ -101,7 +103,9 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             .iter()
             .any(|configured| Some(configured) == info.name.as_ref())
         {
-            if let Some(saved_output) = self.client_state.outputs.iter().find(|o| o.0 == output) {
+            if let Some(saved_output) = self.client_state.outputs.iter_mut().find(|o| o.0 == output)
+            {
+                // TODO update the output data
                 if let Err(err) = space.update_output(output, saved_output.1.clone(), info) {
                     slog::error!(log.clone(), "{}", err);
                 }
