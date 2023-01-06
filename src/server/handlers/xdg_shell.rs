@@ -39,7 +39,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
                 &self.client_state.queue_handle,
                 &mut self.client_state.xdg_shell_state,
                 surface.clone(),
-                &positioner,
+                positioner,
                 positioner_state,
             )
             .is_ok()
@@ -88,13 +88,9 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
         positioner: PositionerState,
         token: u32,
     ) {
-        let new_positioner = match XdgPositioner::new(&self.client_state.xdg_shell_state) {
-            Ok(p) => p,
-            Err(_) => return,
-        };
         let _ = self
             .space
-            .reposition_popup(surface.clone(), &new_positioner, positioner, token);
+            .reposition_popup(surface.clone(), positioner, token);
         self.server_state.popup_manager.commit(surface.wl_surface());
     }
 

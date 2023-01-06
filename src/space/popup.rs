@@ -2,12 +2,12 @@
 
 use std::rc::Rc;
 
-use sctk::compositor::Region;
 use sctk::shell::xdg::popup::Popup;
+use sctk::{compositor::Region, shell::xdg::XdgPositioner};
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
-    utils::{Logical, Physical, Rectangle},
+    utils::{Logical, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
 
@@ -46,14 +46,12 @@ pub struct WrapperPopup {
     pub dirty: bool,
     /// full rectangle of the inner popup, including dropshadow borders
     pub rectangle: Rectangle<i32, Logical>,
-    /// accumulated damage with age values
-    pub accumulated_damage: Vec<Vec<Rectangle<i32, Physical>>>,
-    /// full clear
-    pub full_clear: u8,
     /// input region for the popup
     pub input_region: Region,
     /// location of the popup wrapper
     pub wrapper_rectangle: Rectangle<i32, Logical>,
+    /// positioner
+    pub positioner: XdgPositioner,
 }
 
 impl WrapperPopup {
@@ -73,7 +71,6 @@ impl WrapperPopup {
                 .resize(width, height, 0, 0);
             popup_manager.commit(self.s_surface.wl_surface());
             self.dirty = true;
-            self.full_clear = 4;
             self.rectangle = Rectangle::from_loc_and_size((x, y), (width, height));
             self.state.take();
         };

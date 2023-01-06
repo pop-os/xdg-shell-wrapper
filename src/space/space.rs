@@ -159,7 +159,7 @@ pub trait WrapperSpace {
         qh: &QueueHandle<GlobalState<W>>,
         xdg_shell_state: &mut XdgShellState,
         s_surface: PopupSurface,
-        positioner: &XdgPositioner,
+        positioner: XdgPositioner,
         positioner_state: PositionerState,
     ) -> anyhow::Result<()>;
 
@@ -193,7 +193,6 @@ pub trait WrapperSpace {
     fn reposition_popup(
         &mut self,
         popup: PopupSurface,
-        positioner: &XdgPositioner,
         positioner_state: PositionerState,
         token: u32,
     ) -> anyhow::Result<()>;
