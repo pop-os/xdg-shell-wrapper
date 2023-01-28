@@ -9,7 +9,6 @@ use sctk::{
 };
 use slog::Logger;
 use smithay::{
-    desktop::LayerMap,
     output::{Mode as s_Mode, Output, PhysicalProperties, Scale, Subpixel as s_Subpixel},
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
     utils::Transform,
@@ -82,8 +81,8 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
 
     fn update_output(
         &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
         let info = match self.output_state().info(&output) {
@@ -91,7 +90,18 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             _ => return,
         };
 
-        let GlobalState { space, log, .. } = self;
+        let GlobalState {
+            client_state:
+                ClientState {
+                    compositor_state,
+                    layer_state,
+                    ..
+                },
+            server_state: ServerState { display_handle, .. },
+            space,
+            log,
+            ..
+        } = self;
 
         let config = space.config();
         let configured_outputs = match config.outputs() {
@@ -105,9 +115,23 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
         {
             if let Some(saved_output) = self.client_state.outputs.iter_mut().find(|o| o.0 == output)
             {
-                // TODO update the output data
-                if let Err(err) = space.update_output(output, saved_output.1.clone(), info) {
+                let res = space.update_output(output.clone(), saved_output.1.clone(), info.clone());
+                if let Err(err) = res {
                     slog::error!(log.clone(), "{}", err);
+                } else if matches!(res, Ok(false)) {
+                    let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
+
+                    if let Err(err) = space.new_output(
+                        compositor_state,
+                        layer_state,
+                        conn,
+                        qh,
+                        Some(output),
+                        Some(s_output.0),
+                        Some(info),
+                    ) {
+                        slog::warn!(log.clone(), "{}", err);
+                    }
                 }
             }
         }
@@ -119,6 +143,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
         _qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
+        slog::info!(self.log.clone(), "output destroyed {:?}", &output);
         let info = match self.output_state().info(&output) {
             Some(info) if info.name.is_some() => info,
             _ => return,
@@ -130,6 +155,9 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             xdg_shell_wrapper_config::WrapperOutput::All => info.name.iter().cloned().collect(),
             xdg_shell_wrapper_config::WrapperOutput::Name(list) => list,
         };
+        slog::info!(log.clone(), "output destroyed {:?}", info.name.as_ref());
+
+        slog::info!(log.clone(), "configured outputs {:?}", &configured_outputs);
 
         if configured_outputs
             .iter()

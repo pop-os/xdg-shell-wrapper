@@ -13,7 +13,8 @@ use smithay::{
     },
     delegate_layer_shell,
     desktop::LayerSurface as SmithayLayerSurface,
-    wayland::shell::wlr_layer::{ExclusiveZone, Layer, WlrLayerShellHandler}, utils::{Scale, Transform},
+    utils::Transform,
+    wayland::shell::wlr_layer::{ExclusiveZone, Layer, WlrLayerShellHandler},
 };
 use wayland_egl::WlEglSurface;
 
@@ -113,7 +114,12 @@ impl<W: WrapperSpace> WlrLayerShellHandler for GlobalState<W> {
         ) {
             let client_egl_surface = unsafe {
                 ClientEglSurface::new(
-                    WlEglSurface::new(client_surface.wl_surface().id(), size.w.max(1), size.h.max(1)).unwrap(), // TODO remove unwrap
+                    WlEglSurface::new(
+                        client_surface.wl_surface().id(),
+                        size.w.max(1),
+                        size.h.max(1),
+                    )
+                    .unwrap(), // TODO remove unwrap
                     client_surface.wl_surface().clone(),
                 )
             };
@@ -141,7 +147,11 @@ impl<W: WrapperSpace> WlrLayerShellHandler for GlobalState<W> {
 
             self.client_state.proxied_layer_surfaces.push((
                 egl_surface,
-                DamageTrackedRenderer::new((size.w.max(1), size.h.max(1)), 1.0, Transform::Flipped180),
+                DamageTrackedRenderer::new(
+                    (size.w.max(1), size.h.max(1)),
+                    1.0,
+                    Transform::Flipped180,
+                ),
                 server_surface,
                 client_surface,
                 SurfaceState::Waiting,

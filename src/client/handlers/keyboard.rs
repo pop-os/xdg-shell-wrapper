@@ -52,18 +52,19 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .client_state
             .proxied_layer_surfaces
             .iter_mut()
-            .find_map(|(_, _, s, c, _)| if c.wl_surface() == surface {
-                Some(s.wl_surface().clone())
-            } else {
-                None
-            }); 
+            .find_map(|(_, _, s, c, _)| {
+                if c.wl_surface() == surface {
+                    Some(s.wl_surface().clone())
+                } else {
+                    None
+                }
+            });
 
         if let Some(s_surface) = s_surface {
             kbd.set_focus(self, Some(s_surface), SERIAL_COUNTER.next_serial());
         } else {
             let s = self.space.keyboard_enter(&seat_name, surface.clone());
             kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
-
         }
     }
 
@@ -100,12 +101,11 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         };
 
         let s_surface = self
-        .client_state
-        .proxied_layer_surfaces
-        .iter_mut()
-        .any(|(_, _, s, c, _)| c.wl_surface() == surface); 
+            .client_state
+            .proxied_layer_surfaces
+            .iter_mut()
+            .any(|(_, _, _, c, _)| c.wl_surface() == surface);
 
-        
         if kbd_focus {
             if !s_surface {
                 self.space.keyboard_leave(&name, Some(surface.clone()));

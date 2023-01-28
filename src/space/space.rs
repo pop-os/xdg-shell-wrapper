@@ -2,7 +2,6 @@
 
 use std::{
     cell::RefCell,
-    collections::HashSet,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -11,7 +10,6 @@ use sctk::{
     compositor::CompositorState,
     output::OutputInfo,
     reexports::client::{
-        backend::ObjectId,
         protocol::{wl_output as c_wl_output, wl_surface},
         Connection, QueueHandle,
     },
@@ -131,7 +129,7 @@ pub trait WrapperSpace {
         c_output: c_wl_output::WlOutput,
         s_output: Output,
         info: OutputInfo,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
     /// remove the configured output from the space
     fn output_leave(
@@ -199,13 +197,13 @@ pub trait WrapperSpace {
 
     /// called in a loop by xdg-shell-wrapper
     /// handles events for the space
+    /// returns the Instant it was last updated by clients and a list of surfaces to request frames for
     fn handle_events<W: WrapperSpace>(
         &mut self,
         dh: &DisplayHandle,
         qh: &QueueHandle<GlobalState<W>>,
         popup_manager: &mut PopupManager,
         time: u32,
-        received_frame: &HashSet<ObjectId>,
     ) -> Instant;
 
     /// gets the config
@@ -254,4 +252,7 @@ pub trait WrapperSpace {
 
     /// gets the renderer for the space
     fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
+
+    /// received a frame event for the given surface
+    fn frame(&mut self, surface: &wl_surface::WlSurface, time: u32);
 }

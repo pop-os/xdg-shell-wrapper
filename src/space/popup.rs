@@ -52,6 +52,8 @@ pub struct WrapperPopup {
     pub wrapper_rectangle: Rectangle<i32, Logical>,
     /// positioner
     pub positioner: XdgPositioner,
+    /// received a frame callback
+    pub has_frame: bool,
 }
 
 impl WrapperPopup {

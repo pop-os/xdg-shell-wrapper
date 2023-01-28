@@ -1,7 +1,7 @@
 use sctk::shell::xdg::XdgPositioner;
 use smithay::{
     delegate_xdg_shell,
-    desktop::{Kind, PopupKind, Window},
+    desktop::{PopupKind, Window},
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel, wayland_server::protocol::wl_seat,
     },
@@ -19,7 +19,7 @@ impl<W: WrapperSpace> XdgShellHandler for GlobalState<W> {
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
-        let window = Window::new(Kind::Xdg(surface.clone()));
+        let window = Window::new(surface.clone());
 
         self.space.add_window(window);
         surface.send_configure();

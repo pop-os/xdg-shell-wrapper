@@ -2,16 +2,18 @@ use std::{cell::RefMut, sync::Mutex};
 
 use slog::{error, trace};
 use smithay::{
-    backend::renderer::{buffer_type, utils::{on_commit_buffer_handler, RendererSurfaceStateUserData}, BufferType, damage::DamageTrackedRenderer},
+    backend::renderer::{
+        buffer_type, damage::DamageTrackedRenderer, utils::on_commit_buffer_handler, BufferType,
+    },
     delegate_compositor, delegate_shm,
     input::pointer::CursorImageAttributes,
     reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
-    utils::{SERIAL_COUNTER, Transform},
+    utils::{Transform, SERIAL_COUNTER},
     wayland::{
         buffer::BufferHandler,
         compositor::{
             get_role, with_states, BufferAssignment, CompositorHandler, CompositorState,
-            SurfaceAttributes, self,
+            SurfaceAttributes,
         },
         shm::{ShmHandler, ShmState},
     },
@@ -95,7 +97,6 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 }
             }
         } else if role == "zwlr_layer_surface_v1".into() {
-            
             if let Some((egl_surface, renderer, s_layer_surface, c_layer_surface, state)) = self
                 .client_state
                 .proxied_layer_surfaces
@@ -113,17 +114,20 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 match state {
                     SurfaceState::WaitingFirst => {
                         return;
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 };
                 *state = SurfaceState::Dirty;
                 if old_size != size {
                     egl_surface.resize(size.w, size.h, 0, 0);
                     c_layer_surface.set_size(size.w as u32, size.h as u32);
-                    *renderer = DamageTrackedRenderer::new((size.w.max(1), size.h.max(1)), 1.0, Transform::Flipped180);
+                    *renderer = DamageTrackedRenderer::new(
+                        (size.w.max(1), size.h.max(1)),
+                        1.0,
+                        Transform::Flipped180,
+                    );
                     c_layer_surface.wl_surface().commit();
-                } 
-                
+                }
             }
         } else {
             trace!(log, "{:?}", surface);

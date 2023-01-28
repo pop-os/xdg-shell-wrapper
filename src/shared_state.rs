@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use std::collections::HashSet;
-
-use sctk::reexports::client::{backend::ObjectId, protocol::wl_output as c_wl_output};
+use sctk::reexports::client::protocol::wl_output as c_wl_output;
 use slog::Logger;
 use smithay::{
     backend::renderer::{ImportDma, ImportEgl},
@@ -31,8 +29,6 @@ pub struct GlobalState<W: WrapperSpace + 'static> {
     pub start_time: std::time::Instant,
     /// panel logger
     pub log: Logger,
-    /// ready for draw
-    pub received_frame: HashSet<ObjectId>,
 }
 
 impl<W: WrapperSpace + 'static> GlobalState<W> {
@@ -49,7 +45,6 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             server_state,
             start_time,
             log,
-            received_frame: Default::default(),
         }
     }
 }

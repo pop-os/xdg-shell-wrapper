@@ -147,9 +147,6 @@ pub fn run<W: WrapperSpace + 'static>(
 
         // rendering
         {
-            // let display = &mut shared_data.client_state.display;
-            // display.flush().unwrap();
-
             let space = &mut global_state.space;
 
             let _ = space.handle_events(
@@ -162,17 +159,18 @@ pub fn run<W: WrapperSpace + 'static>(
                     .as_millis()
                     .try_into()
                     .unwrap(),
-                &global_state.received_frame,
             );
         }
-        if let Some(renderer) = global_state.space.renderer()
-        {
-            global_state.client_state.draw_layer_surfaces(renderer, global_state
-                .start_time
-                .elapsed()
-                .as_millis()
-                .try_into()
-                .unwrap());
+        if let Some(renderer) = global_state.space.renderer() {
+            global_state.client_state.draw_layer_surfaces(
+                renderer,
+                global_state
+                    .start_time
+                    .elapsed()
+                    .as_millis()
+                    .try_into()
+                    .unwrap(),
+            );
         }
 
         // dispatch server events

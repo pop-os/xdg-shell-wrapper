@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
+use sctk::reexports::client::WaylandSource;
 use sctk::shell::layer::LayerSurface as SctkLayerSurface;
 use sctk::{
     compositor::CompositorState,
@@ -24,11 +25,9 @@ use sctk::{
 use slog::Logger;
 use smithay::backend::renderer::damage::DamageTrackedRenderer;
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
-use smithay::backend::renderer::element::{AsRenderElements, Element};
+use smithay::backend::renderer::element::AsRenderElements;
 use smithay::backend::renderer::gles2::Gles2Renderer;
 use smithay::backend::renderer::{Bind, Unbind};
-use smithay::desktop::{Space, Window};
-use smithay::utils::Scale;
 use smithay::{
     backend::egl::EGLSurface,
     desktop::LayerSurface as SmithayLayerSurface,
@@ -144,7 +143,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         };
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
-        sctk::event_loop::WaylandSource::new(event_queue)
+        WaylandSource::new(event_queue)
             .unwrap()
             .insert(loop_handle)
             .unwrap();
@@ -166,7 +165,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             let _ = renderer.unbind();
             let _ = renderer.bind(egl_surface.clone());
             let elements: Vec<WaylandSurfaceRenderElement<Gles2Renderer>> =
-                s_layer.render_elements(renderer, (0,0).into(), 1.0.into());
+                s_layer.render_elements(renderer, (0, 0).into(), 1.0.into());
             dmg_tracked_renderer
                 .render_output(
                     renderer,
@@ -187,10 +186,12 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             // TODO what if there is "no output"?
             for o in &self.outputs {
                 let output = &o.1;
-                s_layer.send_frame(&o.1, Duration::from_millis(time as u64), None, move |_, _| {
-                    Some(output.clone())
-                })
-
+                s_layer.send_frame(
+                    &o.1,
+                    Duration::from_millis(time as u64),
+                    None,
+                    move |_, _| Some(output.clone()),
+                )
             }
             *state = SurfaceState::Waiting;
         }

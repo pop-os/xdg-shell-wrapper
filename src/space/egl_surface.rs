@@ -39,6 +39,8 @@ impl ClientEglSurface {
     }
 }
 
+#[derive(Debug)]
+/// wrapper around WlDisplay
 pub struct ClientEglDisplay {
     /// client display
     pub display: WlDisplay,

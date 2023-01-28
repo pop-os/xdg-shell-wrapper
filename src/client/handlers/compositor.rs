@@ -21,8 +21,9 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _time: u32,
+        surface: &wl_surface::WlSurface,
+        time: u32,
     ) {
+        self.space.frame(surface, time);
     }
 }
