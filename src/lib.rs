@@ -3,10 +3,7 @@
 
 //! Provides the core functionality for cosmic-panel
 
-use std::{
-    thread,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use sctk::{reexports::client::Proxy, shm::multi::MultiPool};
@@ -143,7 +140,12 @@ pub fn run<W: WrapperSpace + 'static>(
         }
 
         // dispatch desktop client events
-        event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
+        let dur = if matches!(global_state.space.visibility(), Visibility::Hidden) {
+            Duration::from_millis(100)
+        } else {
+            Duration::from_millis(16)
+        };
+        event_loop.dispatch(dur, &mut global_state)?;
 
         // rendering
         {
@@ -177,10 +179,6 @@ pub fn run<W: WrapperSpace + 'static>(
         {
             server_display.dispatch_clients(&mut global_state).unwrap();
             server_display.flush_clients().unwrap();
-        }
-
-        if matches!(global_state.space.visibility(), Visibility::Hidden) {
-            thread::sleep(Duration::from_millis(100))
         }
     }
 }
