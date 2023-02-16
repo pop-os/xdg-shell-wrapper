@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use sctk::{
-    delegate_compositor, delegate_output, delegate_shm,
+    delegate_compositor, delegate_output, delegate_registry, delegate_shm,
     output::OutputState,
-    reexports::client::{
-        globals::GlobalListContents, protocol::wl_registry, Connection, Dispatch, QueueHandle,
-    },
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::SeatState,
@@ -36,19 +33,7 @@ impl<W: WrapperSpace> ProvidesRegistryState for GlobalState<W> {
     registry_handlers![OutputState, SeatState,];
 }
 
-impl<W: WrapperSpace> Dispatch<wl_registry::WlRegistry, GlobalListContents> for GlobalState<W> {
-    fn event(
-        _state: &mut Self,
-        _registry: &wl_registry::WlRegistry,
-        _event: wl_registry::Event,
-        _data: &GlobalListContents,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-    ) {
-        // We don't need any other globals.
-    }
-}
-
+delegate_registry!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_compositor!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_output!(@<W: WrapperSpace + 'static> GlobalState<W>);
 delegate_shm!(@<W: WrapperSpace + 'static> GlobalState<W>);
