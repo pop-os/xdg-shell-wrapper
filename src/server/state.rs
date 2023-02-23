@@ -1,4 +1,3 @@
-use slog::Logger;
 use smithay::{
     desktop::PopupManager,
     input::{Seat, SeatState},
@@ -60,23 +59,20 @@ pub struct ServerState<W: WrapperSpace + 'static> {
 }
 
 impl<W: WrapperSpace> ServerState<W> {
-    pub(crate) fn new(dh: DisplayHandle, log: Logger) -> ServerState<W> {
+    pub(crate) fn new(dh: DisplayHandle) -> ServerState<W> {
         ServerState {
-            popup_manager: PopupManager::new(log.clone()),
+            popup_manager: PopupManager::default(),
             display_handle: dh.clone(),
             last_button: None,
             seats: Vec::new(),
-            compositor_state: CompositorState::new::<GlobalState<W>, _>(&dh, log.clone()),
-            xdg_shell_state: XdgShellState::new::<GlobalState<W>, _>(&dh, log.clone()),
-            shm_state: ShmState::new::<GlobalState<W>, _>(&dh, vec![], log.clone()),
+            compositor_state: CompositorState::new::<GlobalState<W>>(&dh),
+            xdg_shell_state: XdgShellState::new::<GlobalState<W>>(&dh),
+            shm_state: ShmState::new::<GlobalState<W>>(&dh, vec![]),
             _output_manager_state: OutputManagerState::new_with_xdg_output::<GlobalState<W>>(&dh),
             seat_state: SeatState::new(),
-            data_device_state: DataDeviceState::new::<GlobalState<W>, _>(&dh, log.clone()),
-            primary_selection_state: PrimarySelectionState::new::<GlobalState<W>, _>(
-                &dh,
-                log.clone(),
-            ),
-            layer_shell_state: WlrLayerShellState::new::<GlobalState<W>, _>(&dh, log.clone()),
+            data_device_state: DataDeviceState::new::<GlobalState<W>>(&dh),
+            primary_selection_state: PrimarySelectionState::new::<GlobalState<W>>(&dh),
+            layer_shell_state: WlrLayerShellState::new::<GlobalState<W>>(&dh),
             dmabuf_state: None,
         }
     }

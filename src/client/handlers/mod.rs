@@ -6,7 +6,7 @@ use sctk::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::SeatState,
-    shm::{ShmHandler, ShmState},
+    shm::{Shm, ShmHandler},
 };
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
@@ -21,7 +21,7 @@ pub mod seat;
 pub mod shell;
 
 impl<W: WrapperSpace> ShmHandler for GlobalState<W> {
-    fn shm_state(&mut self) -> &mut ShmState {
+    fn shm_state(&mut self) -> &mut Shm {
         &mut self.client_state.shm_state
     }
 }

@@ -7,6 +7,7 @@ use crate::{
 use sctk::{
     delegate_keyboard,
     seat::keyboard::{KeyboardHandler, RepeatInfo},
+    shell::WaylandSurface,
 };
 use smithay::{backend::input::KeyState, input::keyboard::FilterResult, utils::SERIAL_COUNTER};
 

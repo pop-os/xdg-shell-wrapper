@@ -2,8 +2,9 @@ use std::rc::Rc;
 
 use sctk::{
     reexports::client::Proxy,
-    shell::layer::{
-        Anchor, KeyboardInteractivity, Layer as SctkLayer, LayerSurface as SctkLayerSurface,
+    shell::{
+        wlr_layer::{self, Anchor, KeyboardInteractivity},
+        WaylandSurface,
     },
 };
 use smithay::{
@@ -62,6 +63,10 @@ impl<W: WrapperSpace> WlrLayerShellHandler for GlobalState<W> {
                 .map(|output| o.1.owns(&output))
                 .unwrap_or_default()
         });
+        let surface = self
+            .client_state
+            .compositor_state
+            .create_surface(&self.client_state.queue_handle);
 
         let exclusive_zone = match state.exclusive_zone {
             ExclusiveZone::Exclusive(area) => area as i32,
@@ -69,10 +74,10 @@ impl<W: WrapperSpace> WlrLayerShellHandler for GlobalState<W> {
             ExclusiveZone::DontCare => -1,
         };
         let layer = match layer {
-            Layer::Background => SctkLayer::Background,
-            Layer::Bottom => SctkLayer::Bottom,
-            Layer::Top => SctkLayer::Top,
-            Layer::Overlay => SctkLayer::Overlay,
+            Layer::Background => wlr_layer::Layer::Background,
+            Layer::Bottom => wlr_layer::Layer::Bottom,
+            Layer::Top => wlr_layer::Layer::Top,
+            Layer::Overlay => wlr_layer::Layer::Overlay,
         };
         let interactivity = match state.keyboard_interactivity {
             smithay::wayland::shell::wlr_layer::KeyboardInteractivity::None => {
@@ -85,77 +90,62 @@ impl<W: WrapperSpace> WlrLayerShellHandler for GlobalState<W> {
                 KeyboardInteractivity::OnDemand
             }
         };
-
-        let mut layer_surface_builder = SctkLayerSurface::builder()
-            .namespace(namespace)
-            .exclusive_zone(exclusive_zone)
-            .margin(
-                state.margin.top,
-                state.margin.right,
-                state.margin.bottom,
-                state.margin.left,
-            )
-            .keyboard_interactivity(interactivity)
-            .size((size.w as u32, size.h as u32));
-        if let Some(anchor) = anchor {
-            layer_surface_builder = layer_surface_builder.anchor(anchor);
-        }
-        if let Some(output) = output {
-            layer_surface_builder = layer_surface_builder.output(&output.0)
-        }
-
-        if let Ok(client_surface) = layer_surface_builder.map(
+        let client_surface = self.client_state.layer_state.create_layer_surface(
             &self.client_state.queue_handle,
-            &self.client_state.layer_state,
-            self.client_state
-                .compositor_state
-                .create_surface(&self.client_state.queue_handle),
+            surface,
             layer,
-        ) {
-            let client_egl_surface = unsafe {
-                ClientEglSurface::new(
-                    WlEglSurface::new(
-                        client_surface.wl_surface().id(),
-                        size.w.max(1),
-                        size.h.max(1),
-                    )
-                    .unwrap(), // TODO remove unwrap
-                    client_surface.wl_surface().clone(),
-                )
-            };
-            let egl_display = EGLDisplay::new(
-                ClientEglDisplay {
-                    display: self.client_state.connection.display(),
-                },
-                self.log.clone(),
-            )
-            .expect("Failed to create EGL display");
-
-            let egl_surface = Rc::new(
-                EGLSurface::new(
-                    &egl_display,
-                    renderer
-                        .egl_context()
-                        .pixel_format()
-                        .expect("Failed to get pixel format from EGL context "),
-                    renderer.egl_context().config_id(),
-                    client_egl_surface,
-                    self.log.clone(),
-                )
-                .expect("Failed to create EGL Surface"),
-            );
-
-            self.client_state.proxied_layer_surfaces.push((
-                egl_surface,
-                DamageTrackedRenderer::new(
-                    (size.w.max(1), size.h.max(1)),
-                    1.0,
-                    Transform::Flipped180,
-                ),
-                server_surface,
-                client_surface,
-                SurfaceState::Waiting,
-            ));
+            Some(namespace),
+            output.as_ref().map(|o| &o.0),
+        );
+        client_surface.set_margin(
+            state.margin.top,
+            state.margin.right,
+            state.margin.bottom,
+            state.margin.left,
+        );
+        client_surface.set_keyboard_interactivity(interactivity);
+        client_surface.set_size(size.w as u32, size.h as u32);
+        client_surface.set_exclusive_zone(exclusive_zone);
+        if let Some(anchor) = anchor {
+            client_surface.set_anchor(anchor);
         }
+
+        client_surface.commit();
+        let client_egl_surface = unsafe {
+            ClientEglSurface::new(
+                WlEglSurface::new(
+                    client_surface.wl_surface().id(),
+                    size.w.max(1),
+                    size.h.max(1),
+                )
+                .unwrap(), // TODO remove unwrap
+                client_surface.wl_surface().clone(),
+            )
+        };
+        let egl_display = EGLDisplay::new(ClientEglDisplay {
+            display: self.client_state.connection.display(),
+        })
+        .expect("Failed to create EGL display");
+
+        let egl_surface = Rc::new(
+            EGLSurface::new(
+                &egl_display,
+                renderer
+                    .egl_context()
+                    .pixel_format()
+                    .expect("Failed to get pixel format from EGL context "),
+                renderer.egl_context().config_id(),
+                client_egl_surface,
+            )
+            .expect("Failed to create EGL Surface"),
+        );
+
+        self.client_state.proxied_layer_surfaces.push((
+            egl_surface,
+            DamageTrackedRenderer::new((size.w.max(1), size.h.max(1)), 1.0, Transform::Flipped180),
+            server_surface,
+            client_surface,
+            SurfaceState::Waiting,
+        ));
     }
 }

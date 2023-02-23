@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
-use sctk::{delegate_layer, shell::layer::LayerShellHandler};
+use sctk::{
+    delegate_layer,
+    shell::{
+        wlr_layer::{LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
+        WaylandSurface,
+    },
+};
 
 use crate::{client_state::SurfaceState, shared_state::GlobalState, space::WrapperSpace};
 
@@ -9,7 +15,7 @@ impl<W: WrapperSpace> LayerShellHandler for GlobalState<W> {
         &mut self,
         _conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
-        layer: &sctk::shell::layer::LayerSurface,
+        layer: &LayerSurface,
     ) {
         if let Some(i) = self
             .client_state
@@ -27,8 +33,8 @@ impl<W: WrapperSpace> LayerShellHandler for GlobalState<W> {
         &mut self,
         _conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
-        layer: &sctk::shell::layer::LayerSurface,
-        configure: sctk::shell::layer::LayerSurfaceConfigure,
+        layer: &LayerSurface,
+        configure: LayerSurfaceConfigure,
         _serial: u32,
     ) {
         if let Some((_, _, s_layer_surface, c_layer_surface, mut state)) = self
@@ -44,7 +50,7 @@ impl<W: WrapperSpace> LayerShellHandler for GlobalState<W> {
                 SurfaceState::Dirty => {}
                 SurfaceState::WaitingFirst => {
                     state = SurfaceState::Waiting;
-                },
+                }
             };
             let (width, height) = configure.new_size;
 

@@ -35,29 +35,18 @@ pub fn run<W: WrapperSpace + 'static>(
     mut event_loop: calloop::EventLoop<'static, GlobalState<W>>,
 ) -> Result<()> {
     let start = std::time::Instant::now();
-    let log = space.log().unwrap();
     let loop_handle = event_loop.handle();
 
     let mut server_display = smithay::reexports::wayland_server::Display::new().unwrap();
     let s_dh = server_display.handle();
     space.set_display_handle(s_dh.clone());
 
-    let mut embedded_server_state = ServerState::new(s_dh.clone(), log.clone());
+    let mut embedded_server_state = ServerState::new(s_dh.clone());
 
-    let client_state = ClientState::new(
-        loop_handle.clone(),
-        &mut space,
-        log.clone(),
-        &mut embedded_server_state,
-    )?;
+    let client_state =
+        ClientState::new(loop_handle.clone(), &mut space, &mut embedded_server_state)?;
 
-    let mut global_state = GlobalState::new(
-        client_state,
-        embedded_server_state,
-        space,
-        start,
-        log.clone(),
-    );
+    let mut global_state = GlobalState::new(client_state, embedded_server_state, space, start);
 
     // remove extra looping after launch-pad is integrated
     for _ in 0..10 {

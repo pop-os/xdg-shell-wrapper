@@ -14,11 +14,10 @@ use sctk::{
         Connection, QueueHandle,
     },
     shell::{
-        layer::{LayerShell, LayerSurface, LayerSurfaceConfigure},
-        xdg::{XdgPositioner, XdgShellState},
+        wlr_layer::{LayerShell, LayerSurface, LayerSurfaceConfigure},
+        xdg::{XdgPositioner, XdgShell},
     },
 };
-use slog::Logger;
 use smithay::{
     backend::renderer::gles2::Gles2Renderer,
     desktop::{PopupManager, Window},
@@ -155,7 +154,7 @@ pub trait WrapperSpace {
         compositor_state: &CompositorState,
         conn: &Connection,
         qh: &QueueHandle<GlobalState<W>>,
-        xdg_shell_state: &mut XdgShellState,
+        xdg_shell_state: &mut XdgShell,
         s_surface: PopupSurface,
         positioner: XdgPositioner,
         positioner_state: PositionerState,
@@ -216,9 +215,6 @@ pub trait WrapperSpace {
     fn visibility(&self) -> Visibility {
         Visibility::Visible
     }
-
-    /// gets the logger
-    fn log(&self) -> Option<Logger>;
 
     /// cleanup
     fn destroy(&mut self);

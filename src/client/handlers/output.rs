@@ -7,12 +7,12 @@ use sctk::{
         client::{protocol::wl_output, Connection, QueueHandle},
     },
 };
-use slog::Logger;
 use smithay::{
     output::{Mode as s_Mode, Output, PhysicalProperties, Scale, Subpixel as s_Subpixel},
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
     utils::Transform,
 };
+use tracing::{error, info, warn};
 use xdg_shell_wrapper_config::WrapperConfig;
 
 use crate::{
@@ -45,7 +45,6 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                 },
             server_state: ServerState { display_handle, .. },
             space,
-            log,
             ..
         } = self;
 
@@ -60,7 +59,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             .any(|configured| Some(configured) == info.name.as_ref())
         {
             // construct a surface for an output if possible
-            let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
+            let s_output = c_output_as_s_output::<W>(display_handle, &info);
 
             self.client_state
                 .outputs
@@ -74,7 +73,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                 Some(s_output.0),
                 Some(info),
             ) {
-                slog::warn!(log.clone(), "{}", err);
+                warn!("{}", err);
             }
         }
     }
@@ -99,7 +98,6 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                 },
             server_state: ServerState { display_handle, .. },
             space,
-            log,
             ..
         } = self;
 
@@ -117,9 +115,9 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             {
                 let res = space.update_output(output.clone(), saved_output.1.clone(), info.clone());
                 if let Err(err) = res {
-                    slog::error!(log.clone(), "{}", err);
+                    error!("{}", err);
                 } else if matches!(res, Ok(false)) {
-                    let s_output = c_output_as_s_output::<W>(display_handle, &info, log.clone());
+                    let s_output = c_output_as_s_output::<W>(display_handle, &info);
 
                     if let Err(err) = space.new_output(
                         compositor_state,
@@ -130,7 +128,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                         Some(s_output.0),
                         Some(info),
                     ) {
-                        slog::warn!(log.clone(), "{}", err);
+                        warn!("{}", err);
                     }
                 }
             }
@@ -143,21 +141,21 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
         _qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
-        slog::info!(self.log.clone(), "output destroyed {:?}", &output);
+        info!("output destroyed {:?}", &output);
         let info = match self.output_state().info(&output) {
             Some(info) if info.name.is_some() => info,
             _ => return,
         };
-        let GlobalState { space, log, .. } = self;
+        let GlobalState { space, .. } = self;
 
         let config = space.config();
         let configured_outputs = match config.outputs() {
             xdg_shell_wrapper_config::WrapperOutput::All => info.name.iter().cloned().collect(),
             xdg_shell_wrapper_config::WrapperOutput::Name(list) => list,
         };
-        slog::info!(log.clone(), "output destroyed {:?}", info.name.as_ref());
+        info!("output destroyed {:?}", info.name.as_ref());
 
-        slog::info!(log.clone(), "configured outputs {:?}", &configured_outputs);
+        info!("configured outputs {:?}", &configured_outputs);
 
         if configured_outputs
             .iter()
@@ -167,7 +165,7 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
             {
                 let (c, s, _) = self.client_state.outputs.remove(saved_output);
                 if let Err(err) = space.output_leave(c, s) {
-                    slog::warn!(log.clone(), "{}", err);
+                    warn!("{}", err);
                 }
             }
         }
@@ -178,7 +176,6 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
 pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
     dh: &DisplayHandle,
     info: &OutputInfo,
-    logger: Logger,
 ) -> (Output, GlobalId) {
     let s_output = Output::new(
         info.name.clone().unwrap_or_default(), // the name of this output,
@@ -195,7 +192,6 @@ pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
             make: info.make.clone(),         // make of the monitor
             model: info.model.clone(),       // model of the monitor
         },
-        logger.clone(), // insert a logger here
     );
     for c_Mode {
         dimensions,

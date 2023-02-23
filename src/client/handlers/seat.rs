@@ -20,11 +20,10 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         if let Some(info) = self.client_state.seat_state.info(&seat) {
             let name = info.name.unwrap_or_default();
 
-            let mut new_server_seat = self.server_state.seat_state.new_wl_seat(
-                &self.server_state.display_handle,
-                name.clone(),
-                self.log.clone(),
-            );
+            let mut new_server_seat = self
+                .server_state
+                .seat_state
+                .new_wl_seat(&self.server_state.display_handle, name.clone());
 
             let kbd = if info.has_keyboard {
                 if let Ok(kbd) = self.client_state.seat_state.get_keyboard(qh, &seat, None) {
@@ -94,11 +93,10 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             sp
         } else {
             let name = info.name.clone().unwrap_or_default();
-            let server = self.server_state.seat_state.new_wl_seat(
-                &self.server_state.display_handle,
-                &name,
-                self.log.clone(),
-            );
+            let server = self
+                .server_state
+                .seat_state
+                .new_wl_seat(&self.server_state.display_handle, &name);
             self.server_state.seats.push(SeatPair {
                 name,
                 client: ClientSeat {

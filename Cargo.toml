@@ -7,14 +7,14 @@ license = "MPL-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"], rev = "85c9470"}
+smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl"], rev = "17db1be"}
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl", "slog-stdlog"] }
-sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"], rev = "beefe0a" }
+sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"], rev = "fd916d8" }
+tracing = "0.1.37"
 # sctk = { package = "smithay-client-toolkit", path = "../fork/client-toolkit", default-features = false, features = ["calloop", "xkbcommon", "system"] }
 anyhow = "1.0.53"
 ron = "0.8.0"
 serde = { version = "1.0.136", features = ["derive"] }
-slog = { version = "2.7.0", features = ["max_level_trace", "release_max_level_warn"] }
 wayland-egl = { version = "0.30.0" }
 libc = "0.2.117"
 tempfile = "3.3"

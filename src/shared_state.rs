@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0-only
 
 use sctk::reexports::client::protocol::wl_output as c_wl_output;
-use slog::Logger;
 use smithay::{
     backend::renderer::{ImportDma, ImportEgl},
     output::Output,
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
     wayland::dmabuf::DmabufState,
 };
+use tracing::error;
 
 use crate::client_state::ClientState;
 use crate::server_state::ServerState;
@@ -27,8 +27,6 @@ pub struct GlobalState<W: WrapperSpace + 'static> {
     pub server_state: ServerState<W>,
     /// instant that the panel was started
     pub start_time: std::time::Instant,
-    /// panel logger
-    pub log: Logger,
 }
 
 impl<W: WrapperSpace + 'static> GlobalState<W> {
@@ -37,14 +35,12 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
         server_state: ServerState<W>,
         space: W,
         start_time: std::time::Instant,
-        log: Logger,
     ) -> Self {
         Self {
             space,
             client_state,
             server_state,
             start_time,
-            log,
         }
     }
 }
@@ -55,12 +51,11 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
         if let Some(renderer) = self.space.renderer() {
             let res = renderer.bind_wl_display(dh);
             if let Err(err) = res {
-                slog::error!(self.log.clone(), "{:?}", err);
+                error!("{:?}", err);
             } else {
                 let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
                 let mut state = DmabufState::new();
-                let global =
-                    state.create_global::<GlobalState<W>, _>(dh, dmabuf_formats, self.log.clone());
+                let global = state.create_global::<GlobalState<W>>(dh, dmabuf_formats);
                 self.server_state.dmabuf_state.replace((state, global));
             }
         }

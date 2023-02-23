@@ -11,7 +11,6 @@ use std::{
 };
 
 use shlex::Shlex;
-use slog::{trace, Logger};
 use smithay::reexports::{
     nix::fcntl,
     wayland_server::{self, backend::ClientData, Client},
@@ -29,6 +28,7 @@ use smithay::{
         shm::{with_buffer_contents, BufferData},
     },
 };
+use tracing::trace;
 
 use super::WrapperSpace;
 
@@ -74,7 +74,6 @@ impl ClientData for WrapperClientData {
 /// helper function for launching a wrapped applet
 pub fn exec_child(
     c: &str,
-    log: Logger,
     fd: RawFd,
     env_vars: Vec<(&str, &str)>,
     requests_wayland_display: bool,
@@ -83,11 +82,11 @@ pub fn exec_child(
     let exec = exec_iter
         .next()
         .expect("exec parameter must contain at least on word");
-    trace!(log, "child: {}", &exec);
+    trace!("child: {}", &exec);
 
     let mut child = Command::new(exec);
     for arg in exec_iter {
-        trace!(log, "child argument: {}", &arg);
+        trace!("child argument: {}", &arg);
         child.arg(arg);
     }
 

@@ -1,6 +1,6 @@
 use std::{cell::RefMut, sync::Mutex};
 
-use slog::{error, trace};
+use sctk::shell::WaylandSurface;
 use smithay::{
     backend::renderer::{
         buffer_type, damage::DamageTrackedRenderer, utils::on_commit_buffer_handler, BufferType,
@@ -18,6 +18,7 @@ use smithay::{
         shm::{ShmHandler, ShmState},
     },
 };
+use tracing::{error, trace};
 
 use crate::{
     client_state::SurfaceState, server_state::SeatPair, shared_state::GlobalState,
@@ -31,9 +32,8 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
 
     fn commit(&mut self, surface: &WlSurface) {
         let dh = self.server_state.display_handle.clone();
-        let log = &mut self.log;
         let role = get_role(surface);
-        trace!(log, "role: {:?} surface: {:?}", &role, &surface);
+        trace!("role: {:?} surface: {:?}", &role, &surface);
 
         if role == "xdg_toplevel".into() {
             on_commit_buffer_handler(surface);
@@ -46,29 +46,29 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             let multipool = match &mut self.client_state.multipool {
                 Some(m) => m,
                 None => {
-                    error!(log.clone(), "multipool is missing!");
+                    error!("multipool is missing!");
                     return;
                 }
             };
             let cursor_surface = match &mut self.client_state.cursor_surface {
                 Some(m) => m,
                 None => {
-                    error!(log.clone(), "cursor surface is missing!");
+                    error!("cursor surface is missing!");
                     return;
                 }
             };
 
             // FIXME pass cursor image to parent compositor
-            trace!(log, "received surface with cursor image");
+            trace!("received surface with cursor image");
             for SeatPair { client, .. } in &self.server_state.seats {
                 if let Some(ptr) = client.ptr.as_ref() {
-                    trace!(log, "updating cursor for pointer {:?}", &ptr);
+                    trace!("updating cursor for pointer {:?}", &ptr);
                     let _ = with_states(surface, |data| {
                         let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
                         let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
                             if let Some(BufferType::Shm) = buffer_type(buffer) {
-                                trace!(log, "attaching buffer to cursor surface.");
+                                trace!("attaching buffer to cursor surface.");
                                 let _ = write_and_attach_buffer::<W>(
                                     buf.as_ref().unwrap(),
                                     cursor_surface,
@@ -81,7 +81,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                                     .and_then(|m| m.lock().ok())
                                     .map(|attr| (*attr).hotspot)
                                 {
-                                    trace!(log, "requesting update");
+                                    trace!("requesting update");
                                     ptr.set_cursor(
                                         SERIAL_COUNTER.next_serial().into(),
                                         Some(cursor_surface),
@@ -130,7 +130,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 }
             }
         } else {
-            trace!(log, "{:?}", surface);
+            trace!("{:?}", surface);
         }
     }
 }

@@ -2,7 +2,9 @@ use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use sctk::reexports::client::WaylandSource;
-use sctk::shell::layer::LayerSurface as SctkLayerSurface;
+use sctk::shell::wlr_layer::LayerSurface;
+use sctk::shell::{wlr_layer::LayerShell, xdg::XdgShell};
+use sctk::shm::Shm;
 use sctk::{
     compositor::CompositorState,
     output::OutputState,
@@ -19,10 +21,8 @@ use sctk::{
     },
     registry::RegistryState,
     seat::SeatState,
-    shell::{layer::LayerShell, xdg::XdgShellState},
-    shm::{multi::MultiPool, ShmState},
+    shm::multi::MultiPool,
 };
-use slog::Logger;
 use smithay::backend::renderer::damage::DamageTrackedRenderer;
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::AsRenderElements;
@@ -59,7 +59,6 @@ pub type ClientFocus = Vec<(wl_surface::WlSurface, String, FocusStatus)>;
 /// Wrapper client state
 #[derive(Debug)]
 pub struct ClientState<W: WrapperSpace + 'static> {
-    log: Logger,
     /// state
     pub registry_state: RegistryState,
     /// state
@@ -69,9 +68,9 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     /// state
     pub compositor_state: CompositorState,
     /// state
-    pub shm_state: ShmState,
+    pub shm_state: Shm,
     /// state
-    pub xdg_shell_state: XdgShellState,
+    pub xdg_shell_state: XdgShell,
     /// state
     pub layer_state: LayerShell,
 
@@ -91,7 +90,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
         Rc<EGLSurface>,
         DamageTrackedRenderer,
         SmithayLayerSurface,
-        SctkLayerSurface,
+        LayerSurface,
         SurfaceState,
     )>,
 }
@@ -107,7 +106,6 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
     pub(crate) fn new(
         loop_handle: calloop::LoopHandle<'static, GlobalState<W>>,
         space: &mut W,
-        log: Logger,
         _embedded_server_state: &mut ServerState<W>,
     ) -> anyhow::Result<Self> {
         /*
@@ -120,7 +118,6 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         let registry_state = RegistryState::new(&globals);
 
         let client_state = ClientState {
-            log,
             focused_surface: space.get_client_focused_surface(),
             hovered_surface: space.get_client_hovered_surface(),
             proxied_layer_surfaces: Vec::new(),
@@ -131,8 +128,8 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             output_state: OutputState::new(&globals, &qh),
             compositor_state: CompositorState::bind(&globals, &qh)
                 .expect("wl_compositor not available"),
-            shm_state: ShmState::bind(&globals, &qh).expect("wl_shm not available"),
-            xdg_shell_state: XdgShellState::bind(&globals, &qh).expect("xdg shell not available"),
+            shm_state: Shm::bind(&globals, &qh).expect("wl_shm not available"),
+            xdg_shell_state: XdgShell::bind(&globals, &qh).expect("xdg shell not available"),
             layer_state: LayerShell::bind(&globals, &qh).expect("layer shell is not available"),
 
             outputs: Default::default(),
@@ -172,7 +169,6 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
                     egl_surface.buffer_age().unwrap_or_default() as usize,
                     &elements,
                     *clear_color,
-                    self.log.clone(),
                 )
                 .unwrap();
             egl_surface.swap_buffers(None).unwrap();
