@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_layer_surface_v1};
 
 /// Layer which the cosmic panel is on
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
 pub enum Layer {
     /// background layer
     Background,
@@ -42,7 +42,7 @@ impl Into<zwlr_layer_shell_v1::Layer> for Layer {
 }
 
 /// Interactivity level of the cosmic panel
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
 pub enum KeyboardInteractivity {
     /// Not interactible
     None,
@@ -73,7 +73,7 @@ impl Into<zwlr_layer_surface_v1::KeyboardInteractivity> for KeyboardInteractivit
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum WrapperOutput {
     All,
     Name(Vec<String>),
