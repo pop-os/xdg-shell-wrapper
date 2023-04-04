@@ -10,7 +10,7 @@ use sctk::{
 use smithay::{
     backend::{
         egl::{EGLDisplay, EGLSurface},
-        renderer::damage::DamageTrackedRenderer,
+        renderer::damage::OutputDamageTracker,
     },
     delegate_layer_shell,
     desktop::LayerSurface as SmithayLayerSurface,
@@ -142,7 +142,7 @@ impl<W: WrapperSpace> WlrLayerShellHandler for GlobalState<W> {
 
         self.client_state.proxied_layer_surfaces.push((
             egl_surface,
-            DamageTrackedRenderer::new((size.w.max(1), size.h.max(1)), 1.0, Transform::Flipped180),
+            OutputDamageTracker::new((size.w.max(1), size.h.max(1)), 1.0, Transform::Flipped180),
             server_surface,
             client_surface,
             SurfaceState::Waiting,

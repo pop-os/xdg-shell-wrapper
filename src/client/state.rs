@@ -23,7 +23,7 @@ use sctk::{
     seat::SeatState,
     shm::multi::MultiPool,
 };
-use smithay::backend::renderer::damage::DamageTrackedRenderer;
+use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::AsRenderElements;
 use smithay::backend::renderer::gles2::Gles2Renderer;
@@ -88,7 +88,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
 
     pub(crate) proxied_layer_surfaces: Vec<(
         Rc<EGLSurface>,
-        DamageTrackedRenderer,
+        OutputDamageTracker,
         SmithayLayerSurface,
         LayerSurface,
         SurfaceState,

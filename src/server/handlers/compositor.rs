@@ -3,7 +3,7 @@ use std::{cell::RefMut, sync::Mutex};
 use sctk::shell::WaylandSurface;
 use smithay::{
     backend::renderer::{
-        buffer_type, damage::DamageTrackedRenderer, utils::on_commit_buffer_handler, BufferType,
+        buffer_type, damage::OutputDamageTracker, utils::on_commit_buffer_handler, BufferType,
     },
     delegate_compositor, delegate_shm,
     input::pointer::CursorImageAttributes,
@@ -121,7 +121,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 if old_size != size {
                     egl_surface.resize(size.w, size.h, 0, 0);
                     c_layer_surface.set_size(size.w as u32, size.h as u32);
-                    *renderer = DamageTrackedRenderer::new(
+                    *renderer = OutputDamageTracker::new(
                         (size.w.max(1), size.h.max(1)),
                         1.0,
                         Transform::Flipped180,

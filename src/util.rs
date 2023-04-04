@@ -117,7 +117,7 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
         if let Some(BufferType::Shm) = buffer_type(source_buffer) {
             with_buffer_contents(
                 source_buffer,
-                move |from: &[u8], buffer_metadata: BufferData| {
+                move |from: *const u8, length: usize, buffer_metadata: BufferData| {
                     if let Ok(format) = wl_shm::Format::try_from(buffer_metadata.format as u32) {
                         let BufferData {
                             offset,
@@ -156,6 +156,7 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
                             };
 
                         let mut writer = BufWriter::new(to);
+                        let from = unsafe { std::slice::from_raw_parts(from, length) };
                         let from = Vec::from(from);
                         let offset: usize = offset.try_into()?;
                         let height: usize = height.try_into()?;
