@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0-only
+// SPDX-License-Identifier: MPL-2.0
 
 use sctk::{
     output::{Mode as c_Mode, OutputHandler, OutputInfo, OutputState},

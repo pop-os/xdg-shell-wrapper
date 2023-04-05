@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0-only
+// SPDX-License-Identifier: MPL-2.0
 
 use std::{
     io::{BufWriter, Write},
@@ -15,7 +15,7 @@ use smithay::reexports::{
     nix::fcntl,
     wayland_server::{self, backend::ClientData, Client},
 };
-// SPDX-License-Identifier: MPL-2.0-only
+// SPDX-License-Identifier: MPL-2.0
 use anyhow::{bail, Result};
 use sctk::{
     reexports::client::protocol::{wl_shm, wl_surface::WlSurface},

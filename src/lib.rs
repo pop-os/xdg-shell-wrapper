@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0-only
+// SPDX-License-Identifier: MPL-2.0
 #![warn(missing_debug_implementations, rust_2018_idioms, missing_docs)]
 
 //! Provides the core functionality for cosmic-panel

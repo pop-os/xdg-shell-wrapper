@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0-only
+// SPDX-License-Identifier: MPL-2.0
 
 use sctk::reexports::client::protocol::wl_output as c_wl_output;
 use smithay::{

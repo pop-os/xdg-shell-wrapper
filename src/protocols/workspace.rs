@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 
 use std::{collections::HashSet, sync::Mutex};
 
@@ -555,7 +555,11 @@ where
         WorkspaceGroupHandle { id }
     }
 
-    pub fn create_workspace(&mut self, group: &WorkspaceGroupHandle, id: usize) -> Option<WorkspaceHandle> {
+    pub fn create_workspace(
+        &mut self,
+        group: &WorkspaceGroupHandle,
+        id: usize,
+    ) -> Option<WorkspaceHandle> {
         if let Some(group) = self.0.groups.iter_mut().find(|g| g.id == group.id) {
             let workspace = Workspace {
                 id,

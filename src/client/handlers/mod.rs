@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0-only
+// SPDX-License-Identifier: MPL-2.0
 
 use sctk::{
     delegate_compositor, delegate_output, delegate_registry, delegate_shm,
