@@ -59,12 +59,20 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                 .unwrap();
             new_server_seat.add_pointer();
 
+            let data_device = self.client_state.data_device_manager.get_data_device(qh, &seat);
             self.server_state.seats.push(SeatPair {
                 name,
                 client: ClientSeat {
                     _seat: seat.clone(),
                     kbd,
                     ptr,
+                    data_device,
+                    copy_paste_source: None,
+                    dnd_source: None,
+                    last_key_press: (0, 0),
+                    last_pointer_press: (0, 0),
+                    selection_offer: None,
+                    dnd_offer: None
                     // TODO forward touch
                 },
                 server: new_server_seat,
@@ -103,6 +111,13 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     _seat: seat.clone(),
                     kbd: None,
                     ptr: None,
+                    data_device: self.client_state.data_device_manager.get_data_device(qh, &seat),
+                    copy_paste_source: None,
+                    dnd_source: None,
+                    selection_offer: None,
+                    dnd_offer: None,
+                    last_key_press: (0,0),
+                    last_pointer_press: (0,0)
                     // TODO forward touch
                 },
                 server,

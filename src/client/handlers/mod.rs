@@ -19,6 +19,7 @@ pub mod output;
 pub mod pointer;
 pub mod seat;
 pub mod shell;
+pub mod data_device;
 
 impl<W: WrapperSpace> ShmHandler for GlobalState<W> {
     fn shm_state(&mut self) -> &mut Shm {

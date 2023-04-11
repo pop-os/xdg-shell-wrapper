@@ -1,12 +1,18 @@
+use std::os::fd::{OwnedFd, IntoRawFd};
+
+use sctk::data_device_manager::data_offer::receive_to_fd;
 use smithay::{
     backend::renderer::ImportDma,
     delegate_data_device, delegate_dmabuf, delegate_output, delegate_primary_selection,
     delegate_seat,
-    input::{SeatHandler, SeatState},
-    reexports::wayland_server::{protocol::wl_surface::WlSurface, Resource},
+    input::{SeatHandler, SeatState, Seat},
+    reexports::wayland_server::{
+        protocol::{wl_data_source::WlDataSource, wl_surface::WlSurface},
+        Resource,
+    },
     wayland::{
         data_device::{
-            set_data_device_focus, ClientDndGrabHandler, DataDeviceHandler, ServerDndGrabHandler,
+            set_data_device_focus, ClientDndGrabHandler, DataDeviceHandler, ServerDndGrabHandler, with_source_metadata,
         },
         dmabuf::{DmabufHandler, ImportError},
         primary_selection::{set_primary_focus, PrimarySelectionHandler, PrimarySelectionState},
@@ -71,6 +77,33 @@ delegate_seat!(@<W: WrapperSpace + 'static> GlobalState<W>);
 impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
     fn data_device_state(&self) -> &smithay::wayland::data_device::DataDeviceState {
         &self.server_state.data_device_state
+    }
+
+    fn new_selection(&mut self, source: Option<WlDataSource>, seat: Seat<GlobalState<W>>) {
+        let seat = match self.server_state.seats.iter_mut().find(|s| s.server == seat) {
+            Some(s) => s,
+            None => return,
+        };
+
+        let serial = seat.client.get_serial_of_last_seat_event();
+
+        if let Some(source) = source {
+            let metadata = with_source_metadata(&source, |metadata| metadata.clone()).unwrap();
+            let copy_paste_source = self.client_state.data_device_manager.create_copy_paste_source(&self.client_state.queue_handle, metadata.mime_types.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+            seat.client.copy_paste_source = Some(copy_paste_source);        
+        } else {
+            seat.client.data_device.unset_selection(serial)
+        }
+    }
+
+    fn send_selection(&mut self, mime_type: String, fd: OwnedFd, seat: Seat<Self>) {
+        let seat = match self.server_state.seats.iter().find(|s| s.server == seat) {
+            Some(s) => s,
+            None => return,
+        };
+        if let Some(offer) = seat.client.selection_offer.as_ref() {
+            unsafe { receive_to_fd(offer.inner(), mime_type, fd.into_raw_fd())}
+        }
     }
 }
 

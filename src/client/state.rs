@@ -1,6 +1,10 @@
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
+use sctk::data_device_manager::DataDeviceManagerState;
+use sctk::data_device_manager::data_device::DataDevice;
+use sctk::data_device_manager::data_offer::{SelectionOffer, DragOffer};
+use sctk::data_device_manager::data_source::{CopyPasteSource, DragSource};
 use sctk::reexports::client::WaylandSource;
 use sctk::shell::wlr_layer::LayerSurface;
 use sctk::shell::{wlr_layer::LayerShell, xdg::XdgShell};
@@ -42,6 +46,25 @@ pub(crate) struct ClientSeat {
     pub(crate) _seat: WlSeat,
     pub(crate) kbd: Option<wl_keyboard::WlKeyboard>,
     pub(crate) ptr: Option<wl_pointer::WlPointer>,
+    pub(crate) last_key_press: (u32, u32),
+    pub(crate) last_pointer_press: (u32, u32),
+    pub(crate) data_device: DataDevice,
+    pub(crate) copy_paste_source: Option<CopyPasteSource>,
+    pub(crate) dnd_source: Option<DragSource>,
+    pub(crate) selection_offer: Option<SelectionOffer>,
+    pub(crate) dnd_offer: Option<DragOffer>,
+}
+
+impl ClientSeat {
+    pub fn get_serial_of_last_seat_event(&self) -> u32 {
+        let (key_serial, key_time) = self.last_key_press;
+        let (pointer_serial, pointer_time) = self.last_pointer_press;
+        if key_time > pointer_time {
+            key_serial
+        } else {
+            pointer_serial
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -73,6 +96,8 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub xdg_shell_state: XdgShell,
     /// state
     pub layer_state: LayerShell,
+    /// data device manager state
+    pub data_device_manager: DataDeviceManagerState,
 
     pub(crate) connection: Connection,
     /// queue handle
@@ -131,7 +156,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             shm_state: Shm::bind(&globals, &qh).expect("wl_shm not available"),
             xdg_shell_state: XdgShell::bind(&globals, &qh).expect("xdg shell not available"),
             layer_state: LayerShell::bind(&globals, &qh).expect("layer shell is not available"),
-
+            data_device_manager: DataDeviceManagerState::bind(&globals, &qh).expect("data device manager is not available"),
             outputs: Default::default(),
             registry_state,
             multipool: None,
