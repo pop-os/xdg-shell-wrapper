@@ -80,7 +80,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
     }
 
     fn new_selection(&mut self, source: Option<WlDataSource>, seat: Seat<GlobalState<W>>) {
-        let seat = match self.server_state.seats.iter_mut().find(|s| s.server == seat) {
+        let seat = match self.server_state.seats.iter_mut().find(|s| s.server.seat == seat) {
             Some(s) => s,
             None => return,
         };
@@ -88,6 +88,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         let serial = seat.client.get_serial_of_last_seat_event();
 
         if let Some(source) = source {
+            seat.client.next_selection_offer_is_mine = true;
             let metadata = with_source_metadata(&source, |metadata| metadata.clone()).unwrap();
             let copy_paste_source = self.client_state.data_device_manager.create_copy_paste_source(&self.client_state.queue_handle, metadata.mime_types.iter().map(|s| s.as_str()).collect::<Vec<_>>());
             seat.client.copy_paste_source = Some(copy_paste_source);        
@@ -97,7 +98,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
     }
 
     fn send_selection(&mut self, mime_type: String, fd: OwnedFd, seat: Seat<Self>) {
-        let seat = match self.server_state.seats.iter().find(|s| s.server == seat) {
+        let seat = match self.server_state.seats.iter().find(|s| s.server.seat == seat) {
             Some(s) => s,
             None => return,
         };

@@ -102,7 +102,7 @@ pub fn run<W: WrapperSpace + 'static>(
                     .iter()
                     .find(|s| s.name == global_state.client_state.last_key_pressed[key_pressed].0)
                     .and_then(|s| {
-                        s.server.get_keyboard().map(|kbd| {
+                        s.server.seat.get_keyboard().map(|kbd| {
                             (
                                 global_state
                                     .client_state

@@ -35,8 +35,8 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
             .map(|seat| {
                 let ret = (
                     seat.name.as_str(),
-                    seat.server.get_pointer(),
-                    seat.server.get_keyboard(),
+                    seat.server.seat.get_pointer(),
+                    seat.server.seat.get_keyboard(),
                 );
                 ret
             }) {

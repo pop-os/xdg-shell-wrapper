@@ -29,7 +29,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
         {
             (name.to_string(), kbd)
         } else {
@@ -84,7 +84,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
         {
             (name.to_string(), kbd)
         } else {
@@ -130,7 +130,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
         {
             (name.to_string(), kbd)
         } else {
@@ -180,7 +180,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
         {
             (name.to_string(), kbd)
         } else {
@@ -215,7 +215,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
                 .find_map(|SeatPair { client, server, .. }| {
                     client.kbd.as_ref().and_then(|k| {
                         if k == kbd {
-                            server.get_keyboard()
+                            server.seat.get_keyboard()
                         } else {
                             None
                         }

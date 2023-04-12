@@ -10,7 +10,9 @@ impl<W: WrapperSpace> DataOfferHandler for GlobalState<W> {
         qh: &sctk::reexports::client::QueueHandle<Self>,
         offer: &mut sctk::data_device_manager::data_offer::DataDeviceOffer,
         mime_type: String,
-    ) {}
+    ) {
+        // TODO forward the offer event 
+    }
 
     // TODO DnD
     fn source_actions(
@@ -20,6 +22,7 @@ impl<W: WrapperSpace> DataOfferHandler for GlobalState<W> {
         offer: &mut sctk::data_device_manager::data_offer::DragOffer,
         actions: DndAction,
     ) {
+        // TODO forward the source actions event
     }
 
     fn selected_action(
@@ -29,6 +32,6 @@ impl<W: WrapperSpace> DataOfferHandler for GlobalState<W> {
         offer: &mut sctk::data_device_manager::data_offer::DragOffer,
         actions: DndAction,
     ) {
-        todo!()
+        // TODO forward the selected action event
     }
 }
