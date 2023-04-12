@@ -30,7 +30,7 @@ use sctk::{
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::AsRenderElements;
-use smithay::backend::renderer::gles2::Gles2Renderer;
+use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::renderer::{Bind, Unbind};
 use smithay::{
     backend::egl::EGLSurface,
@@ -176,7 +176,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
     }
 
     /// draw the proxied layer shell surfaces
-    pub fn draw_layer_surfaces(&mut self, renderer: &mut Gles2Renderer, time: u32) {
+    pub fn draw_layer_surfaces(&mut self, renderer: &mut GlesRenderer, time: u32) {
         let clear_color = &[0.0, 0.0, 0.0, 0.0];
         for (egl_surface, dmg_tracked_renderer, s_layer, c_layer, state) in
             &mut self.proxied_layer_surfaces
@@ -188,7 +188,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             };
             let _ = renderer.unbind();
             let _ = renderer.bind(egl_surface.clone());
-            let elements: Vec<WaylandSurfaceRenderElement<Gles2Renderer>> =
+            let elements: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
                 s_layer.render_elements(renderer, (0, 0).into(), 1.0.into());
             dmg_tracked_renderer
                 .render_output(

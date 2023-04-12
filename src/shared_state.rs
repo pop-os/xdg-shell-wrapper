@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
+use itertools::Itertools;
 use sctk::reexports::client::protocol::wl_output as c_wl_output;
 use smithay::{
     backend::renderer::{ImportDma, ImportEgl},
@@ -53,7 +54,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             if let Err(err) = res {
                 error!("{:?}", err);
             } else {
-                let dmabuf_formats = renderer.dmabuf_formats().cloned().collect::<Vec<_>>();
+                let dmabuf_formats = renderer.dmabuf_formats().into_iter().collect_vec();
                 let mut state = DmabufState::new();
                 let global = state.create_global::<GlobalState<W>>(dh, dmabuf_formats);
                 self.server_state.dmabuf_state.replace((state, global));

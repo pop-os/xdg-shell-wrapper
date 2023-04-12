@@ -3,17 +3,26 @@ use sctk::{
         data_device::{DataDeviceDataExt, DataDeviceHandler},
         data_offer::{DataOfferData, DataOfferDataExt},
     },
-    reexports::client::Proxy,
+    reexports::client::{
+        protocol::{wl_data_device_manager::DndAction as ClientDndAction, wl_pointer::ButtonState},
+        Proxy,
+    },
+    seat::pointer::{PointerEvent, PointerEventKind, PointerHandler},
 };
-use smithay::wayland::{primary_selection::set_primary_selection, data_device::set_data_device_selection};
+use smithay::{
+    input::pointer::GrabStartData,
+    reexports::wayland_server::protocol::wl_data_device_manager::DndAction,
+    utils::SERIAL_COUNTER,
+    wayland::data_device::{set_data_device_selection, start_dnd, SourceMetadata},
+};
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
     fn selection(
         &mut self,
-        conn: &sctk::reexports::client::Connection,
-        qh: &sctk::reexports::client::QueueHandle<Self>,
+        _conn: &sctk::reexports::client::Connection,
+        _qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: sctk::data_device_manager::data_device::DataDevice,
     ) {
         let seat = match self
@@ -44,7 +53,11 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             .data_offer_data()
             .mime_types();
 
-        set_data_device_selection(&self.server_state.display_handle, &seat.server.seat, mime_types)
+        set_data_device_selection(
+            &self.server_state.display_handle,
+            &seat.server.seat,
+            mime_types,
+        )
     }
 
     // TODO
@@ -54,6 +67,74 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: sctk::data_device_manager::data_device::DataDevice,
     ) {
+        let seat = match self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|sp| sp.client.data_device == data_device)
+        {
+            Some(sp) => sp,
+            None => return,
+        };
+
+        if seat.client.next_dnd_offer_is_mine {
+            seat.client.next_dnd_offer_is_mine = false;
+            return;
+        }
+
+        let offer = match data_device.drag_offer() {
+            Some(offer) => offer,
+            None => return,
+        };
+
+        let wl_offer = offer.inner();
+
+        let mime_types = wl_offer
+            .data::<DataOfferData>()
+            .unwrap()
+            .data_offer_data()
+            .mime_types();
+        let mut dnd_action = DndAction::empty();
+        let c_action = offer.source_actions;
+        if c_action.contains(ClientDndAction::Copy) {
+            dnd_action |= DndAction::Copy;
+        } else if c_action.contains(ClientDndAction::Move) {
+            dnd_action |= DndAction::Move;
+        } else if c_action.contains(ClientDndAction::Ask) {
+            dnd_action |= DndAction::Ask;
+        }
+
+        let metadata = SourceMetadata {
+            mime_types,
+            dnd_action,
+        };
+        let dh = self.server_state.display_handle.clone();
+        let pointer = seat.client.ptr.clone();
+        let seat = seat.server.seat.clone();
+        start_dnd::<_>(
+            &dh,
+            &seat,
+            self,
+            SERIAL_COUNTER.next_serial(),
+            // TODO
+            GrabStartData {
+                focus: None,
+                button: 0,
+                location: (0.0, 0.0).into(),
+            },
+            metadata,
+        );
+        let pointer_event = PointerEvent {
+            surface: offer.surface,
+            kind: PointerEventKind::Enter {
+                serial: offer.serial,
+            },
+            position: (offer.x, offer.y),
+        };
+        if let Some(pointer) = pointer.as_ref() {
+            self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
+        }
+        // TODO treat it as a pointer enter
     }
 
     fn leave(
@@ -62,6 +143,34 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: sctk::data_device_manager::data_device::DataDevice,
     ) {
+        // TODO stop server DnD?
+        // treat it as a pointer leave
+        //
+        //
+        let seat = match self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|sp| sp.client.data_device == data_device)
+        {
+            Some(sp) => sp,
+            None => return,
+        };
+
+        let offer = match data_device.drag_offer() {
+            Some(offer) => offer,
+            None => return,
+        };
+        let pointer_event = PointerEvent {
+            surface: offer.surface,
+            kind: PointerEventKind::Leave {
+                serial: offer.serial,
+            }, // would hope...
+            position: (offer.x, offer.y),
+        };
+        if let Some(pointer) = seat.client.ptr.clone().as_ref() {
+            self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
+        }
     }
 
     fn motion(
@@ -70,6 +179,33 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: sctk::data_device_manager::data_device::DataDevice,
     ) {
+        // treat it as pointer motion
+        let seat = match self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|sp| sp.client.data_device == data_device)
+        {
+            Some(sp) => sp,
+            None => return,
+        };
+
+        let offer = match data_device.drag_offer() {
+            Some(offer) => offer,
+            None => return,
+        };
+
+        let pointer_event = PointerEvent {
+            surface: offer.surface,
+            kind: PointerEventKind::Motion {
+                time: offer.time.unwrap_or_default(),
+            },
+            position: (offer.x, offer.y),
+        };
+
+        if let Some(pointer) = seat.client.ptr.clone().as_ref() {
+            self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
+        }
     }
 
     fn drop_performed(
@@ -78,5 +214,33 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: sctk::data_device_manager::data_device::DataDevice,
     ) {
+        // treat it as pointer button release
+        let seat = match self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|sp| sp.client.data_device == data_device)
+        {
+            Some(sp) => sp,
+            None => return,
+        };
+
+        let offer = match data_device.drag_offer() {
+            Some(offer) => offer,
+            None => return,
+        };
+
+        let pointer_event = PointerEvent {
+            surface: offer.surface,
+            kind: PointerEventKind::Release {
+                serial: offer.serial,
+                time: offer.time.unwrap_or_default(),
+                button: 1,
+            },
+            position: (offer.x, offer.y),
+        };
+        if let Some(pointer) = seat.client.ptr.clone().as_ref() {
+            self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
+        }
     }
 }

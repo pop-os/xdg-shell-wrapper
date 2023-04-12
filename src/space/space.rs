@@ -19,7 +19,7 @@ use sctk::{
     },
 };
 use smithay::{
-    backend::renderer::gles2::Gles2Renderer,
+    backend::renderer::gles::GlesRenderer,
     desktop::{PopupManager, Window},
     output::Output,
     reexports::wayland_server::{
@@ -247,7 +247,7 @@ pub trait WrapperSpace {
     fn close_layer(&mut self, layer: &LayerSurface);
 
     /// gets the renderer for the space
-    fn renderer(&mut self) -> Option<&mut Gles2Renderer>;
+    fn renderer(&mut self) -> Option<&mut GlesRenderer>;
 
     /// received a frame event for the given surface
     fn frame(&mut self, surface: &wl_surface::WlSurface, time: u32);
