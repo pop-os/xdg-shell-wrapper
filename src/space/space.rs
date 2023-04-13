@@ -101,9 +101,6 @@ pub trait WrapperSpace {
     /// get the client focused surface of the space
     fn get_client_focused_surface(&self) -> Rc<RefCell<ClientFocus>>;
 
-    /// get the position of a server surface
-    fn surface_location(&self, surface: &s_WlSurface) -> Option<Point<i32, Logical>>;
-
     /// setup of the space after the wayland connection is ready
     fn setup<W: WrapperSpace>(
         &mut self,
