@@ -1,10 +1,10 @@
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
-use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::data_device_manager::data_device::DataDevice;
-use sctk::data_device_manager::data_offer::{SelectionOffer, DragOffer};
+use sctk::data_device_manager::data_offer::{DragOffer, SelectionOffer};
 use sctk::data_device_manager::data_source::{CopyPasteSource, DragSource};
+use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::reexports::client::WaylandSource;
 use sctk::shell::wlr_layer::LayerSurface;
 use sctk::shell::{wlr_layer::LayerShell, xdg::XdgShell};
@@ -55,7 +55,7 @@ pub(crate) struct ClientSeat {
     pub(crate) dnd_offer: Option<DragOffer>,
     pub(crate) next_selection_offer_is_mine: bool,
     pub(crate) next_dnd_offer_is_mine: bool,
-    pub(crate) dnd_icon: Option<WlSurface>,
+    pub(crate) dnd_icon: Option<(WlSurface, Rc<EGLSurface>, OutputDamageTracker, bool, Option<u32>)>,
 }
 
 impl ClientSeat {
@@ -159,7 +159,8 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             shm_state: Shm::bind(&globals, &qh).expect("wl_shm not available"),
             xdg_shell_state: XdgShell::bind(&globals, &qh).expect("xdg shell not available"),
             layer_state: LayerShell::bind(&globals, &qh).expect("layer shell is not available"),
-            data_device_manager: DataDeviceManagerState::bind(&globals, &qh).expect("data device manager is not available"),
+            data_device_manager: DataDeviceManagerState::bind(&globals, &qh)
+                .expect("data device manager is not available"),
             outputs: Default::default(),
             registry_state,
             multipool: None,

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 
+use std::time::Duration;
+
 use itertools::Itertools;
 use sctk::reexports::client::protocol::wl_output as c_wl_output;
 use smithay::{
-    backend::renderer::{ImportDma, ImportEgl},
+    backend::renderer::{ImportDma, ImportEgl, Unbind, element::surface::{WaylandSurfaceRenderElement, render_elements_from_surface_tree}, gles::GlesRenderer},
     output::Output,
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
-    wayland::dmabuf::DmabufState,
+    wayland::dmabuf::DmabufState, desktop::utils::send_frames_surface_tree,
 };
 use tracing::error;
 
@@ -60,6 +62,66 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
                 self.server_state.dmabuf_state.replace((state, global));
             }
         }
+    }
+
+    pub fn draw_dnd_icon(&mut self) {
+        // TODO proxied layer surfaces
+        if let Some(dnd_icon) = self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|s| s.client.dnd_icon.is_some() && s.server.dnd_icon.is_some())
+        {
+            let (wl_surface, egl_surface, ref mut dmg_tracked_renderer, is_dirty, has_frame) =
+                dnd_icon.client.dnd_icon.as_mut().unwrap();
+            if !*is_dirty || !has_frame.is_some() {
+                return;
+            }
+            *is_dirty = false;
+            let time = has_frame.take().unwrap();
+            let clear_color = &[0.0, 0.0, 0.0, 0.0];
+            let renderer = match self.space.renderer() {
+                Some(r) => r,
+                None => {
+                    error!("no renderer");
+                    return;
+                }
+            };
+            let s_icon = dnd_icon.server.dnd_icon.as_ref().unwrap();
+            let _ = renderer.unbind();
+            let elements: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
+                render_elements_from_surface_tree(renderer, s_icon, (1, 1), 1.0);
+
+            dmg_tracked_renderer
+                .render_output(
+                    renderer,
+                    egl_surface.buffer_age().unwrap_or_default() as usize,
+                    &elements,
+                    *clear_color,
+                )
+                .unwrap();
+            egl_surface.swap_buffers(None).unwrap();
+            // FIXME: damage tracking issues on integrated graphics but not nvidia
+            // self.egl_surface
+            //     .as_ref()
+            //     .unwrap()
+            //     .swap_buffers(res.0.as_deref_mut())?;
+
+            renderer.unbind().unwrap();
+            // TODO what if there is "no output"?
+            for o in &self.client_state.outputs {
+                let output = &o.1;
+                send_frames_surface_tree(
+                    s_icon,
+                    &o.1,
+                    Duration::from_millis(time as u64),
+                    None,
+                    move |_, _| Some(output.clone()),
+                );
+            }
+            self.space.frame(wl_surface, time);
+        }
+
     }
 }
 

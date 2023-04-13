@@ -16,7 +16,7 @@ use smithay::{
             SurfaceAttributes,
         },
         shm::{ShmHandler, ShmState},
-    },
+    }, desktop::utils::bbox_from_surface_tree,
 };
 use tracing::{error, trace};
 
@@ -129,6 +129,29 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     c_layer_surface.wl_surface().commit();
                 }
             }
+        } else if role == "dnd_icon".into() {
+            // render dnd icon to the active dnd icon surface
+            let seat = match self.server_state.seats.iter_mut().find(|s| s.server.dnd_icon.as_ref() == Some(surface)) {
+                Some(s) => s,
+                None => {
+                    error!("dnd icon received, but no seat found");
+                    return;
+                }
+            };
+            on_commit_buffer_handler(surface);
+            if let Some(c_icon) = seat.client.dnd_icon.as_mut() {
+                let size = bbox_from_surface_tree(surface, (0,0)).size;
+                c_icon.1.resize(size.w.max(1), size.h.max(1), 0, 0);
+                c_icon.2 = OutputDamageTracker::new(
+                    (size.w.max(1), size.h.max(1)),
+                    1.0,
+                    Transform::Flipped180,
+                );
+                c_icon.0.commit();
+                c_icon.3 = true;
+            }
+            self.draw_dnd_icon();
+            
         } else {
             trace!("{:?}", surface);
         }
