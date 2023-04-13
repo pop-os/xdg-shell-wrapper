@@ -11,9 +11,9 @@ use sctk::{
 };
 use smithay::{
     input::pointer::GrabStartData,
-    reexports::wayland_server::protocol::wl_data_device_manager::DndAction,
+    reexports::wayland_server::{Resource, protocol::wl_data_device_manager::DndAction},
     utils::SERIAL_COUNTER,
-    wayland::data_device::{set_data_device_selection, start_dnd, SourceMetadata},
+    wayland::data_device::{set_data_device_selection, start_dnd, SourceMetadata, set_data_device_focus},
 };
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
@@ -159,6 +159,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             Some(offer) => offer,
             None => return,
         };
+        set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, None);
         let pointer_event = PointerEvent {
             surface: offer.surface,
             kind: PointerEventKind::Leave {
@@ -193,6 +194,8 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             None => return,
         };
 
+        let server_focus = self.space.update_pointer((offer.x as i32, offer.y as i32), &seat.name, offer.surface.clone());
+        set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, server_focus.and_then(|f| f.surface.client()));
         let pointer_event = PointerEvent {
             surface: offer.surface,
             kind: PointerEventKind::Motion {
