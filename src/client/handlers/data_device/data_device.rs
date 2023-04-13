@@ -4,7 +4,7 @@ use sctk::{
         data_offer::{DataOfferData, DataOfferDataExt},
     },
     reexports::client::{
-        protocol::{wl_data_device_manager::DndAction as ClientDndAction, wl_pointer::ButtonState},
+        protocol::wl_data_device_manager::DndAction as ClientDndAction,
         Proxy,
     },
     seat::pointer::{PointerEvent, PointerEventKind, PointerHandler},
@@ -60,11 +60,10 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         )
     }
 
-    // TODO
     fn enter(
         &mut self,
-        conn: &sctk::reexports::client::Connection,
-        qh: &sctk::reexports::client::QueueHandle<Self>,
+        _conn: &sctk::reexports::client::Connection,
+        _qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: sctk::data_device_manager::data_device::DataDevice,
     ) {
         let seat = match self
@@ -108,33 +107,32 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             mime_types,
             dnd_action,
         };
-        let dh = self.server_state.display_handle.clone();
-        let pointer = seat.client.ptr.clone();
-        let seat = seat.server.seat.clone();
+
+        // Not sure if this will be useful
+        // let pointer_event = PointerEvent {
+        //     surface: offer.surface,
+        //     kind: PointerEventKind::Enter {
+        //         serial: offer.serial,
+        //     },
+        //     position: (offer.x, offer.y),
+        // };
+        // if let Some(pointer) = pointer.as_ref() {
+        //     self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
+        // };
+
+        let server_focus = self.space.update_pointer((offer.x as i32, offer.y as i32), &seat.name, offer.surface.clone());
         start_dnd::<_>(
-            &dh,
-            &seat,
+            &self.server_state.display_handle.clone(),
+            &seat.server.seat.clone(),
             self,
             SERIAL_COUNTER.next_serial(),
-            // TODO
             GrabStartData {
-                focus: None,
-                button: 0,
-                location: (0.0, 0.0).into(),
+                focus: server_focus.map(|f| (f.surface, f.s_pos)),
+                button: 0x110, // assume left button
+                location: (offer.x, offer.y).into(), 
             },
             metadata,
         );
-        let pointer_event = PointerEvent {
-            surface: offer.surface,
-            kind: PointerEventKind::Enter {
-                serial: offer.serial,
-            },
-            position: (offer.x, offer.y),
-        };
-        if let Some(pointer) = pointer.as_ref() {
-            self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
-        }
-        // TODO treat it as a pointer enter
     }
 
     fn leave(

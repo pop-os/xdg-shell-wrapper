@@ -82,6 +82,7 @@ pub(crate) struct ServerSeat<W: WrapperSpace + 'static> {
     pub(crate) seat: Seat<GlobalState<W>>,
     pub(crate) selection_source: Option<WlDataSource>,
     pub(crate) dnd_source: Option<WlDataSource>,
+    pub(crate) dnd_icon: Option<WlSurface>,
 }
 
 pub(crate) struct SeatPair<W: WrapperSpace + 'static> {

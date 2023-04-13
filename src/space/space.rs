@@ -25,7 +25,7 @@ use smithay::{
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    wayland::shell::xdg::{PopupSurface, PositionerState},
+    wayland::shell::xdg::{PopupSurface, PositionerState}, utils::{Logical, Point},
 };
 
 use crate::{
@@ -100,6 +100,9 @@ pub trait WrapperSpace {
 
     /// get the client focused surface of the space
     fn get_client_focused_surface(&self) -> Rc<RefCell<ClientFocus>>;
+
+    /// get the position of a server surface
+    fn surface_location(&self, surface: &s_WlSurface) -> Option<Point<i32, Logical>>;
 
     /// setup of the space after the wayland connection is ready
     fn setup<W: WrapperSpace>(

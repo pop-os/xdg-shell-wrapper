@@ -55,6 +55,7 @@ pub(crate) struct ClientSeat {
     pub(crate) dnd_offer: Option<DragOffer>,
     pub(crate) next_selection_offer_is_mine: bool,
     pub(crate) next_dnd_offer_is_mine: bool,
+    pub(crate) dnd_icon: Option<WlSurface>,
 }
 
 impl ClientSeat {

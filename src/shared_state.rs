@@ -63,9 +63,3 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
     }
 }
 
-// TODO
-#[derive(Debug)]
-pub(crate) struct SelectedDataProvider {
-    //     pub(crate) _seat: Rc<RefCell<Option<Attached<c_wl_seat::WlSeat>>>>,
-    //     pub(crate) env_handle: Rc<OnceCell<Environment<Env>>>,
-}

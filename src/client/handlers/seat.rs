@@ -75,12 +75,14 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     dnd_offer: None,
                     next_dnd_offer_is_mine: false,
                     next_selection_offer_is_mine: false,
+                    dnd_icon: None,
                     // TODO forward touch
                 },
                 server: ServerSeat {
                     seat: new_server_seat,
                     selection_source: None,
                     dnd_source: None,
+                    dnd_icon: None,
                 }
             });
         }
@@ -126,9 +128,10 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     last_pointer_press: (0,0),
                     next_selection_offer_is_mine: false,
                     next_dnd_offer_is_mine: false,
+                    dnd_icon: None
                     // TODO forward touch
                 },
-                server: ServerSeat { seat: server, selection_source: None, dnd_source: None },
+                server: ServerSeat { seat: server, selection_source: None, dnd_source: None, dnd_icon: None },
             });
             self.server_state.seats.last_mut().unwrap()
         };
