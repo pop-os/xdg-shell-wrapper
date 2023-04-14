@@ -25,7 +25,7 @@ use smithay::{
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    wayland::shell::xdg::{PopupSurface, PositionerState}, utils::{Logical, Point},
+    wayland::shell::xdg::{PopupSurface, PositionerState},
 };
 
 use crate::{
