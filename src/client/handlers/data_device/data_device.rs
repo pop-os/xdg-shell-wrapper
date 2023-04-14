@@ -121,7 +121,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         // };
 
         let server_focus = self.space.update_pointer((offer.x as i32, offer.y as i32), &seat.name, offer.surface.clone());
-        start_dnd::<_>(
+        start_dnd::<_, ()>(
             &self.server_state.display_handle.clone(),
             &seat.server.seat.clone(),
             self,
