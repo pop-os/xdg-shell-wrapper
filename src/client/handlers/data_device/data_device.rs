@@ -152,7 +152,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             None => return,
         };
 
-        if let Some(f) = self
+        let surface = if let Some(f) = self
             .client_state
             .focused_surface
             .borrow_mut()
@@ -160,31 +160,25 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             .find(|f| f.1 == seat.name)
         {
             f.2 = FocusStatus::LastFocused(Instant::now());
-        }
-
-        let offer = match data_device.drag_offer() {
-            Some(offer) => offer,
-            None => return,
+            f.0.clone()
+        } else {
+            return;
         };
+
         set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, None);
 
-        let motion_event = PointerEvent {
-            surface: offer.surface.clone(),
-            kind: PointerEventKind::Motion {
-                time: offer.time.unwrap_or_default(),
-            },
-            position: (0.0, 0.0),
-        };
+        let duration_since = Instant::now().duration_since(self.start_time).as_millis() as u32;
+
         let leave_event = PointerEvent {
-            surface: offer.surface,
+            surface,
             kind: PointerEventKind::Motion {
-                time: offer.time.unwrap_or_default(),
+                time: duration_since,
             },
             position: (0.0, 0.0),
         };
 
         if let Some(pointer) = seat.client.ptr.clone().as_ref() {
-            self.pointer_frame(conn, qh, &pointer, &[motion_event, leave_event]);
+            self.pointer_frame(conn, qh, &pointer, &[leave_event]);
         }
     }
 
