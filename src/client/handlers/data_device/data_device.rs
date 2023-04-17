@@ -168,15 +168,23 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         };
         set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, None);
 
-        let pointer_event = PointerEvent {
-            surface: offer.surface,
-            kind: PointerEventKind::Leave {
-                serial: SERIAL_COUNTER.next_serial().into(),
+        let motion_event = PointerEvent {
+            surface: offer.surface.clone(),
+            kind: PointerEventKind::Motion {
+                time: offer.time.unwrap_or_default(),
             },
             position: (0.0, 0.0),
         };
+        let leave_event = PointerEvent {
+            surface: offer.surface,
+            kind: PointerEventKind::Motion {
+                time: offer.time.unwrap_or_default(),
+            },
+            position: (0.0, 0.0),
+        };
+
         if let Some(pointer) = seat.client.ptr.clone().as_ref() {
-            self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
+            self.pointer_frame(conn, qh, &pointer, &[motion_event, leave_event]);
         }
     }
 
@@ -212,8 +220,8 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             &seat.server.seat,
             server_focus.and_then(|f| f.surface.client()),
         );
-        let pointer_event = PointerEvent {
-            surface: offer.surface,
+        let motion_event = PointerEvent {
+            surface: offer.surface.clone(),
             kind: PointerEventKind::Motion {
                 time: offer.time.unwrap_or_default(),
             },
@@ -221,7 +229,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         };
 
         if let Some(pointer) = seat.client.ptr.clone().as_ref() {
-            self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
+            self.pointer_frame(conn, qh, &pointer, &[motion_event]);
         }
     }
 

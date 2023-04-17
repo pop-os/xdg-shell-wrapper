@@ -6,7 +6,9 @@ use sctk::data_device_manager::data_source::DataSourceHandler;
 use sctk::reexports::client::protocol::wl_data_device_manager::DndAction as ClientDndAction;
 use sctk::reexports::client::protocol::wl_data_source::WlDataSource;
 use sctk::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
+use smithay::input::pointer::{PointerGrab, Focus};
 use smithay::reexports::wayland_server::protocol::wl_data_device_manager::DndAction;
+use smithay::utils::SERIAL_COUNTER;
 
 impl<W: WrapperSpace> DataSourceHandler for GlobalState<W> {
     fn send_request(
@@ -128,6 +130,7 @@ impl<W: WrapperSpace> DataSourceHandler for GlobalState<W> {
         } else if let Some(dnd_source) = seat.server.dnd_source.take() {
             dnd_source.cancelled();
             seat.server.dnd_icon = None;
+            seat.server.seat.get_pointer().unwrap().unset_grab(self, SERIAL_COUNTER.next_serial().into(), 0);
         }
     }
 
@@ -175,6 +178,7 @@ impl<W: WrapperSpace> DataSourceHandler for GlobalState<W> {
             seat.client.dnd_icon = None;
             seat.client.dnd_source = None;
             seat.client.next_dnd_offer_is_mine = false;
+            seat.server.seat.get_pointer().unwrap().unset_grab(self, SERIAL_COUNTER.next_serial().into(), 0);
         }
     }
 
