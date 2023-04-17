@@ -1,7 +1,10 @@
 use smithay::{
     desktop::PopupManager,
     input::{Seat, SeatState},
-    reexports::wayland_server::{protocol::{wl_surface::WlSurface, wl_data_source::WlDataSource}, DisplayHandle},
+    reexports::wayland_server::{
+        protocol::{wl_data_source::WlDataSource, wl_surface::WlSurface},
+        DisplayHandle,
+    },
     utils::{Logical, Point},
     wayland::{
         compositor::CompositorState,

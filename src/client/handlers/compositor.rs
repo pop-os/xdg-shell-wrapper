@@ -29,7 +29,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             s.client
                 .dnd_icon
                 .iter()
-                .any(|dnd_icon| &dnd_icon.0 == surface)
+                .any(|dnd_icon| &dnd_icon.1 == surface)
         }) {
             seat.client.dnd_icon.as_mut().unwrap().4 = Some(time);
             self.draw_dnd_icon();

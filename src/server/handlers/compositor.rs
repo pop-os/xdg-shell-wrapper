@@ -3,9 +3,11 @@ use std::{cell::RefMut, sync::Mutex};
 use sctk::shell::WaylandSurface;
 use smithay::{
     backend::renderer::{
-        buffer_type, damage::OutputDamageTracker, utils::on_commit_buffer_handler, BufferType,
+        buffer_type, damage::OutputDamageTracker, utils::on_commit_buffer_handler, Bind,
+        BufferType, Unbind,
     },
     delegate_compositor, delegate_shm,
+    desktop::utils::bbox_from_surface_tree,
     input::pointer::CursorImageAttributes,
     reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
     utils::{Transform, SERIAL_COUNTER},
@@ -16,7 +18,7 @@ use smithay::{
             SurfaceAttributes,
         },
         shm::{ShmHandler, ShmState},
-    }, desktop::utils::bbox_from_surface_tree,
+    },
 };
 use tracing::{error, trace};
 
@@ -131,27 +133,34 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             }
         } else if role == "dnd_icon".into() {
             // render dnd icon to the active dnd icon surface
-            let seat = match self.server_state.seats.iter_mut().find(|s| s.server.dnd_icon.as_ref() == Some(surface)) {
+            on_commit_buffer_handler(surface);
+            let seat = match self
+                .server_state
+                .seats
+                .iter_mut()
+                .find(|s| s.server.dnd_icon.as_ref() == Some(surface))
+            {
                 Some(s) => s,
                 None => {
                     error!("dnd icon received, but no seat found");
                     return;
                 }
             };
-            on_commit_buffer_handler(surface);
             if let Some(c_icon) = seat.client.dnd_icon.as_mut() {
-                let size = bbox_from_surface_tree(surface, (0,0)).size;
-                c_icon.1.resize(size.w.max(1), size.h.max(1), 0, 0);
+                let size = bbox_from_surface_tree(surface, (0, 0)).size;
+                if let Some(renderer) = self.space.renderer() {
+                    let _ = renderer.bind(c_icon.0.clone());
+                    c_icon.0.resize(size.w.max(1), size.h.max(1), 0, 0);
+                    let _ = renderer.unbind();
+                }
                 c_icon.2 = OutputDamageTracker::new(
                     (size.w.max(1), size.h.max(1)),
                     1.0,
                     Transform::Flipped180,
                 );
-                c_icon.0.commit();
                 c_icon.3 = true;
+                self.draw_dnd_icon();
             }
-            self.draw_dnd_icon();
-            
         } else {
             trace!("{:?}", surface);
         }

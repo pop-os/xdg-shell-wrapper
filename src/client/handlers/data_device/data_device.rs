@@ -1,22 +1,23 @@
+use std::time::Instant;
+
 use sctk::{
     data_device_manager::{
         data_device::{DataDeviceDataExt, DataDeviceHandler},
         data_offer::{DataOfferData, DataOfferDataExt},
     },
-    reexports::client::{
-        protocol::wl_data_device_manager::DndAction as ClientDndAction,
-        Proxy,
-    },
+    reexports::client::{protocol::wl_data_device_manager::DndAction as ClientDndAction, Proxy},
     seat::pointer::{PointerEvent, PointerEventKind, PointerHandler},
 };
 use smithay::{
     input::pointer::GrabStartData,
-    reexports::wayland_server::{Resource, protocol::wl_data_device_manager::DndAction},
+    reexports::wayland_server::{protocol::wl_data_device_manager::DndAction, Resource},
     utils::SERIAL_COUNTER,
-    wayland::data_device::{set_data_device_selection, start_dnd, SourceMetadata, set_data_device_focus},
+    wayland::data_device::{
+        set_data_device_focus, set_data_device_selection, start_dnd, SourceMetadata,
+    },
 };
 
-use crate::{shared_state::GlobalState, space::WrapperSpace};
+use crate::{client_state::FocusStatus, shared_state::GlobalState, space::WrapperSpace};
 
 impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
     fn selection(
@@ -76,9 +77,14 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             None => return,
         };
 
-        if seat.client.next_dnd_offer_is_mine {
-            seat.client.next_dnd_offer_is_mine = false;
-            return;
+        if let Some(f) = self
+            .client_state
+            .focused_surface
+            .borrow_mut()
+            .iter_mut()
+            .find(|f| f.1 == seat.name)
+        {
+            f.2 = FocusStatus::Focused;
         }
 
         let offer = match data_device.drag_offer() {
@@ -107,32 +113,27 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             mime_types,
             dnd_action,
         };
+        let (x, y) = (offer.x, offer.y);
 
-        // Not sure if this will be useful
-        // let pointer_event = PointerEvent {
-        //     surface: offer.surface,
-        //     kind: PointerEventKind::Enter {
-        //         serial: offer.serial,
-        //     },
-        //     position: (offer.x, offer.y),
-        // };
-        // if let Some(pointer) = pointer.as_ref() {
-        //     self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
-        // };
+        let server_focus =
+            self.space
+                .update_pointer((x as i32, y as i32), &seat.name, offer.surface.clone());
 
-        let server_focus = self.space.update_pointer((offer.x as i32, offer.y as i32), &seat.name, offer.surface.clone());
-        start_dnd::<_, ()>(
-            &self.server_state.display_handle.clone(),
-            &seat.server.seat.clone(),
-            self,
-            SERIAL_COUNTER.next_serial(),
-            GrabStartData {
-                focus: server_focus.map(|f| (f.surface, f.s_pos)),
-                button: 0x110, // assume left button
-                location: (offer.x, offer.y).into(), 
-            },
-            metadata,
-        );
+        seat.client.dnd_offer = Some(offer);
+        if !seat.client.next_dnd_offer_is_mine {
+            start_dnd::<_, ()>(
+                &self.server_state.display_handle.clone(),
+                &seat.server.seat.clone(),
+                self,
+                SERIAL_COUNTER.next_serial(),
+                GrabStartData {
+                    focus: server_focus.map(|f| (f.surface, f.s_pos)),
+                    button: 0x110, // assume left button for now, maybe there is another way..
+                    location: (x, y).into(),
+                },
+                metadata,
+            );
+        }
     }
 
     fn leave(
@@ -141,10 +142,6 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: sctk::data_device_manager::data_device::DataDevice,
     ) {
-        // TODO stop server DnD?
-        // treat it as a pointer leave
-        //
-        //
         let seat = match self
             .server_state
             .seats
@@ -155,17 +152,28 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             None => return,
         };
 
+        if let Some(f) = self
+            .client_state
+            .focused_surface
+            .borrow_mut()
+            .iter_mut()
+            .find(|f| f.1 == seat.name)
+        {
+            f.2 = FocusStatus::LastFocused(Instant::now());
+        }
+
         let offer = match data_device.drag_offer() {
             Some(offer) => offer,
             None => return,
         };
         set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, None);
+
         let pointer_event = PointerEvent {
             surface: offer.surface,
             kind: PointerEventKind::Leave {
-                serial: offer.serial,
-            }, // would hope...
-            position: (offer.x, offer.y),
+                serial: SERIAL_COUNTER.next_serial().into(),
+            },
+            position: (0.0, 0.0),
         };
         if let Some(pointer) = seat.client.ptr.clone().as_ref() {
             self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
@@ -194,8 +202,16 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             None => return,
         };
 
-        let server_focus = self.space.update_pointer((offer.x as i32, offer.y as i32), &seat.name, offer.surface.clone());
-        set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, server_focus.and_then(|f| f.surface.client()));
+        let server_focus = self.space.update_pointer(
+            (offer.x as i32, offer.y as i32),
+            &seat.name,
+            offer.surface.clone(),
+        );
+        set_data_device_focus(
+            &self.server_state.display_handle,
+            &seat.server.seat,
+            server_focus.and_then(|f| f.surface.client()),
+        );
         let pointer_event = PointerEvent {
             surface: offer.surface,
             kind: PointerEventKind::Motion {
@@ -236,7 +252,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             kind: PointerEventKind::Release {
                 serial: offer.serial,
                 time: offer.time.unwrap_or_default(),
-                button: 1,
+                button: 0x110,
             },
             position: (offer.x, offer.y),
         };

@@ -5,10 +5,15 @@ use std::time::Duration;
 use itertools::Itertools;
 use sctk::reexports::client::protocol::wl_output as c_wl_output;
 use smithay::{
-    backend::renderer::{ImportDma, ImportEgl, Unbind, element::surface::{WaylandSurfaceRenderElement, render_elements_from_surface_tree}, gles::GlesRenderer},
+    backend::renderer::{
+        element::surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement},
+        gles::GlesRenderer,
+        Bind, ImportDma, ImportEgl, Unbind,
+    },
+    desktop::utils::send_frames_surface_tree,
     output::Output,
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
-    wayland::dmabuf::DmabufState, desktop::utils::send_frames_surface_tree,
+    wayland::dmabuf::DmabufState,
 };
 use tracing::error;
 
@@ -64,6 +69,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
         }
     }
 
+    /// draw the dnd icon if it exists and is ready
     pub fn draw_dnd_icon(&mut self) {
         // TODO proxied layer surfaces
         if let Some(dnd_icon) = self
@@ -72,7 +78,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             .iter_mut()
             .find(|s| s.client.dnd_icon.is_some() && s.server.dnd_icon.is_some())
         {
-            let (wl_surface, egl_surface, ref mut dmg_tracked_renderer, is_dirty, has_frame) =
+            let (egl_surface, wl_surface, ref mut dmg_tracked_renderer, is_dirty, has_frame) =
                 dnd_icon.client.dnd_icon.as_mut().unwrap();
             if !*is_dirty || !has_frame.is_some() {
                 return;
@@ -89,9 +95,9 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             };
             let s_icon = dnd_icon.server.dnd_icon.as_ref().unwrap();
             let _ = renderer.unbind();
+            let _ = renderer.bind(egl_surface.clone());
             let elements: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
                 render_elements_from_surface_tree(renderer, s_icon, (1, 1), 1.0);
-
             dmg_tracked_renderer
                 .render_output(
                     renderer,
@@ -108,7 +114,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             //     .swap_buffers(res.0.as_deref_mut())?;
 
             renderer.unbind().unwrap();
-            // TODO what if there is "no output"?
+            // // TODO what if there is "no output"?
             for o in &self.client_state.outputs {
                 let output = &o.1;
                 send_frames_surface_tree(
@@ -119,9 +125,8 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
                     move |_, _| Some(output.clone()),
                 );
             }
-            self.space.frame(wl_surface, time);
+            wl_surface.frame(&self.client_state.queue_handle, wl_surface.clone());
+            wl_surface.commit();
         }
-
     }
 }
-

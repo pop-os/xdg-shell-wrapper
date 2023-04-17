@@ -12,6 +12,7 @@ use sctk::{
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 pub mod compositor;
+pub mod data_device;
 pub mod keyboard;
 pub mod layer_shell;
 /// output helpers
@@ -19,7 +20,6 @@ pub mod output;
 pub mod pointer;
 pub mod seat;
 pub mod shell;
-pub mod data_device;
 
 impl<W: WrapperSpace> ShmHandler for GlobalState<W> {
     fn shm_state(&mut self) -> &mut Shm {

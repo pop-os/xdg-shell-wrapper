@@ -1,7 +1,7 @@
 use sctk::data_device_manager::data_offer::DataOfferHandler;
 use sctk::reexports::client::protocol::wl_data_device_manager::DndAction;
 
-use crate::{space::WrapperSpace, shared_state::GlobalState};
+use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 impl<W: WrapperSpace> DataOfferHandler for GlobalState<W> {
     fn offer(

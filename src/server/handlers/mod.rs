@@ -9,7 +9,10 @@ use sctk::{
     reexports::client::{protocol::wl_data_device_manager::DndAction as ClientDndAction, Proxy},
 };
 use smithay::{
-    backend::{egl::{EGLSurface, EGLDisplay}, renderer::{ImportDma, damage::OutputDamageTracker}},
+    backend::{
+        egl::EGLSurface,
+        renderer::{damage::OutputDamageTracker, ImportDma},
+    },
     delegate_data_device, delegate_dmabuf, delegate_output, delegate_primary_selection,
     delegate_seat,
     input::{Seat, SeatHandler, SeatState},
@@ -19,6 +22,7 @@ use smithay::{
         },
         Resource,
     },
+    utils::Transform,
     wayland::{
         data_device::{
             set_data_device_focus, with_source_metadata, ClientDndGrabHandler, DataDeviceHandler,
@@ -26,13 +30,13 @@ use smithay::{
         },
         dmabuf::{DmabufHandler, ImportError},
         primary_selection::{set_primary_focus, PrimarySelectionHandler, PrimarySelectionState},
-    }, utils::Transform,
+    },
 };
 use wayland_egl::WlEglSurface;
 
 use crate::{
     shared_state::GlobalState,
-    space::{ClientEglSurface, WrapperSpace, ClientEglDisplay},
+    space::{ClientEglSurface, WrapperSpace},
 };
 
 pub(crate) mod compositor;
@@ -196,6 +200,7 @@ impl<W: WrapperSpace> ClientDndGrabHandler for GlobalState<W> {
                 );
                 if let Some(client_surface) = c_icon_surface.as_ref() {
                     client_surface.frame(&self.client_state.queue_handle, client_surface.clone());
+                    client_surface.commit();
                     let renderer = if let Some(r) = self.space.renderer() {
                         r
                     } else {
@@ -208,14 +213,10 @@ impl<W: WrapperSpace> ClientDndGrabHandler for GlobalState<W> {
                             client_surface.clone(),
                         )
                     };
-                    let egl_display = EGLDisplay::new(ClientEglDisplay {
-                        display: self.client_state.connection.display(),
-                    })
-                    .expect("Failed to create EGL display");
 
                     let egl_surface = Rc::new(
                         EGLSurface::new(
-                            &egl_display,
+                            &renderer.egl_context().display(),
                             renderer
                                 .egl_context()
                                 .pixel_format()
@@ -227,22 +228,36 @@ impl<W: WrapperSpace> ClientDndGrabHandler for GlobalState<W> {
                     );
 
                     seat.client.dnd_icon = Some((
-                        client_surface.clone(),
                         egl_surface,
-                        OutputDamageTracker::new(
-                            (1, 1),
-                            1.0,
-                            Transform::Flipped180,
-                        ),
+                        client_surface.clone(),
+                        OutputDamageTracker::new((1, 1), 1.0, Transform::Flipped180),
                         false,
-                        None,
+                        Some(0),
                     ));
                 }
             }
             seat.client.dnd_source = Some(dnd_source);
         }
+
         seat.server.dnd_source = source;
         seat.server.dnd_icon = icon;
+    }
+
+    fn dropped(&mut self, seat: Seat<Self>) {
+        let seat = match self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|s| s.server.seat == seat)
+        {
+            Some(s) => s,
+            None => return,
+        };
+        // XXX is this correct?
+        seat.server.dnd_source = None;
+        seat.server.dnd_icon = None;
+        seat.client.dnd_icon = None;
+        seat.client.dnd_source = None;
     }
 }
 impl<W: WrapperSpace> ServerDndGrabHandler for GlobalState<W> {

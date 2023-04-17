@@ -25,27 +25,29 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
         let start_time = self.start_time;
         let time = start_time.elapsed().as_millis();
 
-        let (seat_name, ptr, kbd) = if let Some((name, Some(ptr), Some(kbd))) = self
+        let seat_index = self
             .server_state
             .seats
             .iter()
-            .find(|SeatPair { client, .. }| {
+            .position(|SeatPair { client, .. }| {
                 client.ptr.as_ref().map(|p| p == pointer).unwrap_or(false)
             })
-            .map(|seat| {
-                let ret = (
-                    seat.name.as_str(),
-                    seat.server.seat.get_pointer(),
-                    seat.server.seat.get_keyboard(),
-                );
-                ret
-            }) {
-            (name.to_string(), ptr, kbd)
-        } else {
-            return;
-        };
-
+            .unwrap();
+        let seat = &self.server_state.seats[seat_index].server.seat;
+        let seat_name = self.server_state.seats[seat_index].name.to_string();
+        let ptr = self.server_state.seats[seat_index]
+            .server
+            .seat
+            .get_pointer()
+            .unwrap();
+        let kbd = self.server_state.seats[seat_index]
+            .server
+            .seat
+            .get_keyboard()
+            .unwrap();
+        drop(seat);
         for e in events {
+            let seat = &mut self.server_state.seats[seat_index];
             match e.kind {
                 sctk::seat::pointer::PointerEventKind::Leave { .. } => {
                     if let Some((..)) = self
@@ -232,8 +234,14 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         );
                     }
                 }
-                sctk::seat::pointer::PointerEventKind::Press { time, button, .. } => {
+                sctk::seat::pointer::PointerEventKind::Press {
+                    time,
+                    button,
+                    serial,
+                    ..
+                } => {
                     self.server_state.last_button.replace(button);
+                    seat.client.last_pointer_press = (serial, time);
 
                     // check tracked layer shell surface
                     let s_surface = self
