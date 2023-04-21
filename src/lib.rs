@@ -102,7 +102,7 @@ pub fn run<W: WrapperSpace + 'static>(
                     .iter()
                     .find(|s| s.name == global_state.client_state.last_key_pressed[key_pressed].0)
                     .and_then(|s| {
-                        s.server.get_keyboard().map(|kbd| {
+                        s.server.seat.get_keyboard().map(|kbd| {
                             (
                                 global_state
                                     .client_state
@@ -144,30 +144,20 @@ pub fn run<W: WrapperSpace + 'static>(
                 &s_dh,
                 &global_state.client_state.queue_handle,
                 &mut global_state.server_state.popup_manager,
-                global_state
-                    .start_time
-                    .elapsed()
-                    .as_millis()
-                    .try_into()
-                    .unwrap(),
+                global_state.start_time.elapsed().as_millis().try_into()?,
             );
         }
         if let Some(renderer) = global_state.space.renderer() {
             global_state.client_state.draw_layer_surfaces(
                 renderer,
-                global_state
-                    .start_time
-                    .elapsed()
-                    .as_millis()
-                    .try_into()
-                    .unwrap(),
+                global_state.start_time.elapsed().as_millis().try_into()?,
             );
         }
 
         // dispatch server events
         {
-            server_display.dispatch_clients(&mut global_state).unwrap();
-            server_display.flush_clients().unwrap();
+            server_display.dispatch_clients(&mut global_state)?;
+            server_display.flush_clients()?;
         }
     }
 }

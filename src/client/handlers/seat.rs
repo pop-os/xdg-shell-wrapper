@@ -7,7 +7,9 @@ use sctk::{
 };
 
 use crate::{
-    client_state::ClientSeat, server_state::SeatPair, shared_state::GlobalState,
+    client_state::ClientSeat,
+    server_state::{SeatPair, ServerSeat},
+    shared_state::GlobalState,
     space::WrapperSpace,
 };
 
@@ -59,15 +61,34 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                 .unwrap();
             new_server_seat.add_pointer();
 
+            let data_device = self
+                .client_state
+                .data_device_manager
+                .get_data_device(qh, &seat);
             self.server_state.seats.push(SeatPair {
                 name,
                 client: ClientSeat {
                     _seat: seat.clone(),
                     kbd,
                     ptr,
+                    data_device,
+                    copy_paste_source: None,
+                    dnd_source: None,
+                    last_key_press: (0, 0),
+                    last_pointer_press: (0, 0),
+                    selection_offer: None,
+                    dnd_offer: None,
+                    next_dnd_offer_is_mine: false,
+                    next_selection_offer_is_mine: false,
+                    dnd_icon: None,
                     // TODO forward touch
                 },
-                server: new_server_seat,
+                server: ServerSeat {
+                    seat: new_server_seat,
+                    selection_source: None,
+                    dnd_source: None,
+                    dnd_icon: None,
+                },
             });
         }
     }
@@ -103,9 +124,26 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     _seat: seat.clone(),
                     kbd: None,
                     ptr: None,
-                    // TODO forward touch
+                    data_device: self
+                        .client_state
+                        .data_device_manager
+                        .get_data_device(qh, &seat),
+                    copy_paste_source: None,
+                    dnd_source: None,
+                    selection_offer: None,
+                    dnd_offer: None,
+                    last_key_press: (0, 0),
+                    last_pointer_press: (0, 0),
+                    next_selection_offer_is_mine: false,
+                    next_dnd_offer_is_mine: false,
+                    dnd_icon: None, // TODO forward touch
                 },
-                server,
+                server: ServerSeat {
+                    seat: server,
+                    selection_source: None,
+                    dnd_source: None,
+                    dnd_icon: None,
+                },
             });
             self.server_state.seats.last_mut().unwrap()
         };
@@ -113,7 +151,10 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         match capability {
             sctk::seat::Capability::Keyboard => {
                 if info.has_keyboard {
-                    sp.server.add_keyboard(Default::default(), 200, 20).unwrap();
+                    sp.server
+                        .seat
+                        .add_keyboard(Default::default(), 200, 20)
+                        .unwrap();
                     if let Ok(kbd) = self.client_state.seat_state.get_keyboard(qh, &seat, None) {
                         sp.client.kbd.replace(kbd);
                     }
@@ -121,7 +162,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             }
             sctk::seat::Capability::Pointer => {
                 if info.has_pointer {
-                    sp.server.add_pointer();
+                    sp.server.seat.add_pointer();
                     if let Ok(ptr) = self.client_state.seat_state.get_pointer(qh, &seat) {
                         sp.client.ptr.replace(ptr);
                     }
@@ -151,10 +192,10 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         };
         match capability {
             sctk::seat::Capability::Keyboard => {
-                sp.server.remove_keyboard();
+                sp.server.seat.remove_keyboard();
             }
             sctk::seat::Capability::Pointer => {
-                sp.server.remove_pointer();
+                sp.server.seat.remove_pointer();
             }
             sctk::seat::Capability::Touch => {} // TODO
             _ => unimplemented!(),

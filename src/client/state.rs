@@ -1,6 +1,10 @@
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
+use sctk::data_device_manager::data_device::DataDevice;
+use sctk::data_device_manager::data_offer::{DragOffer, SelectionOffer};
+use sctk::data_device_manager::data_source::{CopyPasteSource, DragSource};
+use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::reexports::client::WaylandSource;
 use sctk::shell::wlr_layer::LayerSurface;
 use sctk::shell::{wlr_layer::LayerShell, xdg::XdgShell};
@@ -26,7 +30,7 @@ use sctk::{
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::AsRenderElements;
-use smithay::backend::renderer::gles2::Gles2Renderer;
+use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::renderer::{Bind, Unbind};
 use smithay::{
     backend::egl::EGLSurface,
@@ -42,6 +46,34 @@ pub(crate) struct ClientSeat {
     pub(crate) _seat: WlSeat,
     pub(crate) kbd: Option<wl_keyboard::WlKeyboard>,
     pub(crate) ptr: Option<wl_pointer::WlPointer>,
+    pub(crate) last_key_press: (u32, u32),
+    pub(crate) last_pointer_press: (u32, u32),
+    pub(crate) data_device: DataDevice,
+    pub(crate) copy_paste_source: Option<CopyPasteSource>,
+    pub(crate) dnd_source: Option<DragSource>,
+    pub(crate) selection_offer: Option<SelectionOffer>,
+    pub(crate) dnd_offer: Option<DragOffer>,
+    pub(crate) next_selection_offer_is_mine: bool,
+    pub(crate) next_dnd_offer_is_mine: bool,
+    pub(crate) dnd_icon: Option<(
+        Rc<EGLSurface>,
+        WlSurface,
+        OutputDamageTracker,
+        bool,
+        Option<u32>,
+    )>,
+}
+
+impl ClientSeat {
+    pub fn get_serial_of_last_seat_event(&self) -> u32 {
+        let (key_serial, key_time) = self.last_key_press;
+        let (pointer_serial, pointer_time) = self.last_pointer_press;
+        if key_time > pointer_time {
+            key_serial
+        } else {
+            pointer_serial
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -73,6 +105,8 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub xdg_shell_state: XdgShell,
     /// state
     pub layer_state: LayerShell,
+    /// data device manager state
+    pub data_device_manager: DataDeviceManagerState,
 
     pub(crate) connection: Connection,
     /// queue handle
@@ -131,7 +165,8 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             shm_state: Shm::bind(&globals, &qh).expect("wl_shm not available"),
             xdg_shell_state: XdgShell::bind(&globals, &qh).expect("xdg shell not available"),
             layer_state: LayerShell::bind(&globals, &qh).expect("layer shell is not available"),
-
+            data_device_manager: DataDeviceManagerState::bind(&globals, &qh)
+                .expect("data device manager is not available"),
             outputs: Default::default(),
             registry_state,
             multipool: None,
@@ -149,7 +184,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
     }
 
     /// draw the proxied layer shell surfaces
-    pub fn draw_layer_surfaces(&mut self, renderer: &mut Gles2Renderer, time: u32) {
+    pub fn draw_layer_surfaces(&mut self, renderer: &mut GlesRenderer, time: u32) {
         let clear_color = &[0.0, 0.0, 0.0, 0.0];
         for (egl_surface, dmg_tracked_renderer, s_layer, c_layer, state) in
             &mut self.proxied_layer_surfaces
@@ -161,7 +196,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             };
             let _ = renderer.unbind();
             let _ = renderer.bind(egl_surface.clone());
-            let elements: Vec<WaylandSurfaceRenderElement<Gles2Renderer>> =
+            let elements: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
                 s_layer.render_elements(renderer, (0, 0).into(), 1.0.into());
             dmg_tracked_renderer
                 .render_output(

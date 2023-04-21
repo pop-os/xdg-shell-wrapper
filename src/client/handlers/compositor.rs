@@ -24,6 +24,17 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         surface: &wl_surface::WlSurface,
         time: u32,
     ) {
-        self.space.frame(surface, time);
+        // TODO proxied layer surfaces
+        if let Some(seat) = self.server_state.seats.iter_mut().find(|s| {
+            s.client
+                .dnd_icon
+                .iter()
+                .any(|dnd_icon| &dnd_icon.1 == surface)
+        }) {
+            seat.client.dnd_icon.as_mut().unwrap().4 = Some(time);
+            self.draw_dnd_icon();
+        } else {
+            self.space.frame(surface, time);
+        }
     }
 }

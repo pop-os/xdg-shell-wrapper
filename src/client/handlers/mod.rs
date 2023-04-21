@@ -12,6 +12,7 @@ use sctk::{
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 pub mod compositor;
+pub mod data_device;
 pub mod keyboard;
 pub mod layer_shell;
 /// output helpers

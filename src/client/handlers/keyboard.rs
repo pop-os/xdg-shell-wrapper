@@ -29,7 +29,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
         {
             (name.to_string(), kbd)
         } else {
@@ -84,7 +84,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
         {
             (name.to_string(), kbd)
         } else {
@@ -120,18 +120,24 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         _conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
         keyboard: &sctk::reexports::client::protocol::wl_keyboard::WlKeyboard,
-        _serial: u32,
+        serial: u32,
         event: sctk::seat::keyboard::KeyEvent,
     ) {
-        let (seat_name, kbd) = if let Some((name, Some(kbd))) = self
+        let (seat_name, kbd) = if let Some((name, Some(kbd), last_key_pressed)) = self
             .server_state
             .seats
-            .iter()
+            .iter_mut()
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
-        {
+            .map(|seat| {
+                (
+                    seat.name.as_str(),
+                    seat.server.seat.get_keyboard(),
+                    &mut seat.client.last_key_press,
+                )
+            }) {
+            *last_key_pressed = (serial, event.time);
             (name.to_string(), kbd)
         } else {
             return;
@@ -180,7 +186,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .find(|SeatPair { client, .. }| {
                 client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
             })
-            .map(|seat| (seat.name.as_str(), seat.server.get_keyboard()))
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
         {
             (name.to_string(), kbd)
         } else {
@@ -215,7 +221,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
                 .find_map(|SeatPair { client, server, .. }| {
                     client.kbd.as_ref().and_then(|k| {
                         if k == kbd {
-                            server.get_keyboard()
+                            server.seat.get_keyboard()
                         } else {
                             None
                         }

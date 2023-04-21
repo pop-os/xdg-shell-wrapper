@@ -1,7 +1,10 @@
 use smithay::{
     desktop::PopupManager,
     input::{Seat, SeatState},
-    reexports::wayland_server::{protocol::wl_surface::WlSurface, DisplayHandle},
+    reexports::wayland_server::{
+        protocol::{wl_data_source::WlDataSource, wl_surface::WlSurface},
+        DisplayHandle,
+    },
     utils::{Logical, Point},
     wayland::{
         compositor::CompositorState,
@@ -78,8 +81,15 @@ impl<W: WrapperSpace> ServerState<W> {
     }
 }
 
+pub(crate) struct ServerSeat<W: WrapperSpace + 'static> {
+    pub(crate) seat: Seat<GlobalState<W>>,
+    pub(crate) selection_source: Option<WlDataSource>,
+    pub(crate) dnd_source: Option<WlDataSource>,
+    pub(crate) dnd_icon: Option<WlSurface>,
+}
+
 pub(crate) struct SeatPair<W: WrapperSpace + 'static> {
     pub(crate) name: String,
     pub(crate) client: ClientSeat,
-    pub(crate) server: Seat<GlobalState<W>>,
+    pub(crate) server: ServerSeat<W>,
 }
