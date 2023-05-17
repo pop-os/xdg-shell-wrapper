@@ -32,6 +32,8 @@ use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::AsRenderElements;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::renderer::{Bind, Unbind};
+use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
+use smithay::wayland::compositor::CompositorClientState;
 use smithay::{
     backend::egl::EGLSurface,
     desktop::LayerSurface as SmithayLayerSurface,
@@ -129,6 +131,19 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     )>,
 }
 
+#[derive(Debug, Default)]
+/// client compositor state
+pub struct WrapperClientCompositorState {
+    /// compositor state
+    pub compositor_state: CompositorClientState,
+}
+impl ClientData for WrapperClientCompositorState {
+    /// Notification that a client was initialized
+    fn initialized(&self, _client_id: ClientId) {}
+    /// Notification that a client is disconnected
+    fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SurfaceState {
     WaitingFirst,
@@ -197,7 +212,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             let _ = renderer.unbind();
             let _ = renderer.bind(egl_surface.clone());
             let elements: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
-                s_layer.render_elements(renderer, (0, 0).into(), 1.0.into());
+                s_layer.render_elements(renderer, (0, 0).into(), 1.0.into(), 1.0);
             dmg_tracked_renderer
                 .render_output(
                     renderer,

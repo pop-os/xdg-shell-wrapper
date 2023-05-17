@@ -121,7 +121,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
 
         seat.client.dnd_offer = Some(offer);
         if !seat.client.next_dnd_offer_is_mine {
-            start_dnd::<_, ()>(
+            start_dnd(
                 &self.server_state.display_handle.clone(),
                 &seat.server.seat.clone(),
                 self,

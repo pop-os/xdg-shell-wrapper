@@ -6,7 +6,6 @@ use sctk::data_device_manager::data_source::DataSourceHandler;
 use sctk::reexports::client::protocol::wl_data_device_manager::DndAction as ClientDndAction;
 use sctk::reexports::client::protocol::wl_data_source::WlDataSource;
 use sctk::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
-use smithay::input::pointer::{Focus, PointerGrab};
 use smithay::reexports::wayland_server::protocol::wl_data_device_manager::DndAction;
 use smithay::utils::SERIAL_COUNTER;
 

@@ -23,8 +23,11 @@ use smithay::{
 use tracing::{error, trace};
 
 use crate::{
-    client_state::SurfaceState, server_state::SeatPair, shared_state::GlobalState,
-    space::WrapperSpace, util::write_and_attach_buffer,
+    client_state::{SurfaceState, WrapperClientCompositorState},
+    server_state::SeatPair,
+    shared_state::GlobalState,
+    space::WrapperSpace,
+    util::write_and_attach_buffer,
 };
 
 impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
@@ -38,10 +41,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         trace!("role: {:?} surface: {:?}", &role, &surface);
 
         if role == "xdg_toplevel".into() {
-            on_commit_buffer_handler(surface);
+            on_commit_buffer_handler::<GlobalState<W>>(surface);
             self.space.dirty_window(&dh, surface)
         } else if role == "xdg_popup".into() {
-            on_commit_buffer_handler(surface);
+            on_commit_buffer_handler::<GlobalState<W>>(surface);
             self.server_state.popup_manager.commit(surface);
             self.space.dirty_popup(&dh, surface);
         } else if role == "cursor_image".into() {
@@ -106,7 +109,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 .find(|s| s.2.wl_surface() == surface)
             {
                 let old_size = s_layer_surface.bbox().size;
-                on_commit_buffer_handler(surface);
+                on_commit_buffer_handler::<GlobalState<W>>(surface);
 
                 // s_layer_surface.layer_surface().ensure_configured();
                 let size = s_layer_surface.bbox().size;
@@ -133,7 +136,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             }
         } else if role == "dnd_icon".into() {
             // render dnd icon to the active dnd icon surface
-            on_commit_buffer_handler(surface);
+            on_commit_buffer_handler::<GlobalState<W>>(surface);
             let seat = match self
                 .server_state
                 .seats
@@ -164,6 +167,16 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         } else {
             trace!("{:?}", surface);
         }
+    }
+
+    fn client_compositor_state<'a>(
+        &self,
+        client: &'a smithay::reexports::wayland_server::Client,
+    ) -> &'a smithay::wayland::compositor::CompositorClientState {
+        &client
+            .get_data::<WrapperClientCompositorState>()
+            .unwrap()
+            .compositor_state
     }
 }
 

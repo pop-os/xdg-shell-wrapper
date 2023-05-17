@@ -97,7 +97,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             let _ = renderer.unbind();
             let _ = renderer.bind(egl_surface.clone());
             let elements: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
-                render_elements_from_surface_tree(renderer, s_icon, (1, 1), 1.0);
+                render_elements_from_surface_tree(renderer, s_icon, (1, 1), 1.0, 1.0);
             dmg_tracked_renderer
                 .render_output(
                     renderer,

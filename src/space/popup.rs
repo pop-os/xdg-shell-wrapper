@@ -74,7 +74,7 @@ impl WrapperPopup {
             popup_manager.commit(self.s_surface.wl_surface());
             self.dirty = true;
             self.rectangle = Rectangle::from_loc_and_size((x, y), (width, height));
-            self.state.take();
+            self.state = None;
         };
         self.s_surface.alive()
     }

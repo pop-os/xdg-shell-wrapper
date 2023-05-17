@@ -13,7 +13,7 @@ use std::{
 use shlex::Shlex;
 use smithay::reexports::{
     nix::fcntl,
-    wayland_server::{self, backend::ClientData, Client},
+    wayland_server::{self, Client},
 };
 // SPDX-License-Identifier: MPL-2.0
 use anyhow::{bail, Result};
@@ -29,6 +29,8 @@ use smithay::{
     },
 };
 use tracing::trace;
+
+use crate::client_state::WrapperClientCompositorState;
 
 use super::WrapperSpace;
 
@@ -51,24 +53,15 @@ pub fn get_client_sock(display: &mut wayland_server::DisplayHandle) -> (Client, 
 
     (
         display
-            .insert_client(display_sock, Arc::new(WrapperClientData {}))
+            .insert_client(
+                display_sock,
+                Arc::new(WrapperClientCompositorState {
+                    compositor_state: Default::default(),
+                }),
+            )
             .unwrap(),
         client_sock,
     )
-}
-
-/// data for wrapper clients
-#[derive(Debug)]
-pub struct WrapperClientData {}
-impl ClientData for WrapperClientData {
-    fn initialized(&self, _client_id: wayland_server::backend::ClientId) {}
-
-    fn disconnected(
-        &self,
-        _client_id: wayland_server::backend::ClientId,
-        _reason: wayland_server::backend::DisconnectReason,
-    ) {
-    }
 }
 
 /// helper function for launching a wrapped applet
