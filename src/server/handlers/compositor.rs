@@ -9,7 +9,7 @@ use smithay::{
     delegate_compositor, delegate_shm,
     desktop::utils::bbox_from_surface_tree,
     input::pointer::CursorImageAttributes,
-    reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
+    reexports::wayland_server::{protocol::{wl_buffer, wl_surface::WlSurface}, Resource},
     utils::{Transform, SERIAL_COUNTER},
     wayland::{
         buffer::BufferHandler,
@@ -177,6 +177,13 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             .get_data::<WrapperClientCompositorState>()
             .unwrap()
             .compositor_state
+    }
+
+    fn destroyed(&mut self, _surface: &WlSurface) {
+        // cleanup proxied surfaces
+        self.client_state
+            .proxied_layer_surfaces
+            .retain(|s| s.2.wl_surface().is_alive());
     }
 }
 
