@@ -38,7 +38,10 @@ use smithay::{
     backend::egl::EGLSurface,
     desktop::LayerSurface as SmithayLayerSurface,
     output::Output,
-    reexports::{calloop, wayland_server::backend::GlobalId},
+    reexports::{
+        calloop,
+        wayland_server::{backend::GlobalId, protocol::wl_output},
+    },
 };
 
 use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
@@ -122,6 +125,11 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub(crate) last_key_pressed: Vec<(String, (u32, u32), wl_surface::WlSurface)>,
     pub(crate) outputs: Vec<(WlOutput, Output, GlobalId)>,
 
+    pub(crate) pending_layer_surfaces: Vec<(
+        smithay::wayland::shell::wlr_layer::LayerSurface,
+        Option<wl_output::WlOutput>,
+        String,
+    )>,
     pub(crate) proxied_layer_surfaces: Vec<(
         Rc<EGLSurface>,
         OutputDamageTracker,
@@ -170,6 +178,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             focused_surface: space.get_client_focused_surface(),
             hovered_surface: space.get_client_hovered_surface(),
             proxied_layer_surfaces: Vec::new(),
+            pending_layer_surfaces: Vec::new(),
 
             queue_handle: qh.clone(),
             connection,

@@ -1,15 +1,26 @@
-use std::{cell::RefMut, sync::Mutex};
+use std::{cell::RefMut, rc::Rc, sync::Mutex};
 
-use sctk::shell::WaylandSurface;
+use sctk::reexports::client::Proxy;
+use sctk::shell::{
+    wlr_layer::{self, Anchor, KeyboardInteractivity},
+    WaylandSurface,
+};
 use smithay::{
-    backend::renderer::{
-        buffer_type, damage::OutputDamageTracker, utils::on_commit_buffer_handler, Bind,
-        BufferType, Unbind,
+    backend::{
+        egl::EGLSurface,
+        renderer::{
+            buffer_type, damage::OutputDamageTracker, utils::on_commit_buffer_handler, Bind,
+            BufferType, Unbind,
+        },
     },
     delegate_compositor, delegate_shm,
     desktop::utils::bbox_from_surface_tree,
+    desktop::LayerSurface as SmithayLayerSurface,
     input::pointer::CursorImageAttributes,
-    reexports::wayland_server::{protocol::{wl_buffer, wl_surface::WlSurface}, Resource},
+    reexports::wayland_server::{
+        protocol::{wl_buffer, wl_surface::WlSurface},
+        Resource,
+    },
     utils::{Transform, SERIAL_COUNTER},
     wayland::{
         buffer::BufferHandler,
@@ -17,16 +28,18 @@ use smithay::{
             get_role, with_states, BufferAssignment, CompositorHandler, CompositorState,
             SurfaceAttributes,
         },
+        shell::wlr_layer::{ExclusiveZone, Layer},
         shm::{ShmHandler, ShmState},
     },
 };
 use tracing::{error, trace};
+use wayland_egl::WlEglSurface;
 
 use crate::{
     client_state::{SurfaceState, WrapperClientCompositorState},
     server_state::SeatPair,
     shared_state::GlobalState,
-    space::WrapperSpace,
+    space::{ClientEglSurface, WrapperSpace},
     util::write_and_attach_buffer,
 };
 
@@ -102,6 +115,125 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 }
             }
         } else if role == "zwlr_layer_surface_v1".into() {
+            if let Some(pos) = self
+                .client_state
+                .pending_layer_surfaces
+                .iter()
+                .position(|s| s.0.wl_surface() == surface)
+            {
+                let (surface, output, namespace) =
+                    self.client_state.pending_layer_surfaces.swap_remove(pos);
+                // layer created by client
+                // request received here
+                // layer created in compositor & tracked by xdg-shell-wrapper in its own space that spans all outputs
+                // get renderer from wrapper space and draw to it
+                let renderer = match self.space.renderer() {
+                    Some(r) => r,
+                    None => return,
+                };
+                let mut size = surface.with_pending_state(|s| s.size).unwrap_or_default();
+                let server_surface = SmithayLayerSurface::new(surface, namespace.clone());
+                let state = server_surface.cached_state();
+                let anchor = Anchor::from_bits(state.anchor.bits());
+
+                if !state.anchor.anchored_horizontally() {
+                    size.w = 1.max(size.w);
+                }
+                if !state.anchor.anchored_vertically() {
+                    size.h = 1.max(size.h);
+                }
+
+                let output = self.client_state.outputs.iter().find(|o| {
+                    output
+                        .as_ref()
+                        .map(|output| o.1.owns(&output))
+                        .unwrap_or_default()
+                });
+                let surface = self
+                    .client_state
+                    .compositor_state
+                    .create_surface(&self.client_state.queue_handle);
+
+                let exclusive_zone = match state.exclusive_zone {
+                    ExclusiveZone::Exclusive(area) => area as i32,
+                    ExclusiveZone::Neutral => 0,
+                    ExclusiveZone::DontCare => -1,
+                };
+                let layer = match server_surface.layer() {
+                    Layer::Background => wlr_layer::Layer::Background,
+                    Layer::Bottom => wlr_layer::Layer::Bottom,
+                    Layer::Top => wlr_layer::Layer::Top,
+                    Layer::Overlay => wlr_layer::Layer::Overlay,
+                };
+                let interactivity = match state.keyboard_interactivity {
+                    smithay::wayland::shell::wlr_layer::KeyboardInteractivity::None => {
+                        KeyboardInteractivity::None
+                    }
+                    smithay::wayland::shell::wlr_layer::KeyboardInteractivity::Exclusive => {
+                        KeyboardInteractivity::Exclusive
+                    }
+                    smithay::wayland::shell::wlr_layer::KeyboardInteractivity::OnDemand => {
+                        KeyboardInteractivity::OnDemand
+                    }
+                };
+                let client_surface = self.client_state.layer_state.create_layer_surface(
+                    &self.client_state.queue_handle,
+                    surface,
+                    layer,
+                    Some(namespace),
+                    output.as_ref().map(|o| &o.0),
+                );
+                client_surface.set_margin(
+                    state.margin.top,
+                    state.margin.right,
+                    state.margin.bottom,
+                    state.margin.left,
+                );
+                client_surface.set_keyboard_interactivity(interactivity);
+                client_surface.set_size(size.w as u32, size.h as u32);
+                client_surface.set_exclusive_zone(exclusive_zone);
+                if let Some(anchor) = anchor {
+                    client_surface.set_anchor(anchor);
+                }
+
+                client_surface.commit();
+                let client_egl_surface = unsafe {
+                    ClientEglSurface::new(
+                        WlEglSurface::new(
+                            client_surface.wl_surface().id(),
+                            size.w.max(1),
+                            size.h.max(1),
+                        )
+                        .unwrap(), // TODO remove unwrap
+                        client_surface.wl_surface().clone(),
+                    )
+                };
+
+                let egl_surface = Rc::new(
+                    EGLSurface::new(
+                        &renderer.egl_context().display(),
+                        renderer
+                            .egl_context()
+                            .pixel_format()
+                            .expect("Failed to get pixel format from EGL context "),
+                        renderer.egl_context().config_id(),
+                        client_egl_surface,
+                    )
+                    .expect("Failed to create EGL Surface"),
+                );
+
+                self.client_state.proxied_layer_surfaces.push((
+                    egl_surface,
+                    OutputDamageTracker::new(
+                        (size.w.max(1), size.h.max(1)),
+                        1.0,
+                        Transform::Flipped180,
+                    ),
+                    server_surface,
+                    client_surface,
+                    SurfaceState::Waiting,
+                ));
+            }
             if let Some((egl_surface, renderer, s_layer_surface, c_layer_surface, state)) = self
                 .client_state
                 .proxied_layer_surfaces
@@ -177,13 +309,6 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             .get_data::<WrapperClientCompositorState>()
             .unwrap()
             .compositor_state
-    }
-
-    fn destroyed(&mut self, _surface: &WlSurface) {
-        // cleanup proxied surfaces
-        self.client_state
-            .proxied_layer_surfaces
-            .retain(|s| s.2.wl_surface().is_alive());
     }
 }
 
