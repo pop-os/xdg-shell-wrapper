@@ -9,7 +9,7 @@ use anyhow::Result;
 use sctk::{reexports::client::Proxy, shm::multi::MultiPool};
 use smithay::{
     backend::input::KeyState, input::keyboard::FilterResult, reexports::calloop,
-    utils::SERIAL_COUNTER,
+    reexports::wayland_server::Resource, utils::SERIAL_COUNTER,
 };
 
 use client::state::ClientState;
@@ -128,6 +128,11 @@ pub fn run<W: WrapperSpace + 'static>(
             );
         }
 
+        // cleanup dead surfaces
+        global_state
+            .client_state
+            .proxied_layer_surfaces
+            .retain(|s| s.2.wl_surface().is_alive());
         // dispatch desktop client events
         let dur = if matches!(global_state.space.visibility(), Visibility::Hidden) {
             Duration::from_millis(100)

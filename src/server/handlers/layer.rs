@@ -122,14 +122,10 @@ impl<W: WrapperSpace> WlrLayerShellHandler for GlobalState<W> {
                 client_surface.wl_surface().clone(),
             )
         };
-        let egl_display = EGLDisplay::new(ClientEglDisplay {
-            display: self.client_state.connection.display(),
-        })
-        .expect("Failed to create EGL display");
 
         let egl_surface = Rc::new(
             EGLSurface::new(
-                &egl_display,
+                &renderer.egl_context().display(),
                 renderer
                     .egl_context()
                     .pixel_format()

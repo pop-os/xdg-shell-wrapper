@@ -111,8 +111,8 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             if !s_surface {
                 self.space.keyboard_leave(&name, Some(surface.clone()));
             }
-            kbd.set_focus(self, None, SERIAL_COUNTER.next_serial());
         }
+        kbd.set_focus(self, None, SERIAL_COUNTER.next_serial());
     }
 
     fn press_key(

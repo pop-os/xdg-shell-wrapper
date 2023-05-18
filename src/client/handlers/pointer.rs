@@ -119,7 +119,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     if let Some(s_surface) = s_surface {
                         ptr.motion(
                             self,
-                            Some((s_surface, Point::from((surface_x as i32, surface_y as i32)))),
+                            Some((s_surface, Point::default())),
                             &MotionEvent {
                                 location: Point::from((surface_x, surface_y)),
                                 serial: SERIAL_COUNTER.next_serial(),
@@ -193,7 +193,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     if let Some(s_surface) = s_surface {
                         ptr.motion(
                             self,
-                            Some((s_surface, Point::from((surface_x as i32, surface_y as i32)))),
+                            Some((s_surface, Point::default())),
                             &MotionEvent {
                                 location: Point::from((surface_x, surface_y)),
                                 serial: SERIAL_COUNTER.next_serial(),
@@ -242,7 +242,6 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                 } => {
                     self.server_state.last_button.replace(button);
                     seat.client.last_pointer_press = (serial, time);
-
                     // check tracked layer shell surface
                     let s_surface = self
                         .client_state
