@@ -232,9 +232,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     server_surface,
                     client_surface,
                     SurfaceState::Waiting,
+                    1.0
                 ));
             }
-            if let Some((egl_surface, renderer, s_layer_surface, c_layer_surface, state)) = self
+            if let Some((egl_surface, renderer, s_layer_surface, c_layer_surface, state, _)) = self
                 .client_state
                 .proxied_layer_surfaces
                 .iter_mut()

@@ -25,12 +25,12 @@ use smithay::{
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    wayland::shell::xdg::{PopupSurface, PositionerState},
+    wayland::{shell::xdg::{PopupSurface, PositionerState},},
 };
 
 use crate::{
     client_state::ClientFocus, config::WrapperConfig, server_state::ServerPointerFocus,
-    shared_state::GlobalState,
+    shared_state::GlobalState, client::handlers::{wp_fractional_scaling::FractionalScalingManager, wp_viewporter::ViewporterState},
 };
 
 /// Space events
@@ -105,6 +105,8 @@ pub trait WrapperSpace {
     fn setup<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
+        fractional_scale_manager: Option<&FractionalScalingManager<W>>,
+        viewport: Option<&ViewporterState<W>>,
         layer_state: &mut LayerShell,
         conn: &Connection,
         qh: &QueueHandle<GlobalState<W>>,
@@ -114,6 +116,8 @@ pub trait WrapperSpace {
     fn new_output<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
+        fractional_scale_manager: Option<&FractionalScalingManager<W>>,
+        viewport: Option<&ViewporterState<W>>,
         layer_state: &mut LayerShell,
         conn: &Connection,
         qh: &QueueHandle<GlobalState<W>>,
@@ -152,6 +156,8 @@ pub trait WrapperSpace {
     fn add_popup<W: WrapperSpace>(
         &mut self,
         compositor_state: &CompositorState,
+        fractional_scale_manager: Option<&FractionalScalingManager<W>>,
+        viewport: Option<&ViewporterState<W>>,
         conn: &Connection,
         qh: &QueueHandle<GlobalState<W>>,
         xdg_shell_state: &mut XdgShell,
@@ -246,9 +252,17 @@ pub trait WrapperSpace {
     /// close layer in space
     fn close_layer(&mut self, layer: &LayerSurface);
 
-    /// gets the renderer for the space
+    /// gets the renderer for twl_surface::wl_surface::he space
     fn renderer(&mut self) -> Option<&mut GlesRenderer>;
 
     /// received a frame event for the given surface
     fn frame(&mut self, surface: &wl_surface::WlSurface, time: u32);
+
+    /// scale factor changed for the given surface
+    /// if this is a surface for this space, it should be tracked
+    fn scale_factor_changed(&mut self, surface: &wl_surface::WlSurface, new_scale: f64, legacy: bool);
+
+    /// get the scale factor for a surface
+    /// returns none if the surface is not tracked by this space
+    fn get_scale_factor(&self, surface: &s_WlSurface) -> Option<f64>;
 }

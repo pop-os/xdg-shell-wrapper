@@ -4,12 +4,16 @@ use std::rc::Rc;
 
 use sctk::shell::xdg::popup::Popup;
 use sctk::{compositor::Region, shell::xdg::XdgPositioner};
+use smithay::backend::renderer::damage::OutputDamageTracker;
+use smithay::utils::Size;
 use smithay::{
     backend::egl::surface::EGLSurface,
     desktop::PopupManager,
     utils::{Logical, Rectangle},
     wayland::shell::xdg::PopupSurface,
 };
+use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
+use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
 /// Popup events
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -54,6 +58,14 @@ pub struct WrapperPopup {
     pub positioner: XdgPositioner,
     /// received a frame callback
     pub has_frame: bool,
+    /// fractional scale for the popup
+    pub fractional_scale: Option<WpFractionalScaleV1>,
+    /// viewport for the popup
+    pub viewport: Option<WpViewport>,
+    /// scale factor for the popup
+    pub scale: f64,
+    /// damage tracking renderer
+    pub damage_tracked_renderer: OutputDamageTracker,
 }
 
 impl WrapperPopup {
@@ -67,13 +79,26 @@ impl WrapperPopup {
             y,
         }) = self.state
         {
-            self.egl_surface
-                .as_ref()
-                .unwrap()
-                .resize(width, height, 0, 0);
-            popup_manager.commit(self.s_surface.wl_surface());
             self.dirty = true;
             self.rectangle = Rectangle::from_loc_and_size((x, y), (width, height));
+            let scaled_size: Size<i32, _> = self
+                            .rectangle
+                            .size
+                            .to_f64()
+                            .to_physical(self.scale)
+                            .to_i32_round();
+            if let Some(s) = self.egl_surface.as_ref() { s.resize(scaled_size.w.max(1), scaled_size.h.max(1), 0, 0); }
+            if let Some(viewport) = self.viewport.as_ref() {
+                viewport.set_destination(self.rectangle.size.w.max(1), self.rectangle.size.h.max(1));
+            }
+            self.damage_tracked_renderer = OutputDamageTracker::new(
+                scaled_size,
+                self.scale,
+                smithay::utils::Transform::Flipped180,
+            );
+            self.c_popup.wl_surface().commit();
+            popup_manager.commit(self.s_surface.wl_surface());
+
             self.state = None;
         };
         self.s_surface.alive()

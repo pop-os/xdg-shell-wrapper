@@ -39,6 +39,8 @@ use crate::{
     space::{ClientEglSurface, WrapperSpace},
 };
 
+pub(crate) mod fractional;
+pub(crate) mod viewporter;
 pub(crate) mod compositor;
 pub(crate) mod layer;
 pub(crate) mod xdg_shell;

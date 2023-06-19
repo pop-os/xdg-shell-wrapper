@@ -43,8 +43,12 @@ use smithay::{
         wayland_server::{backend::GlobalId, protocol::wl_output},
     },
 };
+use tracing::error;
 
 use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
+
+use super::handlers::wp_fractional_scaling::FractionalScalingManager;
+use super::handlers::wp_viewporter::ViewporterState;
 
 #[derive(Debug)]
 pub(crate) struct ClientSeat {
@@ -112,6 +116,10 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub layer_state: LayerShell,
     /// data device manager state
     pub data_device_manager: DataDeviceManagerState,
+    /// fractional scaling manager
+    pub fractional_scaling_manager: Option<FractionalScalingManager<W>>,
+    /// viewporter
+    pub viewporter_state: Option<ViewporterState<W>>,
 
     pub(crate) connection: Connection,
     /// queue handle
@@ -136,6 +144,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
         SmithayLayerSurface,
         LayerSurface,
         SurfaceState,
+        f64,
     )>,
 }
 
@@ -174,6 +183,32 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         let qh = event_queue.handle();
         let registry_state = RegistryState::new(&globals);
 
+        let (viewporter_state, fractional_scaling_manager) =
+            match FractionalScalingManager::new(&globals, &qh) {
+                Ok(m) => {
+                    let viewporter_state =
+                        match ViewporterState::new(&globals, &qh) {
+                            Ok(s) => Some(s),
+                            Err(e) => {
+                                error!(
+                                    "Failed to initialize viewporter: {}",
+                                    e
+                                );
+                                None
+                            }
+                        };
+                    (viewporter_state, Some(m))
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to initialize fractional scaling manager: {}",
+                        e
+                    );
+                    (None, None)
+                }
+            };
+
+
         let client_state = ClientState {
             focused_surface: space.get_client_focused_surface(),
             hovered_surface: space.get_client_hovered_surface(),
@@ -196,6 +231,8 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             multipool: None,
             cursor_surface: None,
             last_key_pressed: Vec::new(),
+            fractional_scaling_manager,
+            viewporter_state,
         };
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
@@ -210,7 +247,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
     /// draw the proxied layer shell surfaces
     pub fn draw_layer_surfaces(&mut self, renderer: &mut GlesRenderer, time: u32) {
         let clear_color = &[0.0, 0.0, 0.0, 0.0];
-        for (egl_surface, dmg_tracked_renderer, s_layer, c_layer, state) in
+        for (egl_surface, dmg_tracked_renderer, s_layer, c_layer, state, scale) in
             &mut self.proxied_layer_surfaces
         {
             match state {

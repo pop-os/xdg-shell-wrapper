@@ -11,6 +11,8 @@ use sctk::{
 
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
+pub mod wp_fractional_scaling;
+pub mod wp_viewporter;
 pub mod compositor;
 pub mod data_device;
 pub mod keyboard;

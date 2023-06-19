@@ -54,7 +54,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find(|(_, _, _, s, _)| s.wl_surface() == &e.surface)
+                        .find(|(_, _, _, s, _, _)| s.wl_surface() == &e.surface)
                     {
                         ptr.motion(
                             self,
@@ -77,15 +77,6 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
 
                     self.space
                         .pointer_leave(&seat_name, Some(e.surface.clone()));
-                    ptr.motion(
-                        self,
-                        None,
-                        &MotionEvent {
-                            location: (0.0, 0.0).into(),
-                            serial: SERIAL_COUNTER.next_serial(),
-                            time: time.try_into().unwrap(),
-                        },
-                    );
                 }
                 sctk::seat::pointer::PointerEventKind::Enter { .. } => {
                     let (surface_x, surface_y) = e.position;
@@ -109,7 +100,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _)| {
+                        .find_map(|(_, _, s, c, _, _)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {
@@ -183,7 +174,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _)| {
+                        .find_map(|(_, _, s, c, _, _)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {
@@ -247,7 +238,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _)| {
+                        .find_map(|(_, _, s, c, _, _)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {
@@ -270,8 +261,8 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     }
 
                     let s = self.space.handle_press(&seat_name);
-                    kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
 
+                    kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
                     ptr.button(
                         self,
                         &ButtonEvent {
@@ -290,7 +281,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _)| {
+                        .find_map(|(_, _, s, c, _, _)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {
