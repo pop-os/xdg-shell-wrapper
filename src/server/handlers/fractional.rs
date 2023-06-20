@@ -1,12 +1,16 @@
-use sctk::shell::WaylandSurface;
-use smithay::{wayland::{fractional_scale::{FractionalScaleHandler, with_fractional_scale}, compositor::with_states}, delegate_fractional_scale, reexports::wayland_server::protocol::wl_surface::WlSurface};
+use smithay::{
+    delegate_fractional_scale,
+    reexports::wayland_server::protocol::wl_surface::WlSurface,
+    wayland::{
+        compositor::with_states,
+        fractional_scale::{with_fractional_scale, FractionalScaleHandler},
+    },
+};
 
-use crate::{space::WrapperSpace, shared_state::GlobalState};
-
+use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 impl<W: WrapperSpace> FractionalScaleHandler for GlobalState<W> {
     fn new_fractional_scale(&mut self, surface: WlSurface) {
-        dbg!("new fractional scale");
         // Here we can set the initial fractional scale
         //
         // We find the space that the surface is in, and set the fractional scale
@@ -19,7 +23,7 @@ impl<W: WrapperSpace> FractionalScaleHandler for GlobalState<W> {
                         fractional_scale.set_preferred_scale(tracked_surface.5);
                     });
                 });
-                
+
                 return;
             }
         }

@@ -13,7 +13,10 @@ use smithay::{
 };
 
 use client::state::ClientState;
-pub use client::{handlers::{output, wp_viewporter, wp_fractional_scaling}, state as client_state};
+pub use client::{
+    handlers::{output, wp_fractional_scaling, wp_viewporter},
+    state as client_state,
+};
 pub use server::state as server_state;
 use server::state::ServerState;
 use shared_state::GlobalState;
@@ -57,7 +60,10 @@ pub fn run<W: WrapperSpace + 'static>(
 
     global_state.space.setup(
         &global_state.client_state.compositor_state,
-        global_state.client_state.fractional_scaling_manager.as_ref(),
+        global_state
+            .client_state
+            .fractional_scaling_manager
+            .as_ref(),
         global_state.client_state.viewporter_state.as_ref(),
         &mut global_state.client_state.layer_state,
         &global_state.client_state.connection,

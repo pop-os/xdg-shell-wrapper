@@ -5,9 +5,7 @@ use std::marker::PhantomData;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Dispatch;
-use sctk::reexports::client::{
-    delegate_dispatch, Connection, Proxy, QueueHandle,
-};
+use sctk::reexports::client::{delegate_dispatch, Connection, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
@@ -15,7 +13,6 @@ use sctk::globals::GlobalData;
 
 use crate::shared_state::GlobalState;
 use crate::space::WrapperSpace;
-
 
 /// Viewporter.
 #[derive(Debug, Clone)]

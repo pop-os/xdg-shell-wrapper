@@ -39,13 +39,15 @@ use crate::{
     space::{ClientEglSurface, WrapperSpace},
 };
 
-pub(crate) mod fractional;
-pub(crate) mod viewporter;
 pub(crate) mod compositor;
+pub(crate) mod fractional;
 pub(crate) mod layer;
+pub(crate) mod viewporter;
 pub(crate) mod xdg_shell;
 
 impl<W: WrapperSpace> PrimarySelectionHandler for GlobalState<W> {
+    type SelectionUserData = ();
+
     fn primary_selection_state(&self) -> &PrimarySelectionState {
         &self.server_state.primary_selection_state
     }
@@ -132,7 +134,13 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         }
     }
 
-    fn send_selection(&mut self, mime_type: String, fd: OwnedFd, seat: Seat<Self>) {
+    fn send_selection(
+        &mut self,
+        mime_type: String,
+        fd: OwnedFd,
+        seat: Seat<Self>,
+        _: &Self::SelectionUserData,
+    ) {
         let seat = match self
             .server_state
             .seats
@@ -146,6 +154,8 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             unsafe { receive_to_fd(offer.inner(), mime_type, fd.into_raw_fd()) }
         }
     }
+
+    type SelectionUserData = ();
 }
 
 impl<W: WrapperSpace> ClientDndGrabHandler for GlobalState<W> {
@@ -216,7 +226,7 @@ impl<W: WrapperSpace> ClientDndGrabHandler for GlobalState<W> {
                         )
                     };
 
-                    let egl_surface = Rc::new(
+                    let egl_surface = Rc::new(unsafe {
                         EGLSurface::new(
                             &renderer.egl_context().display(),
                             renderer
@@ -226,8 +236,8 @@ impl<W: WrapperSpace> ClientDndGrabHandler for GlobalState<W> {
                             renderer.egl_context().config_id(),
                             client_egl_surface,
                         )
-                        .expect("Failed to create EGL Surface"),
-                    );
+                        .expect("Failed to create EGL Surface")
+                    });
 
                     seat.client.dnd_icon = Some((
                         egl_surface,

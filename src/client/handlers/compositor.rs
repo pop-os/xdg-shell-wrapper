@@ -15,11 +15,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
         surface: &wl_surface::WlSurface,
         new_factor: i32,
     ) {
-        self.scale_factor_changed(
-            surface,
-            new_factor as f64,
-            true,
-        );
+        self.scale_factor_changed(surface, new_factor as f64, true);
     }
 
     fn frame(

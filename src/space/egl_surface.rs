@@ -65,7 +65,7 @@ impl EGLNativeDisplay for ClientEglDisplay {
 }
 
 unsafe impl EGLNativeSurface for ClientEglSurface {
-    fn create(
+    unsafe fn create(
         &self,
         display: &Arc<EGLDisplayHandle>,
         config_id: ffi::egl::types::EGLConfig,

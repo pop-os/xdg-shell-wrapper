@@ -1,5 +1,5 @@
 use smithay::delegate_viewporter;
 
-use crate::{space::WrapperSpace, shared_state::GlobalState};
+use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 delegate_viewporter!(@<W: WrapperSpace + 'static> GlobalState<W>);

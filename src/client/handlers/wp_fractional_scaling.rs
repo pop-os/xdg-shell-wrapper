@@ -16,7 +16,6 @@ use sctk::globals::GlobalData;
 use crate::shared_state::GlobalState;
 use crate::space::WrapperSpace;
 
-
 /// The scaling factor denominator.
 const SCALE_DENOMINATOR: f64 = 120.;
 
@@ -28,6 +27,7 @@ pub struct FractionalScalingManager<T> {
     _phantom: PhantomData<T>,
 }
 
+/// Fractional scaling data.
 #[derive(Debug, Clone)]
 pub struct FractionalScaling {
     /// The surface used for scaling.
@@ -47,6 +47,7 @@ impl<T: 'static + WrapperSpace> FractionalScalingManager<T> {
         })
     }
 
+    /// Create a fractional scaling object for a given surface.
     pub fn fractional_scaling(
         &self,
         surface: &WlSurface,
@@ -87,11 +88,7 @@ impl<T: 'static + WrapperSpace> Dispatch<WpFractionalScaleV1, FractionalScaling,
         _: &QueueHandle<GlobalState<T>>,
     ) {
         if let FractionalScalingEvent::PreferredScale { scale } = event {
-            state.scale_factor_changed(
-                &data.surface,
-                scale as f64 / SCALE_DENOMINATOR,
-                false,
-            );
+            state.scale_factor_changed(&data.surface, scale as f64 / SCALE_DENOMINATOR, false);
         }
     }
 }

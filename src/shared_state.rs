@@ -3,7 +3,10 @@
 use std::time::Duration;
 
 use itertools::Itertools;
-use sctk::{reexports::client::protocol::{wl_output as c_wl_output, wl_surface::WlSurface}, shell::WaylandSurface};
+use sctk::{
+    reexports::client::protocol::{wl_output as c_wl_output, wl_surface::WlSurface},
+    shell::WaylandSurface,
+};
 use smithay::{
     backend::renderer::{
         element::surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement},
@@ -13,7 +16,9 @@ use smithay::{
     desktop::utils::send_frames_surface_tree,
     output::Output,
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
-    wayland::{dmabuf::DmabufState, compositor::with_states, fractional_scale::with_fractional_scale},
+    wayland::{
+        compositor::with_states, dmabuf::DmabufState, fractional_scale::with_fractional_scale,
+    },
 };
 use tracing::error;
 
@@ -61,7 +66,6 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
         for tracked_surface in &self.client_state.proxied_layer_surfaces {
             if tracked_surface.3.wl_surface() == surface {
                 if legacy {
-                    dbg!("setting buffer scale i guess idk");
                     surface.set_buffer_scale(scale_factor as i32);
                 } else {
                     with_states(tracked_surface.2.wl_surface(), |states| {
@@ -73,11 +77,11 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
                 return;
             }
         }
-        
-        self.space.scale_factor_changed(surface, scale_factor, legacy);
+
+        self.space
+            .scale_factor_changed(surface, scale_factor, legacy);
     }
 }
-
 
 impl<W: WrapperSpace + 'static> GlobalState<W> {
     /// bind the display for the space

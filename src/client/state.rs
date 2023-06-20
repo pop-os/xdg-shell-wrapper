@@ -186,28 +186,20 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         let (viewporter_state, fractional_scaling_manager) =
             match FractionalScalingManager::new(&globals, &qh) {
                 Ok(m) => {
-                    let viewporter_state =
-                        match ViewporterState::new(&globals, &qh) {
-                            Ok(s) => Some(s),
-                            Err(e) => {
-                                error!(
-                                    "Failed to initialize viewporter: {}",
-                                    e
-                                );
-                                None
-                            }
-                        };
+                    let viewporter_state = match ViewporterState::new(&globals, &qh) {
+                        Ok(s) => Some(s),
+                        Err(e) => {
+                            error!("Failed to initialize viewporter: {}", e);
+                            None
+                        }
+                    };
                     (viewporter_state, Some(m))
                 }
                 Err(e) => {
-                    error!(
-                        "Failed to initialize fractional scaling manager: {}",
-                        e
-                    );
+                    error!("Failed to initialize fractional scaling manager: {}", e);
                     (None, None)
                 }
             };
-
 
         let client_state = ClientState {
             focused_surface: space.get_client_focused_surface(),

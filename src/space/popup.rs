@@ -82,20 +82,20 @@ impl WrapperPopup {
             self.dirty = true;
             self.rectangle = Rectangle::from_loc_and_size((x, y), (width, height));
             let scaled_size: Size<i32, _> = self
-                            .rectangle
-                            .size
-                            .to_f64()
-                            .to_physical(self.scale)
-                            .to_i32_round();
-            if let Some(s) = self.egl_surface.as_ref() { s.resize(scaled_size.w.max(1), scaled_size.h.max(1), 0, 0); }
-            if let Some(viewport) = self.viewport.as_ref() {
-                viewport.set_destination(self.rectangle.size.w.max(1), self.rectangle.size.h.max(1));
+                .rectangle
+                .size
+                .to_f64()
+                .to_physical(self.scale)
+                .to_i32_round();
+            if let Some(s) = self.egl_surface.as_ref() {
+                s.resize(scaled_size.w.max(1), scaled_size.h.max(1), 0, 0);
             }
-            self.damage_tracked_renderer = OutputDamageTracker::new(
-                scaled_size,
-                self.scale,
-                smithay::utils::Transform::Flipped180,
-            );
+            if let Some(viewport) = self.viewport.as_ref() {
+                viewport
+                    .set_destination(self.rectangle.size.w.max(1), self.rectangle.size.h.max(1));
+            }
+            self.damage_tracked_renderer =
+                OutputDamageTracker::new(scaled_size, 1.0, smithay::utils::Transform::Flipped180);
             self.c_popup.wl_surface().commit();
             popup_manager.commit(self.s_surface.wl_surface());
 

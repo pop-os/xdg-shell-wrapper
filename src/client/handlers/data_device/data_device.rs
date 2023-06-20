@@ -58,6 +58,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             &self.server_state.display_handle,
             &seat.server.seat,
             mime_types,
+            (),
         )
     }
 

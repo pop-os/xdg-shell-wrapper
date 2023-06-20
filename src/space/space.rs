@@ -25,12 +25,17 @@ use smithay::{
     reexports::wayland_server::{
         self, protocol::wl_surface::WlSurface as s_WlSurface, DisplayHandle,
     },
-    wayland::{shell::xdg::{PopupSurface, PositionerState},},
+    wayland::shell::xdg::{PopupSurface, PositionerState},
 };
 
 use crate::{
-    client_state::ClientFocus, config::WrapperConfig, server_state::ServerPointerFocus,
-    shared_state::GlobalState, client::handlers::{wp_fractional_scaling::FractionalScalingManager, wp_viewporter::ViewporterState},
+    client::handlers::{
+        wp_fractional_scaling::FractionalScalingManager, wp_viewporter::ViewporterState,
+    },
+    client_state::ClientFocus,
+    config::WrapperConfig,
+    server_state::ServerPointerFocus,
+    shared_state::GlobalState,
 };
 
 /// Space events
@@ -260,7 +265,12 @@ pub trait WrapperSpace {
 
     /// scale factor changed for the given surface
     /// if this is a surface for this space, it should be tracked
-    fn scale_factor_changed(&mut self, surface: &wl_surface::WlSurface, new_scale: f64, legacy: bool);
+    fn scale_factor_changed(
+        &mut self,
+        surface: &wl_surface::WlSurface,
+        new_scale: f64,
+        legacy: bool,
+    );
 
     /// get the scale factor for a surface
     /// returns none if the surface is not tracked by this space

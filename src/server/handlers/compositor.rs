@@ -17,10 +17,7 @@ use smithay::{
     desktop::utils::bbox_from_surface_tree,
     desktop::LayerSurface as SmithayLayerSurface,
     input::pointer::CursorImageAttributes,
-    reexports::wayland_server::{
-        protocol::{wl_buffer, wl_surface::WlSurface},
-        Resource,
-    },
+    reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
     utils::{Transform, SERIAL_COUNTER},
     wayland::{
         buffer::BufferHandler,
@@ -209,7 +206,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     )
                 };
 
-                let egl_surface = Rc::new(
+                let egl_surface = Rc::new(unsafe {
                     EGLSurface::new(
                         &renderer.egl_context().display(),
                         renderer
@@ -219,8 +216,8 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         renderer.egl_context().config_id(),
                         client_egl_surface,
                     )
-                    .expect("Failed to create EGL Surface"),
-                );
+                    .expect("Failed to create EGL Surface")
+                });
 
                 self.client_state.proxied_layer_surfaces.push((
                     egl_surface,
@@ -232,7 +229,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     server_surface,
                     client_surface,
                     SurfaceState::Waiting,
-                    1.0
+                    1.0,
                 ));
             }
             if let Some((egl_surface, renderer, s_layer_surface, c_layer_surface, state, _)) = self
