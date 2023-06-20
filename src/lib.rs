@@ -9,7 +9,7 @@ use anyhow::Result;
 use sctk::{reexports::client::Proxy, shm::multi::MultiPool};
 use smithay::{
     backend::input::KeyState, input::keyboard::FilterResult, reexports::calloop,
-    reexports::wayland_server::Resource, utils::SERIAL_COUNTER,
+    utils::SERIAL_COUNTER,
 };
 
 use client::state::ClientState;

@@ -54,7 +54,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find(|(_, _, _, s, _, _)| s.wl_surface() == &e.surface)
+                        .find(|(_, _, _, s, _, _, _, _)| s.wl_surface() == &e.surface)
                     {
                         ptr.motion(
                             self,
@@ -100,7 +100,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _, _)| {
+                        .find_map(|(_, _, s, c, _, _, _, _)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {
@@ -174,7 +174,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _, _)| {
+                        .find_map(|(_, _, s, c, _, _, ..)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {
@@ -238,7 +238,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _, _)| {
+                        .find_map(|(_, _, s, c, _, _, ..)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {
@@ -281,7 +281,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
-                        .find_map(|(_, _, s, c, _, _)| {
+                        .find_map(|(_, _, s, c, _, _, ..)| {
                             if c.wl_surface() == &e.surface {
                                 Some(s.wl_surface().clone())
                             } else {

@@ -63,17 +63,17 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
         if legacy && self.client_state.fractional_scaling_manager.is_some() {
             return;
         }
-        for tracked_surface in &self.client_state.proxied_layer_surfaces {
+        for tracked_surface in &mut self.client_state.proxied_layer_surfaces {
             if tracked_surface.3.wl_surface() == surface {
                 if legacy {
                     surface.set_buffer_scale(scale_factor as i32);
-                } else {
-                    with_states(tracked_surface.2.wl_surface(), |states| {
-                        with_fractional_scale(states, |fractional_scale| {
-                            fractional_scale.set_preferred_scale(scale_factor);
-                        });
-                    });
                 }
+                tracked_surface.5 = scale_factor;
+                with_states(tracked_surface.2.wl_surface(), |states| {
+                    with_fractional_scale(states, |fractional_scale| {
+                        fractional_scale.set_preferred_scale(scale_factor);
+                    });
+                });
                 return;
             }
         }

@@ -44,6 +44,8 @@ use smithay::{
     },
 };
 use tracing::error;
+use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
+use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
 use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
 
@@ -145,6 +147,8 @@ pub struct ClientState<W: WrapperSpace + 'static> {
         LayerSurface,
         SurfaceState,
         f64,
+        Option<WpFractionalScaleV1>,
+        Option<WpViewport>,
     )>,
 }
 
@@ -239,7 +243,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
     /// draw the proxied layer shell surfaces
     pub fn draw_layer_surfaces(&mut self, renderer: &mut GlesRenderer, time: u32) {
         let clear_color = &[0.0, 0.0, 0.0, 0.0];
-        for (egl_surface, dmg_tracked_renderer, s_layer, c_layer, state, scale) in
+        for (egl_surface, dmg_tracked_renderer, s_layer, _, state, _, _, _) in
             &mut self.proxied_layer_surfaces
         {
             match state {
