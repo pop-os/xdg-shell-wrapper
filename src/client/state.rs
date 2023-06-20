@@ -57,6 +57,7 @@ pub(crate) struct ClientSeat {
     pub(crate) _seat: WlSeat,
     pub(crate) kbd: Option<wl_keyboard::WlKeyboard>,
     pub(crate) ptr: Option<wl_pointer::WlPointer>,
+    pub(crate) last_enter: u32,
     pub(crate) last_key_press: (u32, u32),
     pub(crate) last_pointer_press: (u32, u32),
     pub(crate) data_device: DataDevice,
@@ -131,7 +132,8 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     /// state regarding the last embedded client surface with keyboard focus
     pub hovered_surface: Rc<RefCell<ClientFocus>>,
     pub(crate) cursor_surface: Option<wl_surface::WlSurface>,
-    pub(crate) multipool: Option<MultiPool<WlSurface>>,
+    pub(crate) multipool: Option<MultiPool<(WlSurface, usize)>>,
+    pub(crate) multipool_ctr: usize,
     pub(crate) last_key_pressed: Vec<(String, (u32, u32), wl_surface::WlSurface)>,
     pub(crate) outputs: Vec<(WlOutput, Output, GlobalId)>,
 
@@ -225,6 +227,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             outputs: Default::default(),
             registry_state,
             multipool: None,
+            multipool_ctr: 0,
             cursor_surface: None,
             last_key_pressed: Vec::new(),
             fractional_scaling_manager,

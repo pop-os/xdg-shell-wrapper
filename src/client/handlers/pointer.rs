@@ -78,7 +78,9 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     self.space
                         .pointer_leave(&seat_name, Some(e.surface.clone()));
                 }
-                sctk::seat::pointer::PointerEventKind::Enter { .. } => {
+                sctk::seat::pointer::PointerEventKind::Enter { serial } => {
+                    seat.client.last_enter = serial;
+
                     let (surface_x, surface_y) = e.position;
 
                     {
@@ -120,9 +122,6 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         continue;
                     }
 
-                    // if not popup, then must be a panel layer shell surface
-                    // TODO better handling of subsurfaces?
-
                     if let Some(ServerPointerFocus {
                         surface,
                         c_pos,
@@ -133,7 +132,6 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         &seat_name,
                         e.surface.clone(),
                     ) {
-                        // ptr.set_grab(self, GrabStartData { focus: Some((surface.clone(), s_pos)), button: 0, location: c_pos.to_f64() + Point::from((surface_x, surface_y)) }, SERIAL_COUNTER.next_serial(), Focus::Keep);
                         ptr.motion(
                             self,
                             Some((surface.clone(), s_pos)),

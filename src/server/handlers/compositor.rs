@@ -85,29 +85,32 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
                             if let Some(BufferType::Shm) = buffer_type(buffer) {
                                 trace!("attaching buffer to cursor surface.");
-                                let _ = write_and_attach_buffer::<W>(
-                                    buf.as_ref().unwrap(),
-                                    cursor_surface,
-                                    multipool,
-                                );
-
                                 if let Some(hotspot) = data
                                     .data_map
                                     .get::<Mutex<CursorImageAttributes>>()
                                     .and_then(|m| m.lock().ok())
                                     .map(|attr| (*attr).hotspot)
                                 {
-                                    trace!("requesting update");
+                                    trace!("requesting cursor update");
                                     ptr.set_cursor(
-                                        SERIAL_COUNTER.next_serial().into(),
+                                        client.last_enter,
                                         Some(cursor_surface),
                                         hotspot.x,
                                         hotspot.y,
                                     );
+                                    if let Err(e) = write_and_attach_buffer::<W>(
+                                        buf.as_ref().unwrap(),
+                                        cursor_surface,
+                                        self.client_state.multipool_ctr,
+                                        multipool,
+                                    ) {
+                                        error!("failed to attach buffer to cursor surface: {}", e);
+                                    }
+                                    self.client_state.multipool_ctr += 1;
                                 }
                             }
                         } else {
-                            ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);
+                            ptr.set_cursor(client.last_enter, None, 0, 0);
                         }
                     });
                 }
