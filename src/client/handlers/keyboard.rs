@@ -53,7 +53,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .client_state
             .proxied_layer_surfaces
             .iter_mut()
-            .find_map(|(_, _, s, c, _)| {
+            .find_map(|(_, _, s, c, _, _, ..)| {
                 if c.wl_surface() == surface {
                     Some(s.wl_surface().clone())
                 } else {
@@ -105,7 +105,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
             .client_state
             .proxied_layer_surfaces
             .iter_mut()
-            .any(|(_, _, _, c, _)| c.wl_surface() == surface);
+            .any(|(_, _, _, c, _, _, ..)| c.wl_surface() == surface);
 
         if kbd_focus {
             if !s_surface {

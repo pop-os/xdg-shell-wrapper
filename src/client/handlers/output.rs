@@ -41,6 +41,8 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                 ClientState {
                     compositor_state,
                     layer_state,
+                    viewporter_state,
+                    fractional_scaling_manager,
                     ..
                 },
             server_state: ServerState { display_handle, .. },
@@ -66,6 +68,8 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                 .push((output.clone(), s_output.0.clone(), s_output.1));
             if let Err(err) = space.new_output(
                 compositor_state,
+                fractional_scaling_manager.as_ref(),
+                viewporter_state.as_ref(),
                 layer_state,
                 conn,
                 qh,
@@ -94,6 +98,8 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
                 ClientState {
                     compositor_state,
                     layer_state,
+                    fractional_scaling_manager,
+                    viewporter_state,
                     ..
                 },
             server_state: ServerState { display_handle, .. },
@@ -121,6 +127,8 @@ impl<W: WrapperSpace> OutputHandler for GlobalState<W> {
 
                     if let Err(err) = space.new_output(
                         compositor_state,
+                        fractional_scaling_manager.as_ref(),
+                        viewporter_state.as_ref(),
                         layer_state,
                         conn,
                         qh,
@@ -211,7 +219,7 @@ pub fn c_output_as_s_output<W: WrapperSpace + 'static>(
             s_output.change_current_state(
                 Some(s_mode),
                 Some(Transform::Normal),
-                Some(Scale::Integer(1)),
+                Some(Scale::Integer(info.scale_factor)),
                 Some(info.location.into()),
             )
         }

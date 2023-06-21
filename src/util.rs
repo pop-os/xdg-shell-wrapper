@@ -104,7 +104,8 @@ pub fn exec_child(
 pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
     buffer_assignment: &BufferAssignment,
     cursor_surface: &WlSurface,
-    multipool: &mut MultiPool<WlSurface>,
+    multipool_ctr: usize,
+    multipool: &mut MultiPool<(WlSurface, usize)>,
 ) -> Result<()> {
     if let BufferAssignment::NewBuffer(source_buffer) = buffer_assignment {
         if let Some(BufferType::Shm) = buffer_type(source_buffer) {
@@ -119,43 +120,44 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
                             stride,
                             ..
                         } = buffer_metadata;
+                        let mut buff = None;
+                        for i in 0..=multipool_ctr + 1 {
+                            buff = None;
+                            if i == multipool_ctr + 1 {
+                                match multipool.create_buffer(
+                                    width,
+                                    stride,
+                                    height,
+                                    &(cursor_surface.clone(), multipool_ctr + 1),
+                                    format,
+                                ) {
+                                    Ok(b) => {
+                                        buff = Some(b);
+                                        break;
+                                    }
+                                    Err(e) => bail!("Failed to create buffer {}", e),
+                                }
+                            } else if let Some(b) = multipool.get(
+                                width,
+                                stride,
+                                height,
+                                &(cursor_surface.clone(), i),
+                                format,
+                            ) {
+                                buff = Some(b);
+                                break;
+                            }
+                        }
 
                         let (_, buff, to) =
-                            match multipool.get(width, stride, height, cursor_surface, format) {
-                                Some(b) => b,
-                                None => {
-                                    if let Ok(b) = multipool.create_buffer(
-                                        width,
-                                        stride,
-                                        height,
-                                        cursor_surface,
-                                        format,
-                                    ) {
-                                        b
-                                    } else {
-                                        // try again
-                                        match multipool.create_buffer(
-                                            width,
-                                            stride,
-                                            height,
-                                            cursor_surface,
-                                            format,
-                                        ) {
-                                            Ok(b) => b,
-                                            Err(e) => bail!("Failed to create buffer {}", e),
-                                        }
-                                    }
-                                }
-                            };
+                            buff.ok_or_else(|| anyhow::anyhow!("Failed to get buffer"))?;
 
                         let mut writer = BufWriter::new(to);
-                        let from = unsafe { std::slice::from_raw_parts(from, length) };
-                        let from = Vec::from(from);
+                        let from: &[u8] = unsafe { std::slice::from_raw_parts(from, length) };
                         let offset: usize = offset.try_into()?;
                         let height: usize = height.try_into()?;
                         let stride: usize = stride.try_into()?;
 
-                        // XXX what to do with width
                         writer.write_all(&from[offset..(offset + height * stride)])?;
                         writer.flush()?;
 

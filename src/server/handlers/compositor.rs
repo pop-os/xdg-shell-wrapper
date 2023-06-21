@@ -5,6 +5,7 @@ use sctk::shell::{
     wlr_layer::{self, Anchor, KeyboardInteractivity},
     WaylandSurface,
 };
+use smithay::utils::{Logical, Size};
 use smithay::{
     backend::{
         egl::EGLSurface,
@@ -17,10 +18,7 @@ use smithay::{
     desktop::utils::bbox_from_surface_tree,
     desktop::LayerSurface as SmithayLayerSurface,
     input::pointer::CursorImageAttributes,
-    reexports::wayland_server::{
-        protocol::{wl_buffer, wl_surface::WlSurface},
-        Resource,
-    },
+    reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
     utils::{Transform, SERIAL_COUNTER},
     wayland::{
         buffer::BufferHandler,
@@ -87,29 +85,32 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
                             if let Some(BufferType::Shm) = buffer_type(buffer) {
                                 trace!("attaching buffer to cursor surface.");
-                                let _ = write_and_attach_buffer::<W>(
-                                    buf.as_ref().unwrap(),
-                                    cursor_surface,
-                                    multipool,
-                                );
-
                                 if let Some(hotspot) = data
                                     .data_map
                                     .get::<Mutex<CursorImageAttributes>>()
                                     .and_then(|m| m.lock().ok())
                                     .map(|attr| (*attr).hotspot)
                                 {
-                                    trace!("requesting update");
+                                    trace!("requesting cursor update");
                                     ptr.set_cursor(
-                                        SERIAL_COUNTER.next_serial().into(),
+                                        client.last_enter,
                                         Some(cursor_surface),
                                         hotspot.x,
                                         hotspot.y,
                                     );
+                                    if let Err(e) = write_and_attach_buffer::<W>(
+                                        buf.as_ref().unwrap(),
+                                        cursor_surface,
+                                        self.client_state.multipool_ctr,
+                                        multipool,
+                                    ) {
+                                        error!("failed to attach buffer to cursor surface: {}", e);
+                                    }
+                                    self.client_state.multipool_ctr += 1;
                                 }
                             }
                         } else {
-                            ptr.set_cursor(SERIAL_COUNTER.next_serial().into(), None, 0, 0);
+                            ptr.set_cursor(client.last_enter, None, 0, 0);
                         }
                     });
                 }
@@ -209,9 +210,9 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     )
                 };
 
-                let egl_surface = Rc::new(
+                let egl_surface = Rc::new(unsafe {
                     EGLSurface::new(
-                        &renderer.egl_context().display(),
+                        renderer.egl_context().display(),
                         renderer
                             .egl_context()
                             .pixel_format()
@@ -219,9 +220,22 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                         renderer.egl_context().config_id(),
                         client_egl_surface,
                     )
-                    .expect("Failed to create EGL Surface"),
-                );
+                    .expect("Failed to create EGL Surface")
+                });
 
+                let surface = client_surface.wl_surface();
+                let scale = self
+                    .client_state
+                    .fractional_scaling_manager
+                    .as_ref()
+                    .map(|f| f.fractional_scaling(surface, &self.client_state.queue_handle));
+                let viewport = self.client_state.viewporter_state.as_ref().map(|v| {
+                    let v = v.get_viewport(surface, &self.client_state.queue_handle);
+                    if size.w > 0 && size.h > 0 {
+                        v.set_destination(size.w, size.h);
+                    }
+                    v
+                });
                 self.client_state.proxied_layer_surfaces.push((
                     egl_surface,
                     OutputDamageTracker::new(
@@ -232,21 +246,44 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     server_surface,
                     client_surface,
                     SurfaceState::Waiting,
+                    1.0,
+                    scale,
+                    viewport,
                 ));
             }
-            if let Some((egl_surface, renderer, s_layer_surface, c_layer_surface, state)) = self
+            if let Some((
+                egl_surface,
+                renderer,
+                s_layer_surface,
+                c_layer_surface,
+                state,
+                scale,
+                _,
+                viewport,
+            )) = self
                 .client_state
                 .proxied_layer_surfaces
                 .iter_mut()
                 .find(|s| s.2.wl_surface() == surface)
             {
-                let old_size = s_layer_surface.bbox().size;
+                // XXX Hacky but we I'm not sure of a better way to do this.
+                let old_bbox = s_layer_surface.bbox().size;
                 on_commit_buffer_handler::<GlobalState<W>>(surface);
 
                 // s_layer_surface.layer_surface().ensure_configured();
-                let size = s_layer_surface.bbox().size;
+                let bbox = s_layer_surface.bbox().size;
+
+                let size: Size<i32, Logical> = bbox
+                    .to_f64()
+                    .to_physical(1.0)
+                    .to_logical(*scale)
+                    .to_i32_round();
+
                 if size.w <= 0 || size.h <= 0 {
                     return;
+                }
+                if let Some(viewport) = viewport {
+                    viewport.set_destination(size.w, size.h);
                 }
                 match state {
                     SurfaceState::WaitingFirst => {
@@ -255,11 +292,11 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                     _ => {}
                 };
                 *state = SurfaceState::Dirty;
-                if old_size != size {
-                    egl_surface.resize(size.w, size.h, 0, 0);
+                if old_bbox != bbox {
+                    egl_surface.resize(bbox.w, bbox.h, 0, 0);
                     c_layer_surface.set_size(size.w as u32, size.h as u32);
                     *renderer = OutputDamageTracker::new(
-                        (size.w.max(1), size.h.max(1)),
+                        (bbox.w.max(1), bbox.h.max(1)),
                         1.0,
                         Transform::Flipped180,
                     );

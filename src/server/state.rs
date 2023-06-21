@@ -10,6 +10,7 @@ use smithay::{
         compositor::CompositorState,
         data_device::DataDeviceState,
         dmabuf::{DmabufGlobal, DmabufState},
+        fractional_scale::FractionalScaleManagerState,
         output::OutputManagerState,
         primary_selection::PrimarySelectionState,
         shell::{wlr_layer::WlrLayerShellState, xdg::XdgShellState},
@@ -59,6 +60,7 @@ pub struct ServerState<W: WrapperSpace + 'static> {
     pub(crate) dmabuf_state: Option<(DmabufState, DmabufGlobal)>,
     pub(crate) primary_selection_state: PrimarySelectionState,
     pub(crate) layer_shell_state: WlrLayerShellState,
+    pub(crate) _fractional_scale_state: FractionalScaleManagerState,
 }
 
 impl<W: WrapperSpace> ServerState<W> {
@@ -76,6 +78,7 @@ impl<W: WrapperSpace> ServerState<W> {
             data_device_state: DataDeviceState::new::<GlobalState<W>>(&dh),
             primary_selection_state: PrimarySelectionState::new::<GlobalState<W>>(&dh),
             layer_shell_state: WlrLayerShellState::new::<GlobalState<W>>(&dh),
+            _fractional_scale_state: FractionalScaleManagerState::new::<GlobalState<W>>(&dh),
             dmabuf_state: None,
         }
     }

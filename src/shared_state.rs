@@ -3,7 +3,10 @@
 use std::time::Duration;
 
 use itertools::Itertools;
-use sctk::reexports::client::protocol::wl_output as c_wl_output;
+use sctk::{
+    reexports::client::protocol::{wl_output as c_wl_output, wl_surface::WlSurface},
+    shell::WaylandSurface,
+};
 use smithay::{
     backend::renderer::{
         element::surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement},
@@ -13,7 +16,9 @@ use smithay::{
     desktop::utils::send_frames_surface_tree,
     output::Output,
     reexports::wayland_server::{backend::GlobalId, DisplayHandle},
-    wayland::dmabuf::DmabufState,
+    wayland::{
+        compositor::with_states, dmabuf::DmabufState, fractional_scale::with_fractional_scale,
+    },
 };
 use tracing::error;
 
@@ -50,6 +55,31 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             server_state,
             start_time,
         }
+    }
+
+    /// set the scale factor for a surface
+    /// this should be called when the scale factor of a surface changes
+    pub fn scale_factor_changed(&mut self, surface: &WlSurface, scale_factor: f64, legacy: bool) {
+        if legacy && self.client_state.fractional_scaling_manager.is_some() {
+            return;
+        }
+        for tracked_surface in &mut self.client_state.proxied_layer_surfaces {
+            if tracked_surface.3.wl_surface() == surface {
+                if legacy {
+                    surface.set_buffer_scale(scale_factor as i32);
+                }
+                tracked_surface.5 = scale_factor;
+                with_states(tracked_surface.2.wl_surface(), |states| {
+                    with_fractional_scale(states, |fractional_scale| {
+                        fractional_scale.set_preferred_scale(scale_factor);
+                    });
+                });
+                return;
+            }
+        }
+
+        self.space
+            .scale_factor_changed(surface, scale_factor, legacy);
     }
 }
 
