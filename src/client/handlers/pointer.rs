@@ -336,7 +336,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     let mut af = AxisFrame::new(time).source(source);
 
                     if !horizontal.is_none() {
-                        if horizontal.discrete > 0 {
+                        if horizontal.discrete.abs() > 0 {
                             af = af.discrete(Axis::Horizontal, horizontal.discrete)
                         }
                         if horizontal.absolute.abs() > 0.0 {
@@ -348,10 +348,12 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     }
 
                     if !vertical.is_none() {
-                        if vertical.discrete > 0 {
+                        if vertical.discrete.abs() > 0 {
                             af = af.discrete(Axis::Vertical, vertical.discrete)
                         }
-                        af = af.value(Axis::Vertical, vertical.absolute);
+                        if vertical.absolute.abs() > 0.0 {
+                            af = af.value(Axis::Vertical, horizontal.absolute);
+                        }
                         if vertical.stop {
                             af.stop(Axis::Vertical);
                         }
