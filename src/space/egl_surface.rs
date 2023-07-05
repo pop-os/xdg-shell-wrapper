@@ -13,7 +13,7 @@ use smithay::{
         display::EGLDisplayHandle,
         ffi,
         native::{EGLNativeDisplay, EGLNativeSurface, EGLPlatform},
-        wrap_egl_call, EGLError,
+        wrap_egl_call_ptr, EGLError,
     },
     egl_platform,
 };
@@ -74,7 +74,7 @@ unsafe impl EGLNativeSurface for ClientEglSurface {
         if ptr.is_null() {
             panic!("recieved a null pointer for the wl_egl_surface.");
         }
-        wrap_egl_call(|| unsafe {
+        wrap_egl_call_ptr(|| unsafe {
             ffi::egl::CreatePlatformWindowSurfaceEXT(
                 display.handle,
                 config_id,

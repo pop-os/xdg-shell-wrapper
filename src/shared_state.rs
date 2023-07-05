@@ -143,7 +143,7 @@ impl<W: WrapperSpace + 'static> GlobalState<W> {
             //     .unwrap()
             //     .swap_buffers(res.0.as_deref_mut())?;
 
-            renderer.unbind().unwrap();
+            let _ = renderer.unbind();
             // // TODO what if there is "no output"?
             for o in &self.client_state.outputs {
                 let output = &o.1;

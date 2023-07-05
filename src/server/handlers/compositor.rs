@@ -19,7 +19,7 @@ use smithay::{
     desktop::LayerSurface as SmithayLayerSurface,
     input::pointer::CursorImageAttributes,
     reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
-    utils::{Transform, SERIAL_COUNTER},
+    utils::Transform,
     wayland::{
         buffer::BufferHandler,
         compositor::{
@@ -321,6 +321,7 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             if let Some(c_icon) = seat.client.dnd_icon.as_mut() {
                 let size = bbox_from_surface_tree(surface, (0, 0)).size;
                 if let Some(renderer) = self.space.renderer() {
+                    let _ = renderer.unbind();
                     let _ = renderer.bind(c_icon.0.clone());
                     c_icon.0.resize(size.w.max(1), size.h.max(1), 0, 0);
                     let _ = renderer.unbind();
