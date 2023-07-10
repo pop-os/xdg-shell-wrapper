@@ -50,21 +50,22 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
             let seat = &mut self.server_state.seats[seat_index];
             match e.kind {
                 sctk::seat::pointer::PointerEventKind::Leave { .. } => {
+                    ptr.motion(
+                        self,
+                        None,
+                        &MotionEvent {
+                            location: (0.0, 0.0).into(),
+                            serial: SERIAL_COUNTER.next_serial(),
+                            time: time.try_into().unwrap(),
+                        },
+                    );
+
                     if let Some((..)) = self
                         .client_state
                         .proxied_layer_surfaces
                         .iter_mut()
                         .find(|(_, _, _, s, _, _, _, _)| s.wl_surface() == &e.surface)
                     {
-                        ptr.motion(
-                            self,
-                            None,
-                            &MotionEvent {
-                                location: (0.0, 0.0).into(),
-                                serial: SERIAL_COUNTER.next_serial(),
-                                time: time.try_into().unwrap(),
-                            },
-                        );
                         continue;
                     }
 
