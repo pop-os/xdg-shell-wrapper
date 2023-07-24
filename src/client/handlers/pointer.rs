@@ -17,7 +17,7 @@ use smithay::{
 impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
     fn pointer_frame(
         &mut self,
-        _conn: &sctk::reexports::client::Connection,
+        conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
         pointer: &sctk::reexports::client::protocol::wl_pointer::WlPointer,
         events: &[sctk::seat::pointer::PointerEvent],
@@ -30,7 +30,11 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
             .seats
             .iter()
             .position(|SeatPair { client, .. }| {
-                client.ptr.as_ref().map(|p| p == pointer).unwrap_or(false)
+                client
+                    .ptr
+                    .as_ref()
+                    .map(|p| p.pointer() == pointer)
+                    .unwrap_or(false)
             })
             .unwrap();
         let seat = &self.server_state.seats[seat_index].server.seat;
@@ -222,6 +226,12 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 time,
                             },
                         );
+                        if let Some(themed_pointer) =
+                            &self.server_state.seats[seat_index].client.ptr
+                        {
+                            _ = themed_pointer
+                                .set_cursor(conn, sctk::seat::pointer::CursorIcon::Default);
+                        }
                     }
                 }
                 sctk::seat::pointer::PointerEventKind::Press {

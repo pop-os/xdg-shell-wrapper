@@ -74,10 +74,10 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
                 }
             };
 
-            // FIXME pass cursor image to parent compositor
             trace!("received surface with cursor image");
             for SeatPair { client, .. } in &self.server_state.seats {
-                if let Some(ptr) = client.ptr.as_ref() {
+                if let Some(themed_ptr) = client.ptr.as_ref() {
+                    let ptr = themed_ptr.pointer();
                     trace!("updating cursor for pointer {:?}", &ptr);
                     let _ = with_states(surface, |data| {
                         let surface_attributes = data.cached_state.current::<SurfaceAttributes>();

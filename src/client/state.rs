@@ -6,6 +6,7 @@ use sctk::data_device_manager::data_offer::{DragOffer, SelectionOffer};
 use sctk::data_device_manager::data_source::{CopyPasteSource, DragSource};
 use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::reexports::client::WaylandSource;
+use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::wlr_layer::LayerSurface;
 use sctk::shell::{wlr_layer::LayerShell, xdg::XdgShell};
 use sctk::shm::Shm;
@@ -17,7 +18,6 @@ use sctk::{
         protocol::{
             wl_keyboard,
             wl_output::WlOutput,
-            wl_pointer,
             wl_seat::WlSeat,
             wl_surface::{self, WlSurface},
         },
@@ -56,7 +56,7 @@ use super::handlers::wp_viewporter::ViewporterState;
 pub(crate) struct ClientSeat {
     pub(crate) _seat: WlSeat,
     pub(crate) kbd: Option<wl_keyboard::WlKeyboard>,
-    pub(crate) ptr: Option<wl_pointer::WlPointer>,
+    pub(crate) ptr: Option<ThemedPointer>,
     pub(crate) last_enter: u32,
     pub(crate) last_key_press: (u32, u32),
     pub(crate) last_pointer_press: (u32, u32),

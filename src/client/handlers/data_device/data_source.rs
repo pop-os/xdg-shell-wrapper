@@ -123,7 +123,7 @@ impl<W: WrapperSpace> DataSourceHandler for GlobalState<W> {
                 },
                 position: (offer.x, offer.y),
             };
-            if let Some(pointer) = seat.client.ptr.clone().as_ref() {
+            if let Some(pointer) = seat.client.ptr.as_ref().map(|p| p.pointer().clone()) {
                 self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
             }
         } else if let Some(dnd_source) = seat.server.dnd_source.take() {

@@ -178,7 +178,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             position: (0.0, 0.0),
         };
 
-        if let Some(pointer) = seat.client.ptr.clone().as_ref() {
+        if let Some(pointer) = seat.client.ptr.as_ref().map(|p| p.pointer().clone()) {
             self.pointer_frame(conn, qh, &pointer, &[leave_event]);
         }
     }
@@ -223,7 +223,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             position: (offer.x, offer.y),
         };
 
-        if let Some(pointer) = seat.client.ptr.clone().as_ref() {
+        if let Some(pointer) = seat.client.ptr.as_ref().map(|p| p.pointer().clone()) {
             self.pointer_frame(conn, qh, &pointer, &[motion_event]);
         }
     }
@@ -259,7 +259,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             },
             position: (offer.x, offer.y),
         };
-        if let Some(pointer) = seat.client.ptr.clone().as_ref() {
+        if let Some(pointer) = seat.client.ptr.as_ref().map(|p| p.pointer().clone()) {
             self.pointer_frame(conn, qh, &pointer, &[pointer_event]);
         }
     }

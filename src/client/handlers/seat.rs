@@ -3,7 +3,7 @@
 use sctk::{
     delegate_seat,
     reexports::client::{protocol::wl_seat, Connection, QueueHandle},
-    seat::SeatHandler,
+    seat::{pointer::ThemeSpec, SeatHandler},
 };
 
 use crate::{
@@ -38,7 +38,13 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             };
 
             let ptr = if info.has_pointer {
-                if let Ok(ptr) = self.client_state.seat_state.get_pointer(qh, &seat) {
+                if let Ok(ptr) = self.client_state.seat_state.get_pointer_with_theme(
+                    qh,
+                    &seat,
+                    self.client_state.shm_state.wl_shm(),
+                    self.client_state.compositor_state.create_surface(&qh),
+                    ThemeSpec::System,
+                ) {
                     Some(ptr)
                 } else {
                     None
@@ -65,6 +71,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                 .client_state
                 .data_device_manager
                 .get_data_device(qh, &seat);
+
             self.server_state.seats.push(SeatPair {
                 name,
                 client: ClientSeat {
@@ -165,7 +172,13 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             sctk::seat::Capability::Pointer => {
                 if info.has_pointer {
                     sp.server.seat.add_pointer();
-                    if let Ok(ptr) = self.client_state.seat_state.get_pointer(qh, &seat) {
+                    if let Ok(ptr) = self.client_state.seat_state.get_pointer_with_theme(
+                        qh,
+                        &seat,
+                        self.client_state.shm_state.wl_shm(),
+                        self.client_state.compositor_state.create_surface(&qh),
+                        ThemeSpec::System,
+                    ) {
                         sp.client.ptr.replace(ptr);
                     }
                 }
