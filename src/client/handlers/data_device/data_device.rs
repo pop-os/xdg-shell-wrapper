@@ -2,10 +2,15 @@ use std::time::Instant;
 
 use sctk::{
     data_device_manager::{
-        data_device::{DataDeviceDataExt, DataDeviceHandler},
-        data_offer::{DataOfferData, DataOfferDataExt},
+        data_device::{DataDeviceData, DataDeviceHandler},
+        data_offer::DataOfferData,
     },
-    reexports::client::{protocol::wl_data_device_manager::DndAction as ClientDndAction, Proxy},
+    reexports::client::{
+        protocol::{
+            wl_data_device::WlDataDevice, wl_data_device_manager::DndAction as ClientDndAction,
+        },
+        Proxy,
+    },
     seat::pointer::{PointerEvent, PointerEventKind, PointerHandler},
 };
 use smithay::{
@@ -24,13 +29,13 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         &mut self,
         _conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
-        data_device: sctk::data_device_manager::data_device::DataDevice,
+        data_device: &WlDataDevice,
     ) {
         let seat = match self
             .server_state
             .seats
             .iter_mut()
-            .find(|sp| sp.client.data_device == data_device)
+            .find(|sp| sp.client.data_device.inner() == data_device)
         {
             Some(sp) => sp,
             None => return,
@@ -42,7 +47,11 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             return;
         }
 
-        let offer = match data_device.selection_offer() {
+        let offer = match data_device
+            .data::<DataDeviceData>()
+            .unwrap()
+            .selection_offer()
+        {
             Some(offer) => offer,
             None => return,
         };
@@ -51,8 +60,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         let mime_types = wl_offer
             .data::<DataOfferData>()
             .unwrap()
-            .data_offer_data()
-            .mime_types();
+            .with_mime_types(|m| m.to_vec());
 
         set_data_device_selection(
             &self.server_state.display_handle,
@@ -66,13 +74,13 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         &mut self,
         _conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
-        data_device: sctk::data_device_manager::data_device::DataDevice,
+        data_device: &WlDataDevice,
     ) {
         let seat = match self
             .server_state
             .seats
             .iter_mut()
-            .find(|sp| sp.client.data_device == data_device)
+            .find(|sp| sp.client.data_device.inner() == data_device)
         {
             Some(sp) => sp,
             None => return,
@@ -88,7 +96,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             f.2 = FocusStatus::Focused;
         }
 
-        let offer = match data_device.drag_offer() {
+        let offer = match data_device.data::<DataDeviceData>().unwrap().drag_offer() {
             Some(offer) => offer,
             None => return,
         };
@@ -98,8 +106,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         let mime_types = wl_offer
             .data::<DataOfferData>()
             .unwrap()
-            .data_offer_data()
-            .mime_types();
+            .with_mime_types(|m| m.to_vec());
         let mut dnd_action = DndAction::empty();
         let c_action = offer.source_actions;
         if c_action.contains(ClientDndAction::Copy) {
@@ -141,13 +148,13 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         &mut self,
         conn: &sctk::reexports::client::Connection,
         qh: &sctk::reexports::client::QueueHandle<Self>,
-        data_device: sctk::data_device_manager::data_device::DataDevice,
+        data_device: &WlDataDevice,
     ) {
         let seat = match self
             .server_state
             .seats
             .iter_mut()
-            .find(|sp| sp.client.data_device == data_device)
+            .find(|sp| sp.client.data_device.inner() == data_device)
         {
             Some(sp) => sp,
             None => return,
@@ -187,20 +194,20 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         &mut self,
         conn: &sctk::reexports::client::Connection,
         qh: &sctk::reexports::client::QueueHandle<Self>,
-        data_device: sctk::data_device_manager::data_device::DataDevice,
+        data_device: &WlDataDevice,
     ) {
         // treat it as pointer motion
         let seat = match self
             .server_state
             .seats
             .iter_mut()
-            .find(|sp| sp.client.data_device == data_device)
+            .find(|sp| sp.client.data_device.inner() == data_device)
         {
             Some(sp) => sp,
             None => return,
         };
 
-        let offer = match data_device.drag_offer() {
+        let offer = match data_device.data::<DataDeviceData>().unwrap().drag_offer() {
             Some(offer) => offer,
             None => return,
         };
@@ -232,20 +239,20 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         &mut self,
         conn: &sctk::reexports::client::Connection,
         qh: &sctk::reexports::client::QueueHandle<Self>,
-        data_device: sctk::data_device_manager::data_device::DataDevice,
+        data_device: &WlDataDevice,
     ) {
         // treat it as pointer button release
         let seat = match self
             .server_state
             .seats
             .iter_mut()
-            .find(|sp| sp.client.data_device == data_device)
+            .find(|sp| sp.client.data_device.inner() == data_device)
         {
             Some(sp) => sp,
             None => return,
         };
 
-        let offer = match data_device.drag_offer() {
+        let offer = match data_device.data::<DataDeviceData>().unwrap().drag_offer() {
             Some(offer) => offer,
             None => return,
         };

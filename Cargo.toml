@@ -10,7 +10,8 @@ license = "MPL-2.0"
 smithay = { git = "https://github.com/smithay/smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl"]}
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl"] }
 # sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"] }
-sctk = { git = "https://github.com/pop-os/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"], tag = "themed-pointer" }
+sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"] }
+wayland-backend = { version = "0.1.2", features = ["client_system"] }
 wayland-protocols = { version = "0.30.0", features = [ "staging"]}
 tracing = "0.1.37"
 # sctk = { package = "smithay-client-toolkit", path = "../fork/client-toolkit", default-features = false, features = ["calloop", "xkbcommon"] }

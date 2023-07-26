@@ -4,16 +4,6 @@ use sctk::reexports::client::protocol::wl_data_device_manager::DndAction;
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 impl<W: WrapperSpace> DataOfferHandler for GlobalState<W> {
-    fn offer(
-        &mut self,
-        _conn: &sctk::reexports::client::Connection,
-        _qh: &sctk::reexports::client::QueueHandle<Self>,
-        _offer: &mut sctk::data_device_manager::data_offer::DataDeviceOffer,
-        _mime_type: String,
-    ) {
-        // TODO Not sure this is needed
-    }
-
     // TODO DnD
     fn source_actions(
         &mut self,
