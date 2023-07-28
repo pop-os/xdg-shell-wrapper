@@ -1,4 +1,4 @@
-use std::{cell::RefMut, rc::Rc, sync::Mutex};
+use std::rc::Rc;
 
 use sctk::reexports::client::Proxy;
 use sctk::shell::{
@@ -9,23 +9,16 @@ use smithay::utils::{Logical, Size};
 use smithay::{
     backend::{
         egl::EGLSurface,
-        renderer::{
-            buffer_type, damage::OutputDamageTracker, utils::on_commit_buffer_handler, Bind,
-            BufferType, Unbind,
-        },
+        renderer::{damage::OutputDamageTracker, utils::on_commit_buffer_handler, Bind, Unbind},
     },
     delegate_compositor, delegate_shm,
     desktop::utils::bbox_from_surface_tree,
     desktop::LayerSurface as SmithayLayerSurface,
-    input::pointer::CursorImageAttributes,
     reexports::wayland_server::protocol::{wl_buffer, wl_surface::WlSurface},
     utils::Transform,
     wayland::{
         buffer::BufferHandler,
-        compositor::{
-            get_role, with_states, BufferAssignment, CompositorHandler, CompositorState,
-            SurfaceAttributes,
-        },
+        compositor::{get_role, CompositorHandler, CompositorState},
         shell::wlr_layer::{ExclusiveZone, Layer},
         shm::{ShmHandler, ShmState},
     },
@@ -35,10 +28,8 @@ use wayland_egl::WlEglSurface;
 
 use crate::{
     client_state::{SurfaceState, WrapperClientCompositorState},
-    server_state::SeatPair,
     shared_state::GlobalState,
     space::{ClientEglSurface, WrapperSpace},
-    util::write_and_attach_buffer,
 };
 
 impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
@@ -58,63 +49,6 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
             on_commit_buffer_handler::<GlobalState<W>>(surface);
             self.server_state.popup_manager.commit(surface);
             self.space.dirty_popup(&dh, surface);
-        } else if role == "cursor_image".into() {
-            let multipool = match &mut self.client_state.multipool {
-                Some(m) => m,
-                None => {
-                    error!("multipool is missing!");
-                    return;
-                }
-            };
-            let cursor_surface = match &mut self.client_state.cursor_surface {
-                Some(m) => m,
-                None => {
-                    error!("cursor surface is missing!");
-                    return;
-                }
-            };
-
-            trace!("received surface with cursor image");
-            for SeatPair { client, .. } in &self.server_state.seats {
-                if let Some(themed_ptr) = client.ptr.as_ref() {
-                    let ptr = themed_ptr.pointer();
-                    trace!("updating cursor for pointer {:?}", &ptr);
-                    let _ = with_states(surface, |data| {
-                        let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
-                        let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
-                        if let Some(BufferAssignment::NewBuffer(buffer)) = buf.as_ref() {
-                            if let Some(BufferType::Shm) = buffer_type(buffer) {
-                                trace!("attaching buffer to cursor surface.");
-                                if let Some(hotspot) = data
-                                    .data_map
-                                    .get::<Mutex<CursorImageAttributes>>()
-                                    .and_then(|m| m.lock().ok())
-                                    .map(|attr| (*attr).hotspot)
-                                {
-                                    trace!("requesting cursor update");
-                                    ptr.set_cursor(
-                                        client.last_enter,
-                                        Some(cursor_surface),
-                                        hotspot.x,
-                                        hotspot.y,
-                                    );
-                                    if let Err(e) = write_and_attach_buffer::<W>(
-                                        buf.as_ref().unwrap(),
-                                        cursor_surface,
-                                        self.client_state.multipool_ctr,
-                                        multipool,
-                                    ) {
-                                        error!("failed to attach buffer to cursor surface: {}", e);
-                                    }
-                                    self.client_state.multipool_ctr += 1;
-                                }
-                            }
-                        } else {
-                            ptr.set_cursor(client.last_enter, None, 0, 0);
-                        }
-                    });
-                }
-            }
         } else if role == "zwlr_layer_surface_v1".into() {
             if let Some(pos) = self
                 .client_state

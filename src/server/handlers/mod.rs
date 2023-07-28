@@ -1,6 +1,8 @@
 use std::{
+    cell::RefMut,
     os::fd::{IntoRawFd, OwnedFd},
     rc::Rc,
+    sync::Mutex,
 };
 
 use itertools::Itertools;
@@ -15,7 +17,7 @@ use smithay::{
     },
     delegate_data_device, delegate_dmabuf, delegate_output, delegate_primary_selection,
     delegate_seat,
-    input::{Seat, SeatHandler, SeatState},
+    input::{pointer::CursorImageAttributes, Seat, SeatHandler, SeatState},
     reexports::wayland_server::{
         protocol::{
             wl_data_device_manager::DndAction, wl_data_source::WlDataSource, wl_surface::WlSurface,
@@ -24,6 +26,7 @@ use smithay::{
     },
     utils::Transform,
     wayland::{
+        compositor::{with_states, SurfaceAttributes},
         data_device::{
             set_data_device_focus, with_source_metadata, ClientDndGrabHandler, DataDeviceHandler,
             ServerDndGrabHandler,
@@ -32,11 +35,13 @@ use smithay::{
         primary_selection::{set_primary_focus, PrimarySelectionHandler, PrimarySelectionState},
     },
 };
+use tracing::{error, info, trace};
 use wayland_egl::WlEglSurface;
 
 use crate::{
     shared_state::GlobalState,
     space::{ClientEglSurface, WrapperSpace},
+    util::write_and_attach_buffer,
 };
 
 pub(crate) mod compositor;
@@ -83,10 +88,80 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
 
     fn cursor_image(
         &mut self,
-        _seat: &smithay::input::Seat<Self>,
-        _image: smithay::input::pointer::CursorImageStatus,
+        seat: &smithay::input::Seat<Self>,
+        image: smithay::input::pointer::CursorImageStatus,
     ) {
-        // TODO
+        trace!("cursor icon");
+
+        let Some(seat_pair) = self
+        .server_state
+        .seats
+        .iter()
+        .find(|seat_pair| &seat_pair.server.seat == seat) else {
+            return;
+        };
+        let Some(ptr) = seat_pair.client.ptr.as_ref() else {
+            return;
+        };
+        // render dnd icon to the active dnd icon surface
+        match image {
+            smithay::input::pointer::CursorImageStatus::Hidden => {
+                let ptr = ptr.pointer();
+                ptr.set_cursor(seat_pair.client.last_enter, None, 0, 0);
+            }
+            smithay::input::pointer::CursorImageStatus::Default => {
+                trace!("Cursor image reset to default");
+                if let Err(err) = ptr.set_cursor(
+                    &self.client_state.connection,
+                    sctk::seat::pointer::CursorIcon::Default,
+                ) {
+                    error!("{}", err);
+                }
+            }
+            smithay::input::pointer::CursorImageStatus::Surface(surface) => {
+                trace!("received surface with cursor image");
+
+                let multipool = match &mut self.client_state.multipool {
+                    Some(m) => m,
+                    None => {
+                        error!("multipool is missing!");
+                        return;
+                    }
+                };
+                let cursor_surface = self.client_state.cursor_surface.get_or_insert_with(|| {
+                    self.client_state
+                        .compositor_state
+                        .create_surface(&self.client_state.queue_handle)
+                });
+
+                let last_enter = seat_pair.client.last_enter;
+
+                let _ = with_states(&surface, |data| {
+                    let surface_attributes = data.cached_state.current::<SurfaceAttributes>();
+                    let buf = RefMut::map(surface_attributes, |s| &mut s.buffer);
+                    if let Some(hotspot) = data
+                        .data_map
+                        .get::<Mutex<CursorImageAttributes>>()
+                        .and_then(|m| m.lock().ok())
+                        .map(|attr| (*attr).hotspot)
+                    {
+                        trace!("Setting cursor {:?}", hotspot);
+                        let ptr = ptr.pointer();
+                        ptr.set_cursor(last_enter, Some(&cursor_surface), hotspot.x, hotspot.y);
+                        self.client_state.multipool_ctr += 1;
+
+                        if let Err(e) = write_and_attach_buffer::<W>(
+                            buf.as_ref().unwrap(),
+                            &cursor_surface,
+                            self.client_state.multipool_ctr,
+                            multipool,
+                        ) {
+                            error!("failed to attach buffer to cursor surface: {}", e);
+                        }
+                    }
+                });
+            }
+        }
     }
 }
 

@@ -13,6 +13,7 @@ use smithay::{
     reexports::wayland_server::protocol::wl_pointer::AxisSource,
     utils::{Point, SERIAL_COUNTER},
 };
+use tracing::info;
 
 impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
     fn pointer_frame(
@@ -197,6 +198,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         continue;
                     }
 
+                    let prev_focus = ptr.current_focus().is_some();
                     if let Some(ServerPointerFocus {
                         surface,
                         c_pos,
@@ -217,20 +219,22 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             },
                         );
                     } else {
-                        ptr.motion(
-                            self,
-                            None,
-                            &MotionEvent {
-                                location: Point::from((surface_x, surface_y)),
-                                serial: SERIAL_COUNTER.next_serial(),
-                                time,
-                            },
-                        );
-                        if let Some(themed_pointer) =
-                            &self.server_state.seats[seat_index].client.ptr
-                        {
-                            _ = themed_pointer
-                                .set_cursor(conn, sctk::seat::pointer::CursorIcon::Default);
+                        if prev_focus {
+                            ptr.motion(
+                                self,
+                                None,
+                                &MotionEvent {
+                                    location: Point::from((surface_x, surface_y)),
+                                    serial: SERIAL_COUNTER.next_serial(),
+                                    time,
+                                },
+                            );
+                            if let Some(themed_pointer) =
+                                &self.server_state.seats[seat_index].client.ptr
+                            {
+                                _ = themed_pointer
+                                    .set_cursor(conn, sctk::seat::pointer::CursorIcon::Default);
+                            }
                         }
                     }
                 }

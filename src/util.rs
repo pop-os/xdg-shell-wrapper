@@ -120,37 +120,15 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
                             stride,
                             ..
                         } = buffer_metadata;
-                        let mut buff = None;
-                        for i in 0..=multipool_ctr + 1 {
-                            buff = None;
-                            if i == multipool_ctr + 1 {
-                                match multipool.create_buffer(
-                                    width,
-                                    stride,
-                                    height,
-                                    &(cursor_surface.clone(), multipool_ctr + 1),
-                                    format,
-                                ) {
-                                    Ok(b) => {
-                                        buff = Some(b);
-                                        break;
-                                    }
-                                    Err(e) => bail!("Failed to create buffer {}", e),
-                                }
-                            } else if let Some(b) = multipool.get(
-                                width,
-                                stride,
-                                height,
-                                &(cursor_surface.clone(), i),
-                                format,
-                            ) {
-                                buff = Some(b);
-                                break;
-                            }
-                        }
-
-                        let (_, buff, to) =
-                            buff.ok_or_else(|| anyhow::anyhow!("Failed to get buffer"))?;
+                        let Ok((_, buff, to)) = multipool.create_buffer(
+                            width,
+                            stride,
+                            height,
+                            &(cursor_surface.clone(), multipool_ctr),
+                            format,
+                        ) else {
+                            bail!("Failed to create buffer");
+                        };
 
                         let mut writer = BufWriter::new(to);
                         let from: &[u8] = unsafe { std::slice::from_raw_parts(from, length) };
@@ -162,17 +140,19 @@ pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(
                         writer.flush()?;
 
                         cursor_surface.attach(Some(buff), 0, 0);
+                        cursor_surface.damage(0, 0, width, height as i32);
                         cursor_surface.commit();
+
                         Ok(())
                     } else {
-                        bail!("unsupported format!")
+                        bail!("Unsupported format!")
                     }
                 },
             )?
         } else {
-            bail!("not an shm buffer...")
+            bail!("Not an shm buffer")
         }
     } else {
-        Ok(())
+        bail!("Missing new buffer.")
     }
 }
