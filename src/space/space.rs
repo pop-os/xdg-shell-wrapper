@@ -272,6 +272,14 @@ pub trait WrapperSpace {
         legacy: bool,
     );
 
+    /// preferred transform changed for the given surface
+    fn transform_changed(
+        &mut self,
+        conn: &Connection,
+        surface: &wl_surface::WlSurface,
+        new_transform: sctk::reexports::client::protocol::wl_output::Transform,
+    );
+
     /// get the scale factor for a surface
     /// returns none if the surface is not tracked by this space
     fn get_scale_factor(&self, surface: &s_WlSurface) -> Option<f64>;
