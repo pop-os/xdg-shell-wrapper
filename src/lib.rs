@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use sctk::{reexports::client::Proxy, shm::multi::MultiPool};
 use smithay::{
-    backend::input::KeyState, input::keyboard::FilterResult, reexports::calloop,
+    backend::input::KeyState, input::keyboard::FilterResult, reexports::{calloop, wayland_server::Display},
     utils::SERIAL_COUNTER,
 };
 
@@ -35,19 +35,16 @@ pub mod util;
 /// run the cosmic panel xdg wrapper with the provided config
 pub fn run<W: WrapperSpace + 'static>(
     mut space: W,
+    mut client_state: ClientState<W>,
+    mut embedded_server_state: ServerState<W>,
     mut event_loop: calloop::EventLoop<'static, GlobalState<W>>,
+    mut server_display: Display<GlobalState<W>>,
 ) -> Result<()> {
     let start = std::time::Instant::now();
     let loop_handle = event_loop.handle();
 
-    let mut server_display = smithay::reexports::wayland_server::Display::new().unwrap();
     let s_dh = server_display.handle();
     space.set_display_handle(s_dh.clone());
-
-    let mut embedded_server_state = ServerState::new(s_dh.clone());
-
-    let client_state =
-        ClientState::new(loop_handle.clone(), &mut space, &mut embedded_server_state)?;
 
     let mut global_state = GlobalState::new(client_state, embedded_server_state, space, start);
 

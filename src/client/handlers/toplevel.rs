@@ -1,49 +1,37 @@
-use cctk::sctk::registry::{ProvidesRegistryState, RegistryState};
-use cctk::{
-    sctk::{
-        self,
-        event_loop::WaylandSource,
-        reexports::client::protocol::wl_seat::WlSeat,
-        seat::{SeatHandler, SeatState},
-    },
-    toplevel_info::{ToplevelInfoHandler, ToplevelInfoState},
-    toplevel_management::{ToplevelManagerHandler, ToplevelManagerState},
-    wayland_client::{self, WEnum},
-};
-use cosmic_protocols::{
+use cctk::cosmic_protocols::{
     toplevel_info::v1::client::zcosmic_toplevel_handle_v1,
     toplevel_management::v1::client::zcosmic_toplevel_manager_v1,
 };
-use wayland_client::{globals::registry_queue_init, Connection, QueueHandle};
+use cctk::{
+    toplevel_info::{ToplevelInfoHandler, ToplevelInfoState},
+    toplevel_management::ToplevelManagerHandler,
+    wayland_client::{self, WEnum},
+};
+use wayland_client::{Connection, QueueHandle};
 
+use crate::space::{ToplevelInfoSpace, ToplevelManagerSpace};
 use crate::{shared_state::GlobalState, space::WrapperSpace};
 
-impl<W: WrapperSpace> ProvidesRegistryState for GlobalState<W> {
-    fn registry(&mut self) -> &mut RegistryState {
-        &mut self.client_state.registry_state
-    }
-
-    sctk::registry_handlers!();
-}
-
-impl<W: WrapperSpace> ToplevelManagerHandler for GlobalState<W> {
+impl<W: WrapperSpace + ToplevelManagerSpace> ToplevelManagerHandler for GlobalState<W> {
     fn toplevel_manager_state(&mut self) -> &mut cctk::toplevel_management::ToplevelManagerState {
-        &mut self.client_state.toplevel_manager_state
+        self.client_state.toplevel_manager_state.as_mut().unwrap()
     }
 
     fn capabilities(
         &mut self,
-        _: &Connection,
+        conn: &Connection,
         _: &QueueHandle<Self>,
-        _: Vec<WEnum<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>>,
+        capabilities: Vec<
+            WEnum<zcosmic_toplevel_manager_v1::ZcosmicToplelevelManagementCapabilitiesV1>,
+        >,
     ) {
-        // TODO capabilities could affect the options in the applet
+        self.space.capabilities(conn, capabilities);
     }
 }
 
-impl<W: WrapperSpace> ToplevelInfoHandler for GlobalState<W> {
+impl<W: WrapperSpace + ToplevelInfoSpace> ToplevelInfoHandler for GlobalState<W> {
     fn toplevel_info_state(&mut self) -> &mut ToplevelInfoState {
-        &mut self.client_state.toplevel_info_state
+        self.client_state.toplevel_info_state.as_mut().unwrap()
     }
 
     fn new_toplevel(
@@ -52,7 +40,17 @@ impl<W: WrapperSpace> ToplevelInfoHandler for GlobalState<W> {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        todo!()
+        let toplevel_state = if let Some(s) = self.client_state.toplevel_info_state.as_mut() {
+            s
+        } else {
+            return;
+        };
+        let info = if let Some(info) = toplevel_state.info(toplevel) {
+            info
+        } else {
+            return;
+        };
+        self.space.new_toplevel(_conn, toplevel, info);
     }
 
     fn update_toplevel(
@@ -61,7 +59,17 @@ impl<W: WrapperSpace> ToplevelInfoHandler for GlobalState<W> {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        todo!()
+        let toplevel_state = if let Some(s) = self.client_state.toplevel_info_state.as_mut() {
+            s
+        } else {
+            return;
+        };
+        let info = if let Some(info) = toplevel_state.info(toplevel) {
+            info
+        } else {
+            return;
+        };
+        self.space.update_toplevel(_conn, toplevel, info);
     }
 
     fn toplevel_closed(
@@ -70,9 +78,9 @@ impl<W: WrapperSpace> ToplevelInfoHandler for GlobalState<W> {
         _qh: &QueueHandle<Self>,
         toplevel: &zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1,
     ) {
-        todo!()
+        self.space.toplevel_closed(_conn, toplevel);
     }
 }
 
-cctk::delegate_toplevel_info!(@<W: WrapperSpace + 'static> GlobalState<W>);
-cctk::delegate_toplevel_manager!(@<W: WrapperSpace + 'static> GlobalState<W>);
+cctk::delegate_toplevel_info!(@<W: WrapperSpace + ToplevelInfoSpace + 'static> GlobalState<W>);
+cctk::delegate_toplevel_manager!(@<W: WrapperSpace + ToplevelManagerSpace + 'static> GlobalState<W>);

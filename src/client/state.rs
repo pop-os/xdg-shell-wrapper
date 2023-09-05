@@ -1,6 +1,10 @@
+use std::fmt::Debug;
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
-
+use cctk::{
+    toplevel_info::ToplevelInfoState,
+    toplevel_management::ToplevelManagerState,
+};
 use sctk::data_device_manager::data_device::DataDevice;
 use sctk::data_device_manager::data_offer::{DragOffer, SelectionOffer};
 use sctk::data_device_manager::data_source::{CopyPasteSource, DragSource};
@@ -47,6 +51,7 @@ use tracing::error;
 use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
+use crate::space::{ToplevelInfoSpace, ToplevelManagerSpace};
 use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
 
 use super::handlers::wp_fractional_scaling::FractionalScalingManager;
@@ -101,7 +106,6 @@ pub enum FocusStatus {
 pub type ClientFocus = Vec<(wl_surface::WlSurface, String, FocusStatus)>;
 
 /// Wrapper client state
-#[derive(Debug)]
 pub struct ClientState<W: WrapperSpace + 'static> {
     /// state
     pub registry_state: RegistryState,
@@ -123,6 +127,10 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub fractional_scaling_manager: Option<FractionalScalingManager<W>>,
     /// viewporter
     pub viewporter_state: Option<ViewporterState<W>>,
+    /// toplevel_info_state
+    pub toplevel_info_state: Option<ToplevelInfoState>,
+    /// toplevel_manager_state
+    pub toplevel_manager_state: Option<ToplevelManagerState>,
 
     pub(crate) connection: Connection,
     /// queue handle
@@ -154,6 +162,37 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     )>,
 }
 
+impl<W: WrapperSpace + std::fmt::Debug> Debug for ClientState<W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f
+        .debug_struct("ClientState")
+        .field("registry_state", &self.registry_state)
+        .field("seat_state", &self.seat_state)
+        .field("output_state", &self.output_state)
+        .field("compositor_state", &self.compositor_state)
+        .field("shm_state", &self.shm_state)
+        .field("xdg_shell_state", &self.xdg_shell_state)
+        .field("layer_state", &self.layer_state)
+        .field("data_device_manager", &self.data_device_manager)
+        .field("fractional_scaling_manager", &self.fractional_scaling_manager)
+        .field("viewporter_state", &self.viewporter_state)
+        .field("toplevel_info_state", &self.toplevel_info_state)
+        .field("toplevel_manager_state", &())
+        .field("connection", &self.connection)
+        .field("queue_handle", &self.queue_handle)
+        .field("focused_surface", &self.focused_surface)
+        .field("hovered_surface", &self.hovered_surface)
+        .field("cursor_surface", &self.cursor_surface)
+        .field("multipool", &self.multipool)
+        .field("multipool_ctr", &self.multipool_ctr)
+        .field("last_key_pressed", &self.last_key_pressed)
+        .field("outputs", &self.outputs)
+        .field("pending_layer_surfaces", &self.pending_layer_surfaces)
+        .field("proxied_layer_surfaces", &self.proxied_layer_surfaces)
+        .finish()
+    }
+}
+
 #[derive(Debug, Default)]
 /// client compositor state
 pub struct WrapperClientCompositorState {
@@ -175,7 +214,8 @@ pub(crate) enum SurfaceState {
 }
 
 impl<W: WrapperSpace + 'static> ClientState<W> {
-    pub(crate) fn new(
+    /// Create a new client state
+    pub fn new(
         loop_handle: calloop::LoopHandle<'static, GlobalState<W>>,
         space: &mut W,
         _embedded_server_state: &mut ServerState<W>,
@@ -232,6 +272,8 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             last_key_pressed: Vec::new(),
             fractional_scaling_manager,
             viewporter_state,
+            toplevel_info_state: None,
+            toplevel_manager_state: None,
         };
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
@@ -286,5 +328,20 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             }
             *state = SurfaceState::Waiting;
         }
+    }
+}
+
+impl<W: WrapperSpace + ToplevelInfoSpace> ClientState<W> {
+    /// initialize the toplevel info state
+    pub fn init_toplevel_info_state(&mut self) {
+        self.toplevel_info_state = Some(ToplevelInfoState::new(&self.registry_state, &self.queue_handle));
+    }
+
+}
+
+impl<W: WrapperSpace + ToplevelManagerSpace> ClientState<W> {
+    /// initialize the toplevel manager state
+    pub fn init_toplevel_manager_state(&mut self) {
+        self.toplevel_manager_state = Some(ToplevelManagerState::new(&self.registry_state, &self.queue_handle));
     }
 }
