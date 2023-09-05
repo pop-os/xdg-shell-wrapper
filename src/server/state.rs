@@ -64,7 +64,8 @@ pub struct ServerState<W: WrapperSpace + 'static> {
 }
 
 impl<W: WrapperSpace> ServerState<W> {
-    pub(crate) fn new(dh: DisplayHandle) -> ServerState<W> {
+    /// create a new server state
+    pub fn new(dh: DisplayHandle) -> ServerState<W> {
         ServerState {
             popup_manager: PopupManager::default(),
             display_handle: dh.clone(),
