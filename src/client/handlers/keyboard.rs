@@ -6,7 +6,7 @@ use crate::{
 };
 use sctk::{
     delegate_keyboard,
-    seat::keyboard::{KeyboardHandler, RepeatInfo},
+    seat::keyboard::{KeyboardHandler, Keysym, RepeatInfo},
     shell::WaylandSurface,
 };
 use smithay::{backend::input::KeyState, input::keyboard::FilterResult, utils::SERIAL_COUNTER};
@@ -20,8 +20,9 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         surface: &sctk::reexports::client::protocol::wl_surface::WlSurface,
         _serial: u32,
         _raw: &[u32],
-        _keysyms: &[u32],
+        _keysyms: &[Keysym],
     ) {
+        let _ = _keysyms;
         let (seat_name, kbd) = if let Some((name, Some(kbd))) = self
             .server_state
             .seats

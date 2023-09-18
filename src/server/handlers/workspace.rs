@@ -30,7 +30,7 @@ impl<W: WrapperSpace + 'static> WorkspaceHandler for GlobalState<W> {
     }
 
     fn commit_requests(&mut self, dh: &DisplayHandle, requests: Vec<cstk::workspace::Request>) {
-        todo!()
+        // TODO
     }
 }
 

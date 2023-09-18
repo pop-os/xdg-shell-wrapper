@@ -20,9 +20,10 @@ pub mod output;
 pub mod pointer;
 pub mod seat;
 pub mod shell;
+pub mod toplevel;
+pub mod workspace;
 pub mod wp_fractional_scaling;
 pub mod wp_viewporter;
-pub mod toplevel;
 
 impl<W: WrapperSpace> ShmHandler for GlobalState<W> {
     fn shm_state(&mut self) -> &mut Shm {

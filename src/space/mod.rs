@@ -3,11 +3,13 @@
 mod egl_surface;
 mod popup;
 mod space;
-mod wrapper_space_element;
 mod toplevel;
+mod workspace;
+mod wrapper_space_element;
 
 pub use egl_surface::*;
 pub use popup::*;
 pub use space::*;
-pub use wrapper_space_element::*;
 pub use toplevel::*;
+pub use workspace::*;
+pub use wrapper_space_element::*;

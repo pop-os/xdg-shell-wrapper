@@ -8,7 +8,9 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use sctk::{reexports::client::Proxy, shm::multi::MultiPool};
 use smithay::{
-    backend::input::KeyState, input::keyboard::FilterResult, reexports::{calloop, wayland_server::Display},
+    backend::input::KeyState,
+    input::keyboard::FilterResult,
+    reexports::{calloop, wayland_server::Display},
     utils::SERIAL_COUNTER,
 };
 

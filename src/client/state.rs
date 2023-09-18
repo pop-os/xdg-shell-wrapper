@@ -1,10 +1,5 @@
-use std::fmt::Debug;
-use std::time::Duration;
-use std::{cell::RefCell, rc::Rc, time::Instant};
-use cctk::{
-    toplevel_info::ToplevelInfoState,
-    toplevel_management::ToplevelManagerState,
-};
+use cctk::workspace::WorkspaceState;
+use cctk::{toplevel_info::ToplevelInfoState, toplevel_management::ToplevelManagerState};
 use sctk::data_device_manager::data_device::DataDevice;
 use sctk::data_device_manager::data_offer::{DragOffer, SelectionOffer};
 use sctk::data_device_manager::data_source::{CopyPasteSource, DragSource};
@@ -47,11 +42,14 @@ use smithay::{
         wayland_server::{backend::GlobalId, protocol::wl_output},
     },
 };
+use std::fmt::Debug;
+use std::time::Duration;
+use std::{cell::RefCell, rc::Rc, time::Instant};
 use tracing::error;
 use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
-use crate::space::{ToplevelInfoSpace, ToplevelManagerSpace};
+use crate::space::{ToplevelInfoSpace, ToplevelManagerSpace, WorkspaceHandlerSpace};
 use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
 
 use super::handlers::wp_fractional_scaling::FractionalScalingManager;
@@ -131,6 +129,8 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub toplevel_info_state: Option<ToplevelInfoState>,
     /// toplevel_manager_state
     pub toplevel_manager_state: Option<ToplevelManagerState>,
+    /// toplevel_manager_state
+    pub workspace_state: Option<WorkspaceState>,
 
     pub(crate) connection: Connection,
     /// queue handle
@@ -164,32 +164,34 @@ pub struct ClientState<W: WrapperSpace + 'static> {
 
 impl<W: WrapperSpace + std::fmt::Debug> Debug for ClientState<W> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f
-        .debug_struct("ClientState")
-        .field("registry_state", &self.registry_state)
-        .field("seat_state", &self.seat_state)
-        .field("output_state", &self.output_state)
-        .field("compositor_state", &self.compositor_state)
-        .field("shm_state", &self.shm_state)
-        .field("xdg_shell_state", &self.xdg_shell_state)
-        .field("layer_state", &self.layer_state)
-        .field("data_device_manager", &self.data_device_manager)
-        .field("fractional_scaling_manager", &self.fractional_scaling_manager)
-        .field("viewporter_state", &self.viewporter_state)
-        .field("toplevel_info_state", &self.toplevel_info_state)
-        .field("toplevel_manager_state", &())
-        .field("connection", &self.connection)
-        .field("queue_handle", &self.queue_handle)
-        .field("focused_surface", &self.focused_surface)
-        .field("hovered_surface", &self.hovered_surface)
-        .field("cursor_surface", &self.cursor_surface)
-        .field("multipool", &self.multipool)
-        .field("multipool_ctr", &self.multipool_ctr)
-        .field("last_key_pressed", &self.last_key_pressed)
-        .field("outputs", &self.outputs)
-        .field("pending_layer_surfaces", &self.pending_layer_surfaces)
-        .field("proxied_layer_surfaces", &self.proxied_layer_surfaces)
-        .finish()
+        f.debug_struct("ClientState")
+            .field("registry_state", &self.registry_state)
+            .field("seat_state", &self.seat_state)
+            .field("output_state", &self.output_state)
+            .field("compositor_state", &self.compositor_state)
+            .field("shm_state", &self.shm_state)
+            .field("xdg_shell_state", &self.xdg_shell_state)
+            .field("layer_state", &self.layer_state)
+            .field("data_device_manager", &self.data_device_manager)
+            .field(
+                "fractional_scaling_manager",
+                &self.fractional_scaling_manager,
+            )
+            .field("viewporter_state", &self.viewporter_state)
+            .field("toplevel_info_state", &self.toplevel_info_state)
+            .field("toplevel_manager_state", &())
+            .field("connection", &self.connection)
+            .field("queue_handle", &self.queue_handle)
+            .field("focused_surface", &self.focused_surface)
+            .field("hovered_surface", &self.hovered_surface)
+            .field("cursor_surface", &self.cursor_surface)
+            .field("multipool", &self.multipool)
+            .field("multipool_ctr", &self.multipool_ctr)
+            .field("last_key_pressed", &self.last_key_pressed)
+            .field("outputs", &self.outputs)
+            .field("pending_layer_surfaces", &self.pending_layer_surfaces)
+            .field("proxied_layer_surfaces", &self.proxied_layer_surfaces)
+            .finish()
     }
 }
 
@@ -274,6 +276,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             viewporter_state,
             toplevel_info_state: None,
             toplevel_manager_state: None,
+            workspace_state: None,
         };
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
@@ -334,14 +337,29 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
 impl<W: WrapperSpace + ToplevelInfoSpace> ClientState<W> {
     /// initialize the toplevel info state
     pub fn init_toplevel_info_state(&mut self) {
-        self.toplevel_info_state = Some(ToplevelInfoState::new(&self.registry_state, &self.queue_handle));
+        self.toplevel_info_state = Some(ToplevelInfoState::new(
+            &self.registry_state,
+            &self.queue_handle,
+        ));
     }
-
 }
 
 impl<W: WrapperSpace + ToplevelManagerSpace> ClientState<W> {
     /// initialize the toplevel manager state
     pub fn init_toplevel_manager_state(&mut self) {
-        self.toplevel_manager_state = Some(ToplevelManagerState::new(&self.registry_state, &self.queue_handle));
+        self.toplevel_manager_state = Some(ToplevelManagerState::new(
+            &self.registry_state,
+            &self.queue_handle,
+        ));
+    }
+}
+
+impl<W: WrapperSpace + WorkspaceHandlerSpace> ClientState<W> {
+    /// initialize the toplevel manager state
+    pub fn init_workspace_state(&mut self) {
+        self.workspace_state = Some(WorkspaceState::new(
+            &self.registry_state,
+            &self.queue_handle,
+        ));
     }
 }
