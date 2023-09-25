@@ -1,9 +1,4 @@
-use std::{
-    cell::RefMut,
-    os::fd::{IntoRawFd, OwnedFd},
-    rc::Rc,
-    sync::Mutex,
-};
+use std::{cell::RefMut, os::fd::OwnedFd, rc::Rc, sync::Mutex};
 
 use itertools::Itertools;
 use sctk::{
@@ -35,7 +30,7 @@ use smithay::{
         primary_selection::{set_primary_focus, PrimarySelectionHandler, PrimarySelectionState},
     },
 };
-use tracing::{error, info, trace};
+use tracing::{error, trace};
 use wayland_egl::WlEglSurface;
 
 use crate::{
@@ -94,10 +89,11 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
         trace!("cursor icon");
 
         let Some(seat_pair) = self
-        .server_state
-        .seats
-        .iter()
-        .find(|seat_pair| &seat_pair.server.seat == seat) else {
+            .server_state
+            .seats
+            .iter()
+            .find(|seat_pair| &seat_pair.server.seat == seat)
+        else {
             return;
         };
         let Some(ptr) = seat_pair.client.ptr.as_ref() else {
@@ -226,7 +222,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             None => return,
         };
         if let Some(offer) = seat.client.selection_offer.as_ref() {
-            unsafe { receive_to_fd(offer.inner(), mime_type, fd.into_raw_fd()) }
+            unsafe { receive_to_fd(offer.inner(), mime_type, fd) }
         }
     }
 
@@ -359,7 +355,7 @@ impl<W: WrapperSpace> ServerDndGrabHandler for GlobalState<W> {
             None => return,
         };
         if let Some(offer) = seat.client.dnd_offer.as_ref() {
-            unsafe { receive_to_fd(offer.inner(), mime_type, fd.into_raw_fd()) }
+            unsafe { receive_to_fd(offer.inner(), mime_type, fd) }
         }
     }
 

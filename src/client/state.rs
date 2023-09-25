@@ -4,7 +4,7 @@ use sctk::data_device_manager::data_device::DataDevice;
 use sctk::data_device_manager::data_offer::{DragOffer, SelectionOffer};
 use sctk::data_device_manager::data_source::{CopyPasteSource, DragSource};
 use sctk::data_device_manager::DataDeviceManagerState;
-use sctk::reexports::client::WaylandSource;
+use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::seat::pointer::ThemedPointer;
 use sctk::shell::wlr_layer::LayerSurface;
 use sctk::shell::{wlr_layer::LayerShell, xdg::XdgShell};
@@ -256,7 +256,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             pending_layer_surfaces: Vec::new(),
 
             queue_handle: qh.clone(),
-            connection,
+            connection: connection.clone(),
             seat_state: SeatState::new(&globals, &qh),
             output_state: OutputState::new(&globals, &qh),
             compositor_state: CompositorState::bind(&globals, &qh)
@@ -280,8 +280,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
         };
 
         // TODO refactor to watch outputs and update space when outputs change or new outputs appear
-        WaylandSource::new(event_queue)
-            .unwrap()
+        WaylandSource::new(connection, event_queue)
             .insert(loop_handle)
             .unwrap();
 

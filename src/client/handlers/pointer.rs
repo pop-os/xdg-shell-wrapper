@@ -50,7 +50,6 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
             .seat
             .get_keyboard()
             .unwrap();
-        drop(seat);
         for e in events {
             let seat = &mut self.server_state.seats[seat_index];
             match e.kind {
@@ -64,6 +63,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             time: time.try_into().unwrap(),
                         },
                     );
+                    ptr.frame(self);
 
                     if let Some((..)) = self
                         .client_state
@@ -125,6 +125,8 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 time: time.try_into().unwrap(),
                             },
                         );
+                        ptr.frame(self);
+
                         continue;
                     }
 
@@ -147,6 +149,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 time: time.try_into().unwrap(),
                             },
                         );
+                        ptr.frame(self);
                     } else {
                         ptr.motion(
                             self,
@@ -157,6 +160,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 time: time.try_into().unwrap(),
                             },
                         );
+                        ptr.frame(self);
                     }
                 }
                 sctk::seat::pointer::PointerEventKind::Motion { time } => {
@@ -195,6 +199,8 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 time: time.try_into().unwrap(),
                             },
                         );
+                        ptr.frame(self);
+
                         continue;
                     }
 
@@ -218,6 +224,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 time,
                             },
                         );
+                        ptr.frame(self);
                     } else {
                         if prev_focus {
                             ptr.motion(
@@ -229,6 +236,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                     time,
                                 },
                             );
+                            ptr.frame(self);
                             if let Some(themed_pointer) =
                                 &self.server_state.seats[seat_index].client.ptr
                             {
@@ -270,6 +278,8 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 state: ButtonState::Pressed,
                             },
                         );
+                        ptr.frame(self);
+
                         continue;
                     }
 
@@ -285,6 +295,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             state: ButtonState::Pressed,
                         },
                     );
+                    ptr.frame(self);
                 }
                 sctk::seat::pointer::PointerEventKind::Release { time, button, .. } => {
                     self.server_state.last_button.replace(button);
@@ -313,6 +324,8 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                                 state: ButtonState::Released,
                             },
                         );
+                        ptr.frame(self);
+
                         continue;
                     }
 
@@ -328,6 +341,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             state: ButtonState::Released,
                         },
                     );
+                    ptr.frame(self);
                 }
                 sctk::seat::pointer::PointerEventKind::Axis {
                     time,
@@ -375,6 +389,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     }
 
                     ptr.axis(self, af);
+                    ptr.frame(self);
                 }
             }
         }
