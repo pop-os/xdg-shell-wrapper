@@ -10,6 +10,7 @@ use sctk::{
     shell::WaylandSurface,
 };
 use smithay::{backend::input::KeyState, input::keyboard::FilterResult, utils::SERIAL_COUNTER};
+use xkbcommon::xkb;
 
 impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
     fn enter(
@@ -247,6 +248,25 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         _modifiers: sctk::seat::keyboard::Modifiers,
     ) {
         // TODO should these be handled specially
+    }
+
+    fn update_keymap(
+        &mut self,
+        _conn: &sctk::reexports::client::Connection,
+        _qh: &sctk::reexports::client::QueueHandle<Self>,
+        keyboard: &sctk::reexports::client::protocol::wl_keyboard::WlKeyboard,
+        keymap: xkb::Keymap,
+    ) {
+        if let Some(seat) =
+            self.server_state
+                .seats
+                .iter_mut()
+                .find(|SeatPair { client, .. }| {
+                    client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
+                })
+        {
+            seat.server.add_keyboard_from_keymap(keymap, 200, 20);
+        }
     }
 }
 
