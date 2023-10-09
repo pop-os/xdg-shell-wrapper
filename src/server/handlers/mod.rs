@@ -22,12 +22,17 @@ use smithay::{
     utils::Transform,
     wayland::{
         compositor::{with_states, SurfaceAttributes},
-        data_device::{
-            set_data_device_focus, with_source_metadata, ClientDndGrabHandler, DataDeviceHandler,
-            ServerDndGrabHandler,
-        },
         dmabuf::{DmabufHandler, ImportError},
-        primary_selection::{set_primary_focus, PrimarySelectionHandler, PrimarySelectionState},
+        selection::{
+            data_device::{
+                set_data_device_focus, with_source_metadata, ClientDndGrabHandler,
+                DataDeviceHandler, ServerDndGrabHandler,
+            },
+            primary_selection::{
+                set_primary_focus, PrimarySelectionHandler, PrimarySelectionState,
+            },
+            SelectionHandler, SelectionSource, SelectionTarget,
+        },
     },
 };
 use tracing::{error, trace};
@@ -46,8 +51,6 @@ pub(crate) mod viewporter;
 pub(crate) mod xdg_shell;
 
 impl<W: WrapperSpace> PrimarySelectionHandler for GlobalState<W> {
-    type SelectionUserData = ();
-
     fn primary_selection_state(&self) -> &PrimarySelectionState {
         &self.server_state.primary_selection_state
     }
@@ -105,12 +108,9 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                 let ptr = ptr.pointer();
                 ptr.set_cursor(seat_pair.client.last_enter, None, 0, 0);
             }
-            smithay::input::pointer::CursorImageStatus::Default => {
+            smithay::input::pointer::CursorImageStatus::Named(icon) => {
                 trace!("Cursor image reset to default");
-                if let Err(err) = ptr.set_cursor(
-                    &self.client_state.connection,
-                    sctk::seat::pointer::CursorIcon::Default,
-                ) {
+                if let Err(err) = ptr.set_cursor(&self.client_state.connection, icon) {
                     error!("{}", err);
                 }
             }
@@ -168,65 +168,9 @@ delegate_seat!(@<W: WrapperSpace + 'static> GlobalState<W>);
 //
 
 impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
-    fn data_device_state(&self) -> &smithay::wayland::data_device::DataDeviceState {
+    fn data_device_state(&self) -> &smithay::wayland::selection::data_device::DataDeviceState {
         &self.server_state.data_device_state
     }
-
-    fn new_selection(&mut self, source: Option<WlDataSource>, seat: Seat<GlobalState<W>>) {
-        let seat = match self
-            .server_state
-            .seats
-            .iter_mut()
-            .find(|s| s.server.seat == seat)
-        {
-            Some(s) => s,
-            None => return,
-        };
-
-        let serial = seat.client.get_serial_of_last_seat_event();
-
-        if let Some(source) = source {
-            seat.client.next_selection_offer_is_mine = true;
-            let metadata = with_source_metadata(&source, |metadata| metadata.clone()).unwrap();
-            let copy_paste_source = self
-                .client_state
-                .data_device_manager
-                .create_copy_paste_source(
-                    &self.client_state.queue_handle,
-                    metadata
-                        .mime_types
-                        .iter()
-                        .map(|s| s.as_str())
-                        .collect::<Vec<_>>(),
-                );
-            seat.client.copy_paste_source = Some(copy_paste_source);
-        } else {
-            seat.client.data_device.unset_selection(serial)
-        }
-    }
-
-    fn send_selection(
-        &mut self,
-        mime_type: String,
-        fd: OwnedFd,
-        seat: Seat<Self>,
-        _: &Self::SelectionUserData,
-    ) {
-        let seat = match self
-            .server_state
-            .seats
-            .iter()
-            .find(|s| s.server.seat == seat)
-        {
-            Some(s) => s,
-            None => return,
-        };
-        if let Some(offer) = seat.client.selection_offer.as_ref() {
-            unsafe { receive_to_fd(offer.inner(), mime_type, fd) }
-        }
-    }
-
-    type SelectionUserData = ();
 }
 
 impl<W: WrapperSpace> ClientDndGrabHandler for GlobalState<W> {
@@ -447,4 +391,62 @@ impl<W: WrapperSpace> DmabufHandler for GlobalState<W> {
             .unwrap_or_else(|| Err(ImportError::Failed))
     }
 }
+
+impl<W: WrapperSpace> SelectionHandler for GlobalState<W> {
+    type SelectionUserData = ();
+
+    fn new_selection(
+        &mut self,
+        target: SelectionTarget,
+        source: Option<SelectionSource>,
+        seat: Seat<GlobalState<W>>,
+    ) {
+        let seat = match self
+            .server_state
+            .seats
+            .iter_mut()
+            .find(|s| s.server.seat == seat)
+        {
+            Some(s) => s,
+            None => return,
+        };
+
+        let serial = seat.client.get_serial_of_last_seat_event();
+
+        if let Some(source) = source {
+            seat.client.next_selection_offer_is_mine = true;
+            let mime_types = source.mime_types();
+            let copy_paste_source = self
+                .client_state
+                .data_device_manager
+                .create_copy_paste_source(&self.client_state.queue_handle, mime_types);
+            seat.client.copy_paste_source = Some(copy_paste_source);
+        } else {
+            seat.client.data_device.unset_selection(serial)
+        }
+    }
+
+    fn send_selection(
+        &mut self,
+        target: SelectionTarget,
+        mime_type: String,
+        fd: OwnedFd,
+        seat: Seat<Self>,
+        _: &Self::SelectionUserData,
+    ) {
+        let seat = match self
+            .server_state
+            .seats
+            .iter()
+            .find(|s| s.server.seat == seat)
+        {
+            Some(s) => s,
+            None => return,
+        };
+        if let Some(offer) = seat.client.selection_offer.as_ref() {
+            unsafe { receive_to_fd(offer.inner(), mime_type, fd) }
+        }
+    }
+}
+
 delegate_dmabuf!(@<W: WrapperSpace + 'static> GlobalState<W>);

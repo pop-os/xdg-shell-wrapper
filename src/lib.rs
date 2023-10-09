@@ -37,13 +37,12 @@ pub mod util;
 /// run the cosmic panel xdg wrapper with the provided config
 pub fn run<W: WrapperSpace + 'static>(
     mut space: W,
-    mut client_state: ClientState<W>,
-    mut embedded_server_state: ServerState<W>,
+    client_state: ClientState<W>,
+    embedded_server_state: ServerState<W>,
     mut event_loop: calloop::EventLoop<'static, GlobalState<W>>,
     mut server_display: Display<GlobalState<W>>,
 ) -> Result<()> {
     let start = std::time::Instant::now();
-    let loop_handle = event_loop.handle();
 
     let s_dh = server_display.handle();
     space.set_display_handle(s_dh.clone());
@@ -87,6 +86,8 @@ pub fn run<W: WrapperSpace + 'static>(
     // let set_clipboard_once = Rc::new(Cell::new(false));
 
     loop {
+        let now = Instant::now();
+
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
             global_state.server_state.popup_manager.cleanup();
@@ -143,6 +144,12 @@ pub fn run<W: WrapperSpace + 'static>(
         };
         event_loop.dispatch(dur, &mut global_state)?;
 
+        if let Some(to_sleep) = Instant::now()
+            .checked_duration_since(now)
+            .and_then(|spent| dur.checked_sub(spent))
+        {
+            std::thread::sleep(to_sleep);
+        }
         // rendering
         {
             let space = &mut global_state.space;

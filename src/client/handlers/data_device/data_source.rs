@@ -1,4 +1,4 @@
-use std::os::fd::AsFd;
+use std::os::fd::{AsFd, IntoRawFd};
 
 use crate::client_state::FocusStatus;
 use crate::{shared_state::GlobalState, space::WrapperSpace};
