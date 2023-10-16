@@ -8,11 +8,10 @@ use smithay::{
     utils::{Logical, Point},
     wayland::{
         compositor::CompositorState,
-        data_device::DataDeviceState,
         dmabuf::{DmabufGlobal, DmabufState},
         fractional_scale::FractionalScaleManagerState,
         output::OutputManagerState,
-        primary_selection::PrimarySelectionState,
+        selection::{data_device::DataDeviceState, primary_selection::PrimarySelectionState},
         shell::{wlr_layer::WlrLayerShellState, xdg::XdgShellState},
         shm::ShmState,
     },

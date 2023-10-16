@@ -17,7 +17,7 @@ use smithay::{
     input::pointer::GrabStartData,
     reexports::wayland_server::{protocol::wl_data_device_manager::DndAction, Resource},
     utils::SERIAL_COUNTER,
-    wayland::data_device::{
+    wayland::selection::data_device::{
         set_data_device_focus, set_data_device_selection, start_dnd, SourceMetadata,
     },
 };

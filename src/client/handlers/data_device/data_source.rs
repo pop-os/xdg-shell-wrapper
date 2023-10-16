@@ -1,4 +1,4 @@
-use std::os::fd::IntoRawFd;
+use std::os::fd::{AsFd, IntoRawFd};
 
 use crate::client_state::FocusStatus;
 use crate::{shared_state::GlobalState, space::WrapperSpace};
@@ -47,11 +47,11 @@ impl<W: WrapperSpace> DataSourceHandler for GlobalState<W> {
         // could be a selection source or a dnd source
         if is_dnd {
             if let Some(dnd_source) = seat.server.dnd_source.as_ref() {
-                dnd_source.send(mime, fd.into_raw_fd());
+                dnd_source.send(mime, fd.as_fd());
             }
         } else {
             if let Some(selection) = seat.server.selection_source.as_ref() {
-                selection.send(mime, fd.into_raw_fd());
+                selection.send(mime, fd.as_fd());
             }
         }
     }
