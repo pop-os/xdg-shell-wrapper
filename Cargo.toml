@@ -11,7 +11,7 @@ smithay = { git = "https://github.com/smithay/smithay", default-features = false
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl"] }
 # sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"] }
 sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"] }
-cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols" }
+cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols", branch = "toplevel-update" }
 wayland-backend = { version = "0.3.2", features = ["client_system"] }
 wayland-protocols = { version = "0.31.0", features = [ "staging"]}
 tracing = "0.1.37"
