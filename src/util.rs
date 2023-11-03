@@ -2,15 +2,10 @@
 
 use std::{
     io::{BufWriter, Write},
-    os::unix::{
-        net::UnixStream,
-        prelude::{AsRawFd, RawFd},
-    },
-    process::{Child, Command},
+    os::unix::{net::UnixStream, prelude::AsRawFd},
     sync::Arc,
 };
 
-use shlex::Shlex;
 use smithay::reexports::{
     nix::fcntl,
     wayland_server::{self, Client},
@@ -28,7 +23,6 @@ use smithay::{
         shm::{with_buffer_contents, BufferData},
     },
 };
-use tracing::trace;
 
 use crate::client_state::WrapperClientCompositorState;
 
@@ -62,43 +56,6 @@ pub fn get_client_sock(display: &mut wayland_server::DisplayHandle) -> (Client, 
             .unwrap(),
         client_sock,
     )
-}
-
-/// helper function for launching a wrapped applet
-pub fn exec_child(
-    c: &str,
-    fd: RawFd,
-    env_vars: Vec<(&str, &str)>,
-    requests_wayland_display: bool,
-) -> Child {
-    let mut exec_iter = Shlex::new(c);
-    let exec = exec_iter
-        .next()
-        .expect("exec parameter must contain at least on word");
-    trace!("child: {}", &exec);
-
-    let mut child = Command::new(exec);
-    for arg in exec_iter {
-        trace!("child argument: {}", &arg);
-        child.arg(arg);
-    }
-
-    for (key, val) in &env_vars {
-        child.env(key, val);
-    }
-
-    if !requests_wayland_display {
-        child.env_remove("WAYLAND_DISPLAY");
-    }
-
-    child
-        .env("WAYLAND_SOCKET", fd.to_string())
-        .env_remove("WAYLAND_DEBUG")
-        // .env("WAYLAND_DEBUG", "1")
-        // .stderr(std::process::Stdio::piped())
-        // .stdout(std::process::Stdio::piped())
-        .spawn()
-        .expect("Failed to start child process")
 }
 
 pub(crate) fn write_and_attach_buffer<W: WrapperSpace + 'static>(

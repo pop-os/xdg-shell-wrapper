@@ -2,7 +2,8 @@
 
 use sctk::{
     compositor::CompositorHandler,
-    reexports::client::{protocol::wl_surface, Connection, QueueHandle}, shell::WaylandSurface,
+    reexports::client::{protocol::wl_surface, Connection, QueueHandle},
+    shell::WaylandSurface,
 };
 use smithay::reexports::wayland_server::protocol::wl_output::Transform;
 
@@ -43,35 +44,48 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
     fn transform_changed(
         &mut self,
         conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _qh: &QueueHandle<Self>,
         surface: &wl_surface::WlSurface,
         new_transform: sctk::reexports::client::protocol::wl_output::Transform,
     ) {
         for tracked_surface in &mut self.client_state.proxied_layer_surfaces {
             if tracked_surface.3.wl_surface() == surface {
                 let transform = match new_transform {
-                    sctk::reexports::client::protocol::wl_output::Transform::Normal => Transform::Normal,
+                    sctk::reexports::client::protocol::wl_output::Transform::Normal => {
+                        Transform::Normal
+                    }
                     sctk::reexports::client::protocol::wl_output::Transform::_90 => Transform::_90,
-                    sctk::reexports::client::protocol::wl_output::Transform::_180 => Transform::_180,
-                    sctk::reexports::client::protocol::wl_output::Transform::_270 => Transform::_270,
-                    sctk::reexports::client::protocol::wl_output::Transform::Flipped => Transform::Flipped,
-                    sctk::reexports::client::protocol::wl_output::Transform::Flipped90 => Transform::Flipped90,
-                    sctk::reexports::client::protocol::wl_output::Transform::Flipped180 => Transform::Flipped180,
-                    sctk::reexports::client::protocol::wl_output::Transform::Flipped270 => Transform::Flipped270,
+                    sctk::reexports::client::protocol::wl_output::Transform::_180 => {
+                        Transform::_180
+                    }
+                    sctk::reexports::client::protocol::wl_output::Transform::_270 => {
+                        Transform::_270
+                    }
+                    sctk::reexports::client::protocol::wl_output::Transform::Flipped => {
+                        Transform::Flipped
+                    }
+                    sctk::reexports::client::protocol::wl_output::Transform::Flipped90 => {
+                        Transform::Flipped90
+                    }
+                    sctk::reexports::client::protocol::wl_output::Transform::Flipped180 => {
+                        Transform::Flipped180
+                    }
+                    sctk::reexports::client::protocol::wl_output::Transform::Flipped270 => {
+                        Transform::Flipped270
+                    }
                     _ => {
                         tracing::warn!("Received unknown transform.");
                         return;
-                    },
+                    }
                 };
-                tracked_surface.2.wl_surface().preferred_buffer_transform(transform);
+                tracked_surface
+                    .2
+                    .wl_surface()
+                    .preferred_buffer_transform(transform);
                 return;
             }
         }
 
-        self.space
-            .transform_changed(conn,
-        surface,
-        new_transform);
-
+        self.space.transform_changed(conn, surface, new_transform);
     }
 }

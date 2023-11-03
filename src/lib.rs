@@ -16,7 +16,7 @@ use smithay::{
 
 use client::state::ClientState;
 pub use client::{
-    handlers::{output, wp_fractional_scaling, wp_viewporter},
+    handlers::{output, wp_fractional_scaling, wp_security_context, wp_viewporter},
     state as client_state,
 };
 pub use server::state as server_state;
@@ -62,6 +62,7 @@ pub fn run<W: WrapperSpace + 'static>(
             .client_state
             .fractional_scaling_manager
             .as_ref(),
+        global_state.client_state.security_context_manager.clone(),
         global_state.client_state.viewporter_state.as_ref(),
         &mut global_state.client_state.layer_state,
         &global_state.client_state.connection,
