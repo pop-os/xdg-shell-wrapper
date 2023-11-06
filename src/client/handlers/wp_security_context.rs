@@ -24,13 +24,13 @@ use crate::{shared_state::GlobalState, space::WrapperSpace};
 
 #[derive(Debug, Clone)]
 pub struct SecurityContextManager {
-    manager: WpSecurityContextManagerV1,
+    pub manager: WpSecurityContextManagerV1,
 }
 
 /// Security Context data.
 #[derive(Debug)]
 pub struct SecurityContext {
-    conn: Arc<Mutex<Option<UnixStream>>>,
+    pub conn: Arc<Mutex<Option<UnixStream>>>,
 }
 
 impl SecurityContextManager {
