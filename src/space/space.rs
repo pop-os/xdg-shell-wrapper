@@ -222,9 +222,10 @@ pub trait WrapperSpace {
     fn config(&self) -> Self::Config;
 
     /// spawns the clients for the wrapper
-    fn spawn_clients(
+    fn spawn_clients<W: WrapperSpace>(
         &mut self,
         display: wayland_server::DisplayHandle,
+        qh: &QueueHandle<GlobalState<W>>,
         security_context_manager: Option<SecurityContextManager>,
     ) -> anyhow::Result<()>;
 
