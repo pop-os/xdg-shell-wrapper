@@ -49,13 +49,6 @@ pub fn run<W: WrapperSpace + 'static>(
 
     let mut global_state = GlobalState::new(client_state, embedded_server_state, space, start);
 
-    // remove extra looping after launch-pad is integrated
-    for _ in 0..10 {
-        event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
-    }
-
-    let multipool = MultiPool::new(&global_state.client_state.shm_state);
-
     global_state.space.setup(
         &global_state.client_state.compositor_state,
         global_state
@@ -68,6 +61,13 @@ pub fn run<W: WrapperSpace + 'static>(
         &global_state.client_state.connection,
         &global_state.client_state.queue_handle,
     );
+
+    // // remove extra looping after launch-pad is integrated
+    for _ in 0..10 {
+        event_loop.dispatch(Duration::from_millis(16), &mut global_state)?;
+    }
+
+    let multipool = MultiPool::new(&global_state.client_state.shm_state);
 
     let cursor_surface = global_state
         .client_state

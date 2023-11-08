@@ -2,7 +2,7 @@
 
 use std::{
     io::{BufWriter, Write},
-    os::unix::{net::UnixStream, prelude::AsRawFd},
+    os::unix::net::UnixStream,
     sync::Arc,
 };
 

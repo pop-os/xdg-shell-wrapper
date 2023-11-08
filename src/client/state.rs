@@ -238,19 +238,25 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
                 Ok(m) => {
                     let viewporter_state = match ViewporterState::new(&globals, &qh) {
                         Ok(s) => Some(s),
-                        Err(e) => {
-                            error!("Failed to initialize viewporter: {}", e);
+                        Err(why) => {
+                            error!(?why, "Failed to initialize viewporter");
                             None
                         }
                     };
                     (viewporter_state, Some(m))
                 }
-                Err(e) => {
-                    error!("Failed to initialize fractional scaling manager: {}", e);
+                Err(why) => {
+                    error!(?why, "Failed to initialize fractional scaling manager");
                     (None, None)
                 }
             };
-        let security_context_manager = SecurityContextManager::new(&globals, &qh).ok();
+        let security_context_manager = match SecurityContextManager::new(&globals, &qh) {
+            Err(why) => {
+                error!(?why, "Failed to initialize security context manager");
+                None
+            }
+            Ok(m) => Some(m),
+        };
 
         let client_state = ClientState {
             focused_surface: space.get_client_focused_surface(),
@@ -280,7 +286,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             toplevel_info_state: None,
             toplevel_manager_state: None,
             workspace_state: None,
-            security_context_manager,
+            security_context_manager: security_context_manager,
         };
 
         WaylandSource::new(connection, event_queue)
