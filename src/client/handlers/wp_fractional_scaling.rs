@@ -20,7 +20,7 @@ use crate::space::WrapperSpace;
 const SCALE_DENOMINATOR: f64 = 120.;
 
 /// Fractional scaling manager.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FractionalScalingManager<T> {
     manager: WpFractionalScaleManagerV1,
 

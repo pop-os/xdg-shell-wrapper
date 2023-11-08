@@ -1,3 +1,5 @@
+use crate::space::{ToplevelInfoSpace, ToplevelManagerSpace, WorkspaceHandlerSpace};
+use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
 use cctk::workspace::WorkspaceState;
 use cctk::{toplevel_info::ToplevelInfoState, toplevel_management::ToplevelManagerState};
 use sctk::data_device_manager::data_device::DataDevice;
@@ -49,10 +51,8 @@ use tracing::error;
 use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
-use crate::space::{ToplevelInfoSpace, ToplevelManagerSpace, WorkspaceHandlerSpace};
-use crate::{server_state::ServerState, shared_state::GlobalState, space::WrapperSpace};
-
 use super::handlers::wp_fractional_scaling::FractionalScalingManager;
+use super::handlers::wp_security_context::SecurityContextManager;
 use super::handlers::wp_viewporter::ViewporterState;
 
 #[derive(Debug)]
@@ -131,6 +131,8 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub toplevel_manager_state: Option<ToplevelManagerState>,
     /// toplevel_manager_state
     pub workspace_state: Option<WorkspaceState>,
+    /// security context manager
+    pub security_context_manager: Option<SecurityContextManager>,
 
     pub(crate) connection: Connection,
     /// queue handle
@@ -236,18 +238,25 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
                 Ok(m) => {
                     let viewporter_state = match ViewporterState::new(&globals, &qh) {
                         Ok(s) => Some(s),
-                        Err(e) => {
-                            error!("Failed to initialize viewporter: {}", e);
+                        Err(why) => {
+                            error!(?why, "Failed to initialize viewporter");
                             None
                         }
                     };
                     (viewporter_state, Some(m))
                 }
-                Err(e) => {
-                    error!("Failed to initialize fractional scaling manager: {}", e);
+                Err(why) => {
+                    error!(?why, "Failed to initialize fractional scaling manager");
                     (None, None)
                 }
             };
+        let security_context_manager = match SecurityContextManager::new(&globals, &qh) {
+            Err(why) => {
+                error!(?why, "Failed to initialize security context manager");
+                None
+            }
+            Ok(m) => Some(m),
+        };
 
         let client_state = ClientState {
             focused_surface: space.get_client_focused_surface(),
@@ -277,9 +286,9 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             toplevel_info_state: None,
             toplevel_manager_state: None,
             workspace_state: None,
+            security_context_manager: security_context_manager,
         };
 
-        // TODO refactor to watch outputs and update space when outputs change or new outputs appear
         WaylandSource::new(connection, event_queue)
             .insert(loop_handle)
             .unwrap();

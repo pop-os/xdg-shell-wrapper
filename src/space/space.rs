@@ -36,6 +36,7 @@ use crate::{
     config::WrapperConfig,
     server_state::ServerPointerFocus,
     shared_state::GlobalState,
+    wp_security_context::SecurityContextManager,
 };
 
 /// Space events
@@ -111,6 +112,7 @@ pub trait WrapperSpace {
         &mut self,
         compositor_state: &CompositorState,
         fractional_scale_manager: Option<&FractionalScalingManager<W>>,
+        security_context_manager: Option<SecurityContextManager>,
         viewport: Option<&ViewporterState<W>>,
         layer_state: &mut LayerShell,
         conn: &Connection,
@@ -220,7 +222,12 @@ pub trait WrapperSpace {
     fn config(&self) -> Self::Config;
 
     /// spawns the clients for the wrapper
-    fn spawn_clients(&mut self, display: wayland_server::DisplayHandle) -> anyhow::Result<()>;
+    fn spawn_clients<W: WrapperSpace>(
+        &mut self,
+        display: wayland_server::DisplayHandle,
+        qh: &QueueHandle<GlobalState<W>>,
+        security_context_manager: Option<SecurityContextManager>,
+    ) -> anyhow::Result<()>;
 
     /// gets visibility of the wrapper
     fn visibility(&self) -> Visibility {
