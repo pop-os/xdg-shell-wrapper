@@ -22,7 +22,7 @@ use smithay::{
     utils::Transform,
     wayland::{
         compositor::{with_states, SurfaceAttributes},
-        dmabuf::DmabufHandler,
+        dmabuf::{DmabufHandler, ImportError},
         selection::{
             data_device::{
                 set_data_device_focus, with_source_metadata, ClientDndGrabHandler,
@@ -378,17 +378,17 @@ impl<W: WrapperSpace> DmabufHandler for GlobalState<W> {
 
     fn dmabuf_imported(
         &mut self,
-        global: &smithay::wayland::dmabuf::DmabufGlobal,
+        _global: &smithay::wayland::dmabuf::DmabufGlobal,
         dmabuf: smithay::backend::allocator::dmabuf::Dmabuf,
-        notifier: smithay::wayland::dmabuf::ImportNotifier,
-    ) {
-        if let Some(Err(err)) = self
-            .space
+    ) -> Result<(), ImportError> {
+        self.space
             .renderer()
             .map(|renderer| renderer.import_dmabuf(&dmabuf, None))
-        {
-            error!("Failed to import dmabuf: {}", err);
-        }
+            .map(|r| match r {
+                Ok(_) => Ok(()),
+                Err(_) => Err(ImportError::Failed),
+            })
+            .unwrap_or_else(|| Err(ImportError::Failed))
     }
 }
 

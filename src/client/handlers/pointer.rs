@@ -13,6 +13,7 @@ use smithay::{
     reexports::wayland_server::protocol::wl_pointer::AxisSource,
     utils::{Point, SERIAL_COUNTER},
 };
+use tracing::info;
 
 impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
     fn pointer_frame(
@@ -37,6 +38,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     .unwrap_or(false)
             })
             .unwrap();
+        let seat = &self.server_state.seats[seat_index].server.seat;
         let seat_name = self.server_state.seats[seat_index].name.to_string();
         let ptr = self.server_state.seats[seat_index]
             .server
@@ -364,7 +366,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
 
                     if !horizontal.is_none() {
                         if horizontal.discrete.abs() > 0 {
-                            af = af.v120(Axis::Horizontal, horizontal.discrete)
+                            af = af.discrete(Axis::Horizontal, horizontal.discrete)
                         }
                         if horizontal.absolute.abs() > 0.0 {
                             af = af.value(Axis::Horizontal, horizontal.absolute);
@@ -376,7 +378,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
 
                     if !vertical.is_none() {
                         if vertical.discrete.abs() > 0 {
-                            af = af.v120(Axis::Vertical, vertical.discrete)
+                            af = af.discrete(Axis::Vertical, vertical.discrete)
                         }
                         if vertical.absolute.abs() > 0.0 {
                             af = af.value(Axis::Vertical, horizontal.absolute);
