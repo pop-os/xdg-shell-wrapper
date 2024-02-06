@@ -13,7 +13,6 @@ use smithay::{
     reexports::wayland_server::protocol::wl_pointer::AxisSource,
     utils::{Point, SERIAL_COUNTER},
 };
-use tracing::info;
 
 impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
     fn pointer_frame(
@@ -381,7 +380,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             af = af.discrete(Axis::Vertical, vertical.discrete)
                         }
                         if vertical.absolute.abs() > 0.0 {
-                            af = af.value(Axis::Vertical, horizontal.absolute);
+                            af = af.value(Axis::Vertical, vertical.absolute);
                         }
                         if vertical.stop {
                             af.stop(Axis::Vertical);
