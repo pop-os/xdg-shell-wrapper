@@ -101,6 +101,20 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             None => return,
         };
 
+        {
+            let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
+            if let Some(i) = c_hovered_surface.iter().position(|f| f.1 == seat.name) {
+                c_hovered_surface[i].0 = offer.surface.clone();
+                c_hovered_surface[i].2 = FocusStatus::Focused;
+            } else {
+                c_hovered_surface.push((
+                    offer.surface.clone(),
+                    seat.name.clone(),
+                    FocusStatus::Focused,
+                ));
+            }
+        }
+
         let wl_offer = offer.inner();
 
         let mime_types = wl_offer
@@ -217,6 +231,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             &seat.name,
             offer.surface.clone(),
         );
+
         set_data_device_focus(
             &self.server_state.display_handle,
             &seat.server.seat,
@@ -232,6 +247,13 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
 
         if let Some(pointer) = seat.client.ptr.as_ref().map(|p| p.pointer().clone()) {
             self.pointer_frame(conn, qh, &pointer, &[motion_event]);
+        }
+
+        {
+            let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
+            if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == offer.surface) {
+                c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
+            }
         }
     }
 
