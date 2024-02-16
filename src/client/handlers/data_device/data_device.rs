@@ -187,6 +187,13 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             return;
         };
 
+        {
+            let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
+            if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == surface) {
+                c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
+            }
+        }
+
         set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, None);
 
         let duration_since = Instant::now().duration_since(self.start_time).as_millis() as u32;
@@ -247,13 +254,6 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
 
         if let Some(pointer) = seat.client.ptr.as_ref().map(|p| p.pointer().clone()) {
             self.pointer_frame(conn, qh, &pointer, &[motion_event]);
-        }
-
-        {
-            let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
-            if let Some(i) = c_hovered_surface.iter().position(|f| f.0 == offer.surface) {
-                c_hovered_surface[i].2 = FocusStatus::LastFocused(Instant::now());
-            }
         }
     }
 
