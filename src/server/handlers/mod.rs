@@ -22,7 +22,8 @@ use smithay::{
     utils::Transform,
     wayland::{
         compositor::{with_states, SurfaceAttributes},
-        dmabuf::{DmabufHandler, ImportError},
+        dmabuf::{DmabufHandler, ImportNotifier},
+        output::OutputHandler,
         selection::{
             data_device::{
                 set_data_device_focus, with_source_metadata, ClientDndGrabHandler,
@@ -159,6 +160,8 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             }
         }
     }
+
+    type TouchFocus = WlSurface;
 }
 
 delegate_seat!(@<W: WrapperSpace + 'static> GlobalState<W>);
@@ -368,6 +371,7 @@ delegate_data_device!(@<W: WrapperSpace + 'static> GlobalState<W>);
 
 delegate_output!(@<W: WrapperSpace + 'static> GlobalState<W>);
 
+impl<W: WrapperSpace> OutputHandler for GlobalState<W> {}
 //
 // Dmabuf
 //
@@ -380,15 +384,15 @@ impl<W: WrapperSpace> DmabufHandler for GlobalState<W> {
         &mut self,
         _global: &smithay::wayland::dmabuf::DmabufGlobal,
         dmabuf: smithay::backend::allocator::dmabuf::Dmabuf,
-    ) -> Result<(), ImportError> {
-        self.space
+        _: ImportNotifier,
+    ) {
+        if let Some(Err(err)) = self
+            .space
             .renderer()
             .map(|renderer| renderer.import_dmabuf(&dmabuf, None))
-            .map(|r| match r {
-                Ok(_) => Ok(()),
-                Err(_) => Err(ImportError::Failed),
-            })
-            .unwrap_or_else(|| Err(ImportError::Failed))
+        {
+            error!("Failed to import dmabuf: {}", err);
+        }
     }
 }
 

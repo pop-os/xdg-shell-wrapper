@@ -365,10 +365,10 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
 
                     if !horizontal.is_none() {
                         if horizontal.discrete.abs() > 0 {
-                            af = af.discrete(Axis::Horizontal, horizontal.discrete)
+                            af = af.v120(Axis::Horizontal, horizontal.discrete * 120);
                         }
                         if horizontal.absolute.abs() > 0.0 {
-                            af = af.value(Axis::Horizontal, horizontal.absolute);
+                            af = af.value(Axis::Horizontal, horizontal.absolute * 120.);
                         }
                         if horizontal.stop {
                             af.stop(Axis::Horizontal);
@@ -377,10 +377,10 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
 
                     if !vertical.is_none() {
                         if vertical.discrete.abs() > 0 {
-                            af = af.discrete(Axis::Vertical, vertical.discrete)
+                            af = af.v120(Axis::Vertical, vertical.discrete * 120);
                         }
                         if vertical.absolute.abs() > 0.0 {
-                            af = af.value(Axis::Vertical, vertical.absolute);
+                            af = af.value(Axis::Vertical, vertical.absolute * 120.);
                         }
                         if vertical.stop {
                             af.stop(Axis::Vertical);
