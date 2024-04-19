@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use cctk::wayland_client::protocol::wl_surface::WlSurface;
 use sctk::{
     data_device_manager::{
         data_device::{DataDeviceData, DataDeviceHandler},
@@ -75,6 +76,9 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         _conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: &WlDataDevice,
+        _x: f64,
+        _y: f64,
+        _surface: &WlSurface,
     ) {
         let seat = match self
             .server_state
@@ -142,17 +146,19 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
                 .update_pointer((x as i32, y as i32), &seat.name, offer.surface.clone());
 
         seat.client.dnd_offer = Some(offer);
+        // TODO: touch vs pointer start data
         if !seat.client.next_dnd_offer_is_mine {
             start_dnd(
                 &self.server_state.display_handle.clone(),
                 &seat.server.seat.clone(),
                 self,
                 SERIAL_COUNTER.next_serial(),
-                GrabStartData {
+                Some(GrabStartData {
                     focus: server_focus.map(|f| (f.surface, f.s_pos)),
                     button: 0x110, // assume left button for now, maybe there is another way..
                     location: (x, y).into(),
-                },
+                }),
+                None,
                 metadata,
             );
         }
@@ -216,6 +222,8 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         conn: &sctk::reexports::client::Connection,
         qh: &sctk::reexports::client::QueueHandle<Self>,
         data_device: &WlDataDevice,
+        _x: f64,
+        _y: f64,
     ) {
         // treat it as pointer motion
         let seat = match self

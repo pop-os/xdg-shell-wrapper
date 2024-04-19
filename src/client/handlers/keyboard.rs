@@ -245,6 +245,7 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
         _keyboard: &sctk::reexports::client::protocol::wl_keyboard::WlKeyboard,
         _serial: u32,
         _modifiers: sctk::seat::keyboard::Modifiers,
+        _: u32,
     ) {
         // TODO should these be handled specially
     }
