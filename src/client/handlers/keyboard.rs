@@ -9,7 +9,14 @@ use sctk::{
     seat::keyboard::{KeyboardHandler, Keysym, RepeatInfo},
     shell::WaylandSurface,
 };
-use smithay::{backend::input::KeyState, input::keyboard::FilterResult, utils::SERIAL_COUNTER};
+use smithay::{
+    backend::input::KeyState,
+    input::keyboard::{
+        xkb::{Keymap, KeymapFormat},
+        FilterResult,
+    },
+    utils::SERIAL_COUNTER,
+};
 
 impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
     fn enter(
@@ -235,6 +242,32 @@ impl<W: WrapperSpace> KeyboardHandler for GlobalState<W> {
                 }
                 RepeatInfo::Disable => kbd.change_repeat_info(0, 0),
             };
+        }
+    }
+
+    fn update_keymap(
+        &mut self,
+        _conn: &sctk::reexports::client::Connection,
+        _qh: &sctk::reexports::client::QueueHandle<Self>,
+        keyboard: &sctk::reexports::client::protocol::wl_keyboard::WlKeyboard,
+        keymap: sctk::seat::keyboard::Keymap<'_>,
+    ) {
+        let (name, kbd) = if let Some((name, Some(kbd))) = self
+            .server_state
+            .seats
+            .iter()
+            .find(|SeatPair { client, .. }| {
+                client.kbd.as_ref().map(|k| k == keyboard).unwrap_or(false)
+            })
+            .map(|seat| (seat.name.as_str(), seat.server.seat.get_keyboard()))
+        {
+            (name.to_string(), kbd)
+        } else {
+            return;
+        };
+
+        if let Err(err) = kbd.set_keymap_from_string(self, keymap.as_string()) {
+            tracing::error!("Failed to set keymap for seat {}: {}", name, err);
         }
     }
 
