@@ -87,8 +87,6 @@ pub fn run<W: WrapperSpace + 'static>(
     // let set_clipboard_once = Rc::new(Cell::new(false));
 
     loop {
-        let now = Instant::now();
-
         // cleanup popup manager
         if last_cleanup.elapsed() > five_min {
             global_state.server_state.popup_manager.cleanup();
@@ -145,12 +143,6 @@ pub fn run<W: WrapperSpace + 'static>(
         };
         event_loop.dispatch(dur, &mut global_state)?;
 
-        if let Some(to_sleep) = Instant::now()
-            .checked_duration_since(now)
-            .and_then(|spent| dur.checked_sub(spent))
-        {
-            std::thread::sleep(to_sleep);
-        }
         // rendering
         {
             let space = &mut global_state.space;
