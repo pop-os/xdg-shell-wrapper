@@ -18,6 +18,46 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
     fn pointer_frame(
         &mut self,
         conn: &sctk::reexports::client::Connection,
+        qh: &sctk::reexports::client::QueueHandle<Self>,
+        pointer: &sctk::reexports::client::protocol::wl_pointer::WlPointer,
+        events: &[sctk::seat::pointer::PointerEvent],
+    ) {
+        self.pointer_frame_inner(conn, qh, pointer, events);
+        let mut generated_events = self.space.generate_pointer_events();
+        if !generated_events.is_empty() {
+            for e in &mut generated_events {
+                match &mut e.kind {
+                    sctk::seat::pointer::PointerEventKind::Enter { serial } => {
+                        *serial = SERIAL_COUNTER.next_serial().into();
+                    }
+                    sctk::seat::pointer::PointerEventKind::Leave { serial } => {
+                        *serial = SERIAL_COUNTER.next_serial().into();
+                    }
+                    sctk::seat::pointer::PointerEventKind::Motion { time } => {
+                        *time = self.start_time.elapsed().as_millis().try_into().unwrap();
+                    }
+                    sctk::seat::pointer::PointerEventKind::Press { time, serial, .. } => {
+                        *time = self.start_time.elapsed().as_millis().try_into().unwrap();
+                        *serial = SERIAL_COUNTER.next_serial().into();
+                    }
+                    sctk::seat::pointer::PointerEventKind::Release { time, serial, .. } => {
+                        *time = self.start_time.elapsed().as_millis().try_into().unwrap();
+                        *serial = SERIAL_COUNTER.next_serial().into();
+                    }
+                    sctk::seat::pointer::PointerEventKind::Axis { time, .. } => {
+                        *time = self.start_time.elapsed().as_millis().try_into().unwrap();
+                    }
+                }
+            }
+            self.pointer_frame_inner(conn, qh, pointer, &generated_events);
+        }
+    }
+}
+
+impl<W: WrapperSpace> GlobalState<W> {
+    fn pointer_frame_inner(
+        &mut self,
+        conn: &sctk::reexports::client::Connection,
         _qh: &sctk::reexports::client::QueueHandle<Self>,
         pointer: &sctk::reexports::client::protocol::wl_pointer::WlPointer,
         events: &[sctk::seat::pointer::PointerEvent],
@@ -37,7 +77,6 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                     .unwrap_or(false)
             })
             .unwrap();
-        let seat = &self.server_state.seats[seat_index].server.seat;
         let seat_name = self.server_state.seats[seat_index].name.to_string();
         let ptr = self.server_state.seats[seat_index]
             .server
@@ -173,7 +212,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         .find(|f| f.1.as_str() == seat_name)
                     {
                         Some(f) => f.0.clone(),
-                        None => return,
+                        None => continue,
                     };
 
                     // check tracked layer shell surface
@@ -199,11 +238,9 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                             },
                         );
                         ptr.frame(self);
-
                         continue;
                     }
 
-                    let prev_focus = ptr.current_focus().is_some();
                     if let Some(ServerPointerFocus {
                         surface,
                         c_pos,
@@ -225,23 +262,21 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         );
                         ptr.frame(self);
                     } else {
-                        if prev_focus {
-                            ptr.motion(
-                                self,
-                                None,
-                                &MotionEvent {
-                                    location: Point::from((surface_x, surface_y)),
-                                    serial: SERIAL_COUNTER.next_serial(),
-                                    time,
-                                },
-                            );
-                            ptr.frame(self);
-                            if let Some(themed_pointer) =
-                                &self.server_state.seats[seat_index].client.ptr
-                            {
-                                _ = themed_pointer
-                                    .set_cursor(conn, sctk::seat::pointer::CursorIcon::Default);
-                            }
+                        ptr.motion(
+                            self,
+                            None,
+                            &MotionEvent {
+                                location: Point::from((surface_x, surface_y)),
+                                serial: SERIAL_COUNTER.next_serial(),
+                                time,
+                            },
+                        );
+                        ptr.frame(self);
+                        if let Some(themed_pointer) =
+                            &self.server_state.seats[seat_index].client.ptr
+                        {
+                            _ = themed_pointer
+                                .set_cursor(conn, sctk::seat::pointer::CursorIcon::Default);
                         }
                     }
                 }
@@ -282,7 +317,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         continue;
                     }
 
-                    let s = self.space.handle_press(&seat_name);
+                    let s = self.space.handle_button(&seat_name, true);
 
                     kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
                     ptr.button(
@@ -328,7 +363,7 @@ impl<W: WrapperSpace> PointerHandler for GlobalState<W> {
                         continue;
                     }
 
-                    let s = self.space.handle_press(&seat_name);
+                    let s = self.space.handle_button(&seat_name, false);
                     kbd.set_focus(self, s, SERIAL_COUNTER.next_serial());
 
                     ptr.button(

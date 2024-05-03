@@ -13,6 +13,7 @@ use sctk::{
         protocol::{wl_output as c_wl_output, wl_surface},
         Connection, QueueHandle,
     },
+    seat::pointer::PointerEvent,
     shell::{
         wlr_layer::{LayerShell, LayerSurface, LayerSurfaceConfigure},
         xdg::{XdgPositioner, XdgShell},
@@ -173,9 +174,9 @@ pub trait WrapperSpace {
         positioner_state: PositionerState,
     ) -> anyhow::Result<()>;
 
-    /// handle a button press on a client surface
-    /// optionally returns a pressed server wl surface
-    fn handle_press(&mut self, seat_name: &str) -> Option<s_WlSurface>;
+    /// handle a button press or release on a client surface
+    /// optionally returns an interacted server wl surface
+    fn handle_button(&mut self, seat_name: &str, press: bool) -> Option<s_WlSurface>;
 
     /// keyboard focus lost handler
     fn keyboard_leave(&mut self, seat_name: &str, surface: Option<wl_surface::WlSurface>);
@@ -290,4 +291,9 @@ pub trait WrapperSpace {
     /// get the scale factor for a surface
     /// returns none if the surface is not tracked by this space
     fn get_scale_factor(&self, surface: &s_WlSurface) -> Option<f64>;
+
+    /// Generate Pointer events for clients
+    fn generate_pointer_events(&mut self) -> Vec<PointerEvent> {
+        Vec::new()
+    }
 }
