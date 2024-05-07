@@ -78,7 +78,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         data_device: &WlDataDevice,
         _x: f64,
         _y: f64,
-        _surface: &WlSurface,
+        surface: &WlSurface,
     ) {
         let seat = match self
             .server_state
@@ -97,6 +97,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             .iter_mut()
             .find(|f| f.1 == seat.name)
         {
+            f.0 = surface.clone();
             f.2 = FocusStatus::Focused;
         }
 
@@ -108,7 +109,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
         {
             let mut c_hovered_surface = self.client_state.hovered_surface.borrow_mut();
             if let Some(i) = c_hovered_surface.iter().position(|f| f.1 == seat.name) {
-                c_hovered_surface[i].0 = offer.surface.clone();
+                c_hovered_surface[i].0 = surface.clone();
                 c_hovered_surface[i].2 = FocusStatus::Focused;
             } else {
                 c_hovered_surface.push((
@@ -179,7 +180,8 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             Some(sp) => sp,
             None => return,
         };
-
+        let c_ptr = seat.client.ptr.as_ref().map(|p| p.pointer().clone());
+        let s_ptr = seat.server.seat.get_pointer();
         let surface = if let Some(f) = self
             .client_state
             .focused_surface
@@ -200,8 +202,6 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             }
         }
 
-        set_data_device_focus(&self.server_state.display_handle, &seat.server.seat, None);
-
         let duration_since = Instant::now().duration_since(self.start_time).as_millis() as u32;
 
         let leave_event = PointerEvent {
@@ -211,8 +211,11 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
             },
             position: (0.0, 0.0),
         };
+        if let Some(s) = s_ptr {
+            s.unset_grab(self, SERIAL_COUNTER.next_serial().into(), 0);
+        }
 
-        if let Some(pointer) = seat.client.ptr.as_ref().map(|p| p.pointer().clone()) {
+        if let Some(pointer) = c_ptr {
             self.pointer_frame(conn, qh, &pointer, &[leave_event]);
         }
     }

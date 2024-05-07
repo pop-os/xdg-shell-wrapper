@@ -302,7 +302,7 @@ impl<W: WrapperSpace> ServerDndGrabHandler for GlobalState<W> {
             None => return,
         };
         if let Some(offer) = seat.client.dnd_offer.as_ref() {
-            unsafe { receive_to_fd(offer.inner(), mime_type, fd) }
+            receive_to_fd(offer.inner(), mime_type, fd)
         }
     }
 
