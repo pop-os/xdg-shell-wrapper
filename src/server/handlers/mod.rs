@@ -332,7 +332,7 @@ impl<W: WrapperSpace> ServerDndGrabHandler for GlobalState<W> {
             None => return,
         };
         if let Some(offer) = seat.client.dnd_offer.take() {
-            offer.finish();
+            offer.destroy();
         }
     }
 
