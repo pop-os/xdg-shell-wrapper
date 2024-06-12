@@ -53,6 +53,16 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                 None
             };
 
+            let touch = if info.has_touch {
+                if let Ok(touch) = self.client_state.seat_state.get_touch(qh, &seat) {
+                    Some(touch)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             // A lot of clients bind keyboard and pointer unconditionally once on launch..
             // Initial clients might race the compositor on adding periheral and
             // end up in a state, where they are not able to receive input.
@@ -66,6 +76,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                 .add_keyboard(Default::default(), 200, 20)
                 .unwrap();
             new_server_seat.add_pointer();
+            new_server_seat.add_touch();
 
             let data_device = self
                 .client_state
@@ -78,6 +89,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     _seat: seat.clone(),
                     kbd,
                     ptr,
+                    touch,
                     data_device,
                     copy_paste_source: None,
                     dnd_source: None,
@@ -89,7 +101,6 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     next_dnd_offer_is_mine: false,
                     next_selection_offer_is_mine: false,
                     dnd_icon: None,
-                    // TODO forward touch
                 },
                 server: ServerSeat {
                     seat: new_server_seat,
@@ -132,6 +143,7 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     _seat: seat.clone(),
                     kbd: None,
                     ptr: None,
+                    touch: None,
                     data_device: self
                         .client_state
                         .data_device_manager
@@ -183,7 +195,14 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
                     }
                 }
             }
-            sctk::seat::Capability::Touch => {} // TODO
+            sctk::seat::Capability::Touch => {
+                if info.has_touch {
+                    sp.server.seat.add_touch();
+                    if let Ok(touch) = self.client_state.seat_state.get_touch(qh, &seat) {
+                        sp.client.touch.replace(touch);
+                    }
+                }
+            }
             _ => unimplemented!(),
         }
     }

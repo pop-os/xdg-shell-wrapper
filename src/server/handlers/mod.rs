@@ -72,6 +72,8 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
 
     type PointerFocus = WlSurface;
 
+    type TouchFocus = WlSurface;
+
     fn focus_changed(
         &mut self,
         seat: &smithay::input::Seat<Self>,
@@ -160,8 +162,6 @@ impl<W: WrapperSpace> SeatHandler for GlobalState<W> {
             }
         }
     }
-
-    type TouchFocus = WlSurface;
 }
 
 delegate_seat!(@<W: WrapperSpace + 'static> GlobalState<W>);

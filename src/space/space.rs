@@ -150,7 +150,15 @@ pub trait WrapperSpace {
     ) -> anyhow::Result<()>;
 
     /// handle pointer motion on the space
+    // XXX touch? under?
     fn update_pointer(
+        &mut self,
+        dim: (i32, i32),
+        seat_name: &str,
+        surface: wl_surface::WlSurface,
+    ) -> Option<ServerPointerFocus>;
+
+    fn touch_under(
         &mut self,
         dim: (i32, i32),
         seat_name: &str,

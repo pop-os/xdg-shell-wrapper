@@ -21,6 +21,7 @@ use sctk::{
             wl_output::WlOutput,
             wl_seat::WlSeat,
             wl_surface::{self, WlSurface},
+            wl_touch,
         },
         Connection, QueueHandle,
     },
@@ -47,6 +48,7 @@ use smithay::{
 use std::fmt::Debug;
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, time::Instant};
+use std::collections::HashMap;
 use tracing::error;
 use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
@@ -60,6 +62,7 @@ pub(crate) struct ClientSeat {
     pub(crate) _seat: WlSeat,
     pub(crate) kbd: Option<wl_keyboard::WlKeyboard>,
     pub(crate) ptr: Option<ThemedPointer>,
+    pub(crate) touch: Option<wl_touch::WlTouch>,
     pub(crate) last_enter: u32,
     pub(crate) last_key_press: (u32, u32),
     pub(crate) last_pointer_press: (u32, u32),
@@ -146,6 +149,7 @@ pub struct ClientState<W: WrapperSpace + 'static> {
     pub(crate) multipool_ctr: usize,
     pub(crate) last_key_pressed: Vec<(String, (u32, u32), wl_surface::WlSurface)>,
     pub(crate) outputs: Vec<(WlOutput, Output, GlobalId)>,
+    pub(crate) touch_surfaces: HashMap<i32, WlSurface>,
 
     pub(crate) pending_layer_surfaces: Vec<(
         smithay::wayland::shell::wlr_layer::LayerSurface,
@@ -276,6 +280,7 @@ impl<W: WrapperSpace + 'static> ClientState<W> {
             data_device_manager: DataDeviceManagerState::bind(&globals, &qh)
                 .expect("data device manager is not available"),
             outputs: Default::default(),
+            touch_surfaces: HashMap::new(),
             registry_state,
             multipool: None,
             multipool_ctr: 0,
