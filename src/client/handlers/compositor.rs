@@ -88,4 +88,22 @@ impl<W: WrapperSpace> CompositorHandler for GlobalState<W> {
 
         self.space.transform_changed(conn, surface, new_transform);
     }
+
+    fn surface_enter(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &wl_surface::WlSurface,
+        _output: &cctk::wayland_client::protocol::wl_output::WlOutput,
+    ) {
+    }
+
+    fn surface_leave(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &wl_surface::WlSurface,
+        _output: &cctk::wayland_client::protocol::wl_output::WlOutput,
+    ) {
+    }
 }
