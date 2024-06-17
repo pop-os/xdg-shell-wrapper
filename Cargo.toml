@@ -13,16 +13,21 @@ smithay = { git = "https://github.com/smithay/smithay", default-features = false
     "backend_egl",
     "backend_drm",
     "renderer_gl",
-], rev = "49ba425" }
+], rev = "fe654453b032020cb26861a38b245ba12842ba8f" }
 # smithay = { path = "../smithay", default-features = false, features = ["use_system_lib", "desktop", "backend_egl", "backend_drm", "renderer_gl"] }
 # sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = ["calloop", "xkbcommon"] }
-sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = [
+# sctk = { git = "https://github.com/smithay/client-toolkit", package = "smithay-client-toolkit", features = [
+#     "calloop",
+#     "xkbcommon",
+# ], rev = "3bed072" }
+sctk = { package = "smithay-client-toolkit", version = "0.19.1", features = [
     "calloop",
     "xkbcommon",
-], rev = "3bed072" }
-cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols", rev = "e65fa5e" }
+] }
+
+cctk = { package = "cosmic-client-toolkit", git = "https://github.com/pop-os/cosmic-protocols", rev = "c8d3a1c" }
 wayland-backend = { version = "0.3.2", features = ["client_system"] }
-wayland-protocols = { version = "0.31.0", features = ["staging"] }
+wayland-protocols = { version = "0.32.1", features = ["staging"] }
 tracing = "0.1.37"
 # sctk = { package = "smithay-client-toolkit", path = "../fork/client-toolkit", default-features = false, features = ["calloop", "xkbcommon"] }
 anyhow = "1.0.53"
@@ -40,9 +45,3 @@ rand = "0.8.5"
 
 [workspace]
 members = ["xdg-shell-wrapper-config"]
-
-[patch."https://github.com/Smithay/client-toolkit"]
-sctk = { git = "https://github.com/smithay/client-toolkit//", package = "smithay-client-toolkit", features = [
-    "calloop",
-    "xkbcommon",
-] }

@@ -155,7 +155,7 @@ impl<W: WrapperSpace> DataDeviceHandler for GlobalState<W> {
                 self,
                 SERIAL_COUNTER.next_serial(),
                 Some(GrabStartData {
-                    focus: server_focus.map(|f| (f.surface, f.s_pos)),
+                    focus: server_focus.map(|f| (f.surface, f.s_pos.to_f64())),
                     button: 0x110, // assume left button for now, maybe there is another way..
                     location: (x, y).into(),
                 }),

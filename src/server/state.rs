@@ -34,7 +34,7 @@ pub struct ServerPointerFocus {
     /// location in compositor space for the layer shell surface or popup
     pub c_pos: Point<i32, Logical>,
     /// location of the focused embedded surface in compositor space
-    pub s_pos: Point<i32, Logical>,
+    pub s_pos: Point<f64, Logical>,
 }
 
 /// helper type for focus
